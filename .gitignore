@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.env
+database/*.db
+# WhatsApp Web login session, and the general browser-control profile —
+# both as sensitive as a logged-in browser profile.
+data/whatsapp_profile/
+data/browser_profile/
+# Trained face-recognition model — biometric data, never commit it.
+data/face_auth/
+
+# Everything personal lives in data/, database/ and venv/ — never publish them.
+data/
+database/
+venv/
+dist/
+*.lnk
+.env

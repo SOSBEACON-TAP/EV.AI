@@ -1,0 +1,76 @@
+# Stage 1 dependencies (UI shell + config)
+PySide6>=6.6.0
+python-dotenv>=1.0.0
+psutil>=5.9.0
+
+# Stage 2 dependencies (voice input/output + clap-to-activate)
+SpeechRecognition>=3.10.0
+pyaudio>=0.2.13
+pyttsx3>=2.90
+# Note: we intentionally skipped a dedicated wake-word engine like
+# pvporcupine — it needs a trained model/account for a custom phrase
+# like "Hey EV". See voice/wake_word.py for the fuzzy-match approach
+# used instead.
+
+# Stage 3 dependency (AI brain) — installs both provider SDKs; only the
+# one matching your AI_PROVIDER in .env actually gets used at runtime.
+anthropic>=0.34.0
+google-genai
+groq
+openai   # ChatGPT/OpenAI, OpenRouter, DeepSeek, Mistral, xAI, custom servers
+
+# Optional Edge TTS backend (natural/human voice, completely free, no
+# account needed). Only needed if TTS_PROVIDER=edge in .env — pyttsx3
+# above still works without these.
+edge-tts>=6.1.0
+pygame>=2.5.0
+
+# Stage 9 dependencies (real file creation + WhatsApp automation).
+# send_email uses only smtplib/email from the standard library — no
+# package needed for that one.
+python-docx>=1.1.0
+fpdf2>=2.7.0
+openpyxl>=3.1.0
+playwright>=1.40.0
+# After installing, Playwright also needs its own browser binary once:
+#   python -m playwright install chromium
+
+# Stage 9 dependency (live dictation / keyboard control: type_text, press_key).
+pyautogui>=0.9.54
+
+# Stage 10 dependency (startup face check: core/face_auth.py).
+# IMPORTANT: only ever have ONE opencv-* package installed. opencv-python,
+# opencv-contrib-python, and opencv-python-headless all install files
+# under the same `cv2` folder and silently overwrite each other if more
+# than one ends up installed (even as a side effect of some other
+# package's own dependencies) — the result is a `cv2` that imports fine
+# but is missing random pieces, like cv2.face or cv2.CascadeClassifier.
+# If face checking ever errors about a "mixed/incomplete" opencv install,
+# this is why — run:
+#   pip uninstall opencv-python opencv-python-headless opencv-contrib-python -y
+#   pip install opencv-contrib-python
+opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+
+# Stage 10 dependency (Video mode: core/gesture_worker.py — pinch-to-zoom
+# hand gesture control). Separate from opencv/face-check above; Video
+# mode just reports a clear error and stays off if this isn't installed,
+# so it's fine to skip this line if you don't want the feature.
+# PINNED, not >=: mediapipe 0.10.31 removed the legacy mp.solutions API
+# that core/gesture_worker.py uses (mp.solutions.hands.Hands(...)) —
+# "module 'mediapipe' has no attribute 'solutions'" means pip grabbed a
+# newer version than this. 0.10.21 is the last one confirmed to still
+# have it. If you already have a newer mediapipe installed:
+#   pip uninstall mediapipe -y
+#   pip install mediapipe==0.10.21
+mediapipe==0.10.21
+
+# Dependencies for later stages are listed here (commented out) so you know
+# what's coming — do NOT install them yet unless you want to get ahead.
+# Stage 7 (memory / database):
+#   (sqlite3 is in the Python standard library — no install needed)
+# Packaging as a standalone .exe (not done yet):
+#   pyinstaller>=6.0.0
+# Gesture control: exact system volume on Windows (optional; falls back to volume keys)
+pycaw; sys_platform == "win32"
+comtypes; sys_platform == "win32"

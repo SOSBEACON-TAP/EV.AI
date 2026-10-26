@@ -1,0 +1,157 @@
+/* light_theme.qss
+   EV.AI — light counterpart to dark_theme.qss. Same structure and the
+   same red (left/status) + blue (right/action) accents, on a pale
+   blue-grey background with white glass panels. The HUD overlay stays
+   dark in both themes on purpose — it's a see-through sci-fi layer drawn
+   over whatever app is behind it. */
+
+* {
+    font-family: "Segoe UI", "Consolas", sans-serif;
+    color: #1B2A3A;
+}
+
+#RootBackground {
+    background-color: qradialgradient(
+        cx: 0.5, cy: 0.42, radius: 0.9, fx: 0.5, fy: 0.42,
+        stop: 0 #F4F8FC,
+        stop: 0.45 #E6EEF6,
+        stop: 1 #D5E0EC
+    );
+}
+
+#TopBar {
+    background-color: rgba(255, 255, 255, 220);
+    border-bottom: 1px solid rgba(60, 90, 130, 60);
+}
+
+#LogoLabel {
+    color: #10253A;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 4px;
+}
+
+#SystemStatusLabel {
+    color: #1C7C96;
+    font-size: 11px;
+    letter-spacing: 2px;
+}
+
+QFrame#GlassPanel {
+    background-color: rgba(255, 255, 255, 190);
+    border: 1px solid rgba(60, 90, 130, 55);
+    border-radius: 10px;
+}
+
+QFrame#GlassPanel[accent="red"] {
+    border: 1px solid rgba(215, 50, 75, 110);
+}
+
+QFrame#GlassPanel[accent="blue"] {
+    border: 1px solid rgba(40, 110, 215, 110);
+}
+
+QFrame#GlassPanel[accent="gold"] {
+    border: 1px solid rgba(214, 160, 0, 150);
+}
+
+QLabel#SectionTitle {
+    color: #4A6078;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    padding-bottom: 2px;
+}
+
+QLabel#StateLabel {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: #10253A;
+}
+
+QLabel#MetricValue {
+    font-size: 18px;
+    font-weight: 600;
+    color: #10253A;
+}
+
+QLabel#MetricCaption {
+    font-size: 10px;
+    color: #5A7088;
+    letter-spacing: 1px;
+}
+
+QTextEdit#ConversationPanel {
+    background-color: rgba(255, 255, 255, 235);
+    border: 1px solid rgba(60, 90, 130, 55);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 12px;
+}
+
+QLineEdit#CommandInput {
+    background-color: rgba(255, 255, 255, 245);
+    border: 1px solid rgba(40, 110, 215, 120);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #10253A;
+}
+
+QLineEdit#CommandInput:focus {
+    border: 1px solid #1C7C96;
+}
+
+QPushButton {
+    min-height: 16px;
+    background-color: rgba(40, 110, 215, 28);
+    border: 1px solid rgba(40, 110, 215, 120);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #1B3F6B;
+}
+
+QPushButton:hover {
+    background-color: rgba(40, 110, 215, 75);
+    color: #08203D;
+}
+
+QPushButton:pressed {
+    background-color: rgba(40, 110, 215, 120);
+}
+
+QPushButton#SendButton {
+    background-color: rgba(230, 70, 90, 200);
+    border: 1px solid rgba(215, 50, 75, 220);
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+QPushButton#SendButton:hover {
+    background-color: #F0576E;
+    color: #FFFFFF;
+}
+
+QPushButton#SettingsButton {
+    padding: 0px;
+    font-size: 15px;
+    border-radius: 16px;
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(60, 90, 130, 110);
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}

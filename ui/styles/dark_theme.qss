@@ -1,0 +1,162 @@
+/* dark_theme.qss
+   EV AI — original dark/glass futuristic theme, dual-tone edition.
+   Palette: near-black radial-glow background, glassy translucent panels,
+   a red+blue dual accent (red on the left/status side, blue on the
+   right/action side, both meeting in the cyan-white AI core). Original
+   color treatment — no franchise logo, glyph, or asset reused. */
+
+* {
+    font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+    color: #D8ECF4;
+}
+
+#RootBackground {
+    background-color: qradialgradient(
+        cx: 0.5, cy: 0.42, radius: 0.9, fx: 0.5, fy: 0.42,
+        stop: 0 #1A1236,
+        stop: 0.5 #0C0B1E,
+        stop: 1 #05050F
+    );
+}
+
+#TopBar {
+    background-color: rgba(18, 14, 40, 200);
+    border-bottom: 1px solid rgba(150, 120, 255, 70);
+}
+
+#LogoLabel {
+    color: #E8F6FC;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+#SystemStatusLabel {
+    color: #5FD0E8;
+    font-size: 11px;
+    letter-spacing: 2px;
+}
+
+QFrame#GlassPanel {
+    background-color: rgba(26, 22, 56, 150);
+    border: 1px solid rgba(160, 140, 255, 60);
+    border-radius: 18px;
+}
+
+/* Left-column panels lean red, right-column panels lean blue.
+   Set via a dynamic property so Python code decides which side a
+   panel belongs to (see ui/main_window.py: panel.setProperty("accent", "red"/"blue")). */
+QFrame#GlassPanel[accent="red"] {
+    border: 1px solid rgba(255, 100, 140, 95);
+}
+
+QFrame#GlassPanel[accent="blue"] {
+    border: 1px solid rgba(90, 170, 255, 95);
+}
+
+QFrame#GlassPanel[accent="gold"] {
+    border: 1px solid rgba(255, 196, 0, 110);
+}
+
+QLabel#SectionTitle {
+    color: #B9A8FF;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding-bottom: 2px;
+}
+
+QLabel#StateLabel {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: #EAF4FA;
+}
+
+QLabel#MetricValue {
+    font-size: 18px;
+    font-weight: 600;
+    color: #F2F9FC;
+}
+
+QLabel#MetricCaption {
+    font-size: 10px;
+    color: #8FA6BC;
+    letter-spacing: 1px;
+}
+
+QTextEdit#ConversationPanel {
+    background-color: rgba(10, 8, 28, 190);
+    border: 1px solid rgba(160, 140, 255, 45);
+    border-radius: 14px;
+    padding: 8px;
+    font-size: 12px;
+}
+
+QLineEdit#CommandInput {
+    background-color: rgba(10, 8, 28, 235);
+    border: 1px solid rgba(160, 140, 255, 90);
+    border-radius: 18px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #F2F9FC;
+}
+
+QLineEdit#CommandInput:focus {
+    border: 1px solid #B9A8FF;
+}
+
+QPushButton {
+    min-height: 16px;
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop: 0 rgba(255, 100, 140, 45), stop: 1 rgba(90, 170, 255, 45));
+    border: 1px solid rgba(170, 150, 255, 100);
+    border-radius: 14px;
+    padding: 8px 14px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #C6DCF4;
+}
+
+QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop: 0 rgba(255, 100, 140, 110), stop: 1 rgba(90, 170, 255, 110));
+    color: #FFFFFF;
+}
+
+QPushButton:pressed {
+    background-color: rgba(90, 150, 220, 110);
+}
+
+QPushButton#SendButton {
+    background-color: #8F6BFF;
+    border: 1px solid #B9A8FF;
+    color: #0A0818;
+    font-weight: 600;
+}
+
+QPushButton#SendButton:hover {
+    background-color: #A98AFF;
+    color: #0A0818;
+}
+
+QPushButton#SettingsButton {
+    padding: 0px;
+    font-size: 15px;
+    border-radius: 16px;
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(120, 150, 200, 90);
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}

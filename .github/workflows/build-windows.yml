@@ -1,0 +1,49 @@
+name: Build EV AI for Windows
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*", "V*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Find the app folder (the one with main.py)
+        shell: pwsh
+        run: |
+          $main = Get-ChildItem -Recurse -Filter main.py | Where-Object { $_.FullName -notmatch "venv|site-packages" } | Select-Object -First 1
+          $dir = $main.DirectoryName
+          echo "APPDIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "App folder: $dir"
+      - name: Install requirements
+        working-directory: ${{ env.APPDIR }}
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build
+        working-directory: ${{ env.APPDIR }}
+        shell: pwsh
+        run: |
+          if (-not (Test-Path EV_AI.spec)) { Copy-Item "$env:GITHUB_WORKSPACE/EV_AI.spec" . -ErrorAction SilentlyContinue }
+          pyinstaller EV_AI.spec --noconfirm
+      - name: Zip
+        working-directory: ${{ env.APPDIR }}
+        shell: pwsh
+        run: Compress-Archive -Path dist/EV_AI -DestinationPath EV_AI-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EV_AI-Windows
+          path: ${{ env.APPDIR }}/EV_AI-Windows.zip
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APPDIR }}/EV_AI-Windows.zip
