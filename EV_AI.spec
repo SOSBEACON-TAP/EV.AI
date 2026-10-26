@@ -28,7 +28,19 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hidden,
-    excludes=["tkinter", "matplotlib.tests", "scipy.tests"],
+    # EV AI only uses QtCore/QtWidgets/QtGui/QtMultimedia: leave out the rest of Qt
+    # (WebEngine alone is >150 MB) to keep the download small.
+    excludes=["tkinter", "matplotlib.tests", "scipy.tests"] + [
+        "PySide6." + m for m in (
+            "QtWebEngineCore", "QtWebEngineWidgets", "QtWebEngineQuick", "QtWebChannel", "QtWebSockets",
+            "QtPdf", "QtPdfWidgets", "QtQml", "QtQuick", "QtQuickWidgets", "QtQuick3D", "QtQuickControls2",
+            "Qt3DCore", "Qt3DRender", "Qt3DInput", "Qt3DLogic", "Qt3DAnimation", "Qt3DExtras",
+            "QtCharts", "QtDataVisualization", "QtGraphs", "QtSql", "QtTest", "QtBluetooth", "QtNfc",
+            "QtSensors", "QtSerialPort", "QtPositioning", "QtLocation", "QtRemoteObjects", "QtScxml",
+            "QtStateMachine", "QtTextToSpeech", "QtVirtualKeyboard", "QtDesigner", "QtHelp", "QtUiTools",
+            "QtOpenGL", "QtOpenGLWidgets", "QtSvg", "QtSvgWidgets", "QtHttpServer", "QtNetworkAuth",
+        )
+    ],
 )
 pyz = PYZ(a.pure)
 exe = EXE(
