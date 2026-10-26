@@ -34,6 +34,16 @@ jobs:
         run: |
           if (-not (Test-Path EV_AI.spec)) { Copy-Item "$env:GITHUB_WORKSPACE/EV_AI.spec" . -ErrorAction SilentlyContinue }
           pyinstaller EV_AI.spec --noconfirm
+      - name: Size report
+        working-directory: ${{ env.APPDIR }}
+        shell: pwsh
+        run: |
+          $rows = Get-ChildItem dist/EV_AI/_internal | ForEach-Object {
+            $sz = if ($_.PSIsContainer) { (Get-ChildItem $_.FullName -Recurse -File | Measure-Object Length -Sum).Sum } else { $_.Length }
+            [pscustomobject]@{ Name = $_.Name; MB = [math]::Round($sz / 1MB, 1) }
+          } | Sort-Object MB -Descending | Select-Object -First 25
+          $txt = ($rows | ForEach-Object { "$($_.Name)=$($_.MB)" }) -join "; "
+          Write-Host "::notice title=Size report::$txt"
       - name: Zip
         working-directory: ${{ env.APPDIR }}
         shell: pwsh
