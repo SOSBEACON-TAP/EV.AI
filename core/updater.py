@@ -22,6 +22,7 @@ copy that uses it. Only point it at a place you control.
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -220,6 +221,63 @@ def install_requirements(app_root: Path) -> tuple[bool, str]:
     return True, ""
 
 
+# ---------------------------------------------------------------------------
+# Packaged (.exe) version: download the full Windows zip, then a small helper
+# script swaps the files after EV AI closes and starts it again.
+# ---------------------------------------------------------------------------
+PENDING_SCRIPT: "Path | None" = None
+_MAX_EXE_DOWNLOAD = 1_500_000_000
+
+
+def is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def _download_big(zip_url: str, expected_sha256: str, progress=None) -> Path:
+    global _MAX_DOWNLOAD
+    old = _MAX_DOWNLOAD
+    _MAX_DOWNLOAD = _MAX_EXE_DOWNLOAD
+    try:
+        return download(zip_url, expected_sha256, progress)
+    finally:
+        _MAX_DOWNLOAD = old
+
+
+def stage_frozen(zip_path: Path, app_root: Path) -> Path:
+    """Unpacks the Windows zip next to the app and writes the swap script."""
+    global PENDING_SCRIPT
+    stage = app_root / "data" / "update_stage"
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            root = stage.resolve()
+            for member in z.namelist():
+                if not (stage / member).resolve().is_relative_to(root):
+                    raise UpdateError("The update contains an unsafe path. Not installing.")
+            z.extractall(stage)
+    except zipfile.BadZipFile as e:
+        raise UpdateError("The downloaded update is not a valid zip file.") from e
+    new_dir = stage / "EV_AI"
+    if not (new_dir / "EV_AI.exe").exists():
+        raise UpdateError("The update doesn't contain EV_AI.exe. Not installing.")
+    script = app_root / "data" / "apply_update.bat"
+    exe = Path(sys.executable).resolve()
+    script.write_text(
+        "@echo off\r\n"
+        ":wait\r\n"
+        f'tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul\r\n'
+        "if not errorlevel 1 (\r\n  ping -n 2 127.0.0.1 >nul\r\n  goto wait\r\n)\r\n"
+        f'robocopy "{new_dir}" "{app_root}" /E /XD data database /XF .env /R:5 /W:1 /NFL /NDL /NJH /NJS >nul\r\n'
+        f'rmdir /s /q "{stage}"\r\n'
+        f'start "" "{exe}"\r\n'
+        'del "%~f0"\r\n',
+        encoding="ascii",
+    )
+    PENDING_SCRIPT = script
+    return script
+
+
 def check_and_install(url: str, current_version: str, app_root: Path, progress=None) -> dict:
     """Whole flow in one call (used by the UI's worker thread after the
     user confirms): returns {"version", "files", "requirements_ok", "note"}."""
@@ -228,6 +286,14 @@ def check_and_install(url: str, current_version: str, app_root: Path, progress=N
         raise UpdateError(f"You're already up to date ({current_version}).")
     if not info["zip_url"]:
         raise UpdateError("This update has no download link, so it can't be installed automatically.")
+    if is_frozen():
+        zip_path = _download_big(info["zip_url"], info["sha256"], progress)
+        try:
+            stage_frozen(zip_path, app_root)
+        finally:
+            zip_path.unlink(missing_ok=True)
+        return {"version": info["version"], "files": 0, "requirements_ok": True,
+                "note": "", "backup": "", "frozen": True}
     zip_path = download(info["zip_url"], info["sha256"], progress)
     try:
         result = install(zip_path, app_root, current_version)

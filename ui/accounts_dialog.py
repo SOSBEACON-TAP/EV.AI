@@ -454,13 +454,18 @@ class AccountsDialog(QDialog):
 
 def _restart_app() -> None:
     """Starts a fresh copy of EV.AI, then closes this one."""
-    if getattr(sys, "frozen", False):
+    from core import updater as _updater
+    if getattr(sys, "frozen", False) and _updater.PENDING_SCRIPT is not None:
+        # A downloaded update is waiting: the helper swaps the files once we
+        # close, then starts the new EV_AI.exe.
+        command = ["cmd.exe", "/c", str(_updater.PENDING_SCRIPT)]
+    elif getattr(sys, "frozen", False):
         command = [sys.executable]
     else:
         command = [sys.executable, str(APP_ROOT / "main.py")]
     flags = 0
     if os.name == "nt":
-        flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED | NEW_PROCESS_GROUP | NO_WINDOW
     try:
         subprocess.Popen(command, cwd=str(APP_ROOT), creationflags=flags, close_fds=True)
     except OSError as e:

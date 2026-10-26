@@ -38,6 +38,16 @@ jobs:
         working-directory: ${{ env.APPDIR }}
         shell: pwsh
         run: Compress-Archive -Path dist/EV_AI -DestinationPath EV_AI-Windows.zip
+      - name: Write update manifest
+        working-directory: ${{ env.APPDIR }}
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash EV_AI-Windows.zip -Algorithm SHA256).Hash.ToLower()
+          $tag = "${{ github.ref_name }}"
+          $env:EV_SHA = $hash
+          $env:EV_ZIP_URL = "https://github.com/${{ github.repository }}/releases/download/$tag/EV_AI-Windows.zip"
+          python -c "import json,os,app_version as a; json.dump({'version':a.VERSION,'url':'https://github.com/${{ github.repository }}/releases/latest','notes':getattr(a,'RELEASE_NOTES',''),'zip_url':os.environ['EV_ZIP_URL'],'sha256':os.environ['EV_SHA']}, open('version-windows.json','w'))"
+          Get-Content version-windows.json
       - uses: actions/upload-artifact@v4
         with:
           name: EV_AI-Windows
@@ -46,4 +56,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.APPDIR }}/EV_AI-Windows.zip
+          files: |
+            ${{ env.APPDIR }}/EV_AI-Windows.zip
+            ${{ env.APPDIR }}/version-windows.json

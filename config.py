@@ -62,7 +62,10 @@ def _get_int(name: str, default: int) -> int:
 # copy you hand out checks it automatically; users can still override it with
 # UPDATE_CHECK_URL in .env. Leave empty to turn update checking off.
 # Example: "https://raw.githubusercontent.com/YOURNAME/ev-ai/main/version.json"
-DEFAULT_UPDATE_CHECK_URL = ""
+DEFAULT_UPDATE_CHECK_URL = (
+    "https://github.com/SOSBEACON-TAP/EV.AI/releases/latest/download/version-windows.json"
+    if getattr(sys, "frozen", False) else ""
+)
 
 
 # Providers that speak the OpenAI "chat completions" API, so one code path

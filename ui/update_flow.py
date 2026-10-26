@@ -123,6 +123,16 @@ class UpdateFlow(QObject):
 
     def _on_installed(self, result: dict) -> None:
         self._idle()
+        if result.get("frozen"):
+            answer = QMessageBox.question(
+                self._parent, "Update ready",
+                f"Version {result['version']} has been downloaded.\n\n"
+                "Restart EV.AI now to finish the update? Your settings, keys and memory are kept.",
+            )
+            if answer == QMessageBox.Yes:
+                from ui.accounts_dialog import _restart_app
+                _restart_app()
+            return
         extra = ""
         if not result["requirements_ok"]:
             extra = ("\n\nSome new packages couldn't be installed automatically. If EV.AI misbehaves, run:\n"
