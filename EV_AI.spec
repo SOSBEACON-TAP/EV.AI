@@ -20,6 +20,8 @@ try:
     binaries += collect_dynamic_libs("mediapipe")
 except Exception:
     pass
+# offline speech models (~40 MB) are not used; only the online recogniser is
+datas = [d for d in datas if "pocketsphinx" not in d[0].lower() and "pocketsphinx" not in d[1].lower()]
 hidden += ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes", "comtypes.client", "win32com.client"]
 
 a = Analysis(
@@ -30,7 +32,7 @@ a = Analysis(
     hiddenimports=hidden,
     # EV AI only uses QtCore/QtWidgets/QtGui/QtMultimedia: leave out the rest of Qt
     # (WebEngine alone is >150 MB) to keep the download small.
-    excludes=["tkinter", "matplotlib.tests", "scipy.tests"] + [
+    excludes=["tkinter", "matplotlib.tests", "scipy.tests", "jax", "jaxlib", "scipy", "ml_dtypes", "opt_einsum"] + [
         "PySide6." + m for m in (
             "QtWebEngineCore", "QtWebEngineWidgets", "QtWebEngineQuick", "QtWebChannel", "QtWebSockets",
             "QtPdf", "QtPdfWidgets", "QtQml", "QtQuick", "QtQuickWidgets", "QtQuick3D", "QtQuickControls2",

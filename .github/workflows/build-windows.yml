@@ -47,7 +47,7 @@ jobs:
       - name: Zip
         working-directory: ${{ env.APPDIR }}
         shell: pwsh
-        run: Compress-Archive -Path dist/EV_AI -DestinationPath EV_AI-Windows.zip
+        run: 7z a -tzip -mx=9 EV_AI-Windows.zip dist/EV_AI
       - name: Write update manifest
         working-directory: ${{ env.APPDIR }}
         shell: pwsh
