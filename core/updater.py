@@ -268,7 +268,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         ":wait\r\n"
         f'tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul\r\n'
         "if not errorlevel 1 (\r\n  ping -n 2 127.0.0.1 >nul\r\n  goto wait\r\n)\r\n"
-        f'robocopy "{new_dir}" "{app_root}" /E /XD data database /XF .env /R:5 /W:1 /NFL /NDL /NJH /NJS >nul\r\n'
+        f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env /R:5 /W:1 /NFL /NDL /NJH /NJS >nul\r\n'
         f'rmdir /s /q "{stage}"\r\n'
         f'start "" "{exe}"\r\n'
         'del "%~f0"\r\n',

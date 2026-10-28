@@ -112,6 +112,9 @@ def glass_panel(accent: str | None = None) -> QFrame:
     return frame
 
 
+_COMPACT_BTN = "QPushButton { padding: 5px 4px; letter-spacing: 0px; font-size: 11px; }"
+
+
 class MainWindow(QMainWindow):
     reminder_fired = Signal(str)  # emitted from tools/reminders.py's background timer thread
 
@@ -237,25 +240,12 @@ class MainWindow(QMainWindow):
         body_layout.setContentsMargins(18, 18, 18, 18)
         body_layout.setSpacing(16)
 
-        body_layout.addWidget(self._scrollable(self._build_left_column()), 2)
+        body_layout.addWidget(self._build_left_column(), 2)
         body_layout.addWidget(self._build_center_column(), 3)
-        body_layout.addWidget(self._scrollable(self._build_right_column()), 2)
+        body_layout.addWidget(self._build_right_column(), 2)
 
         root.addWidget(body, 1)
         self.setCentralWidget(central)
-
-    @staticmethod
-    def _scrollable(widget: QWidget) -> QWidget:
-        """Wrap a column so panels keep their size and scroll when the window is short."""
-        from PySide6.QtWidgets import QScrollArea
-        sa = QScrollArea()
-        sa.setWidgetResizable(True)
-        sa.setFrameShape(QFrame.NoFrame)
-        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        sa.setStyleSheet("QScrollArea { background: transparent; border: none; }"
-                         "QScrollArea > QWidget > QWidget { background: transparent; }")
-        sa.setWidget(widget)
-        return sa
 
     def _build_top_bar(self) -> QWidget:
         bar = QFrame()
@@ -450,11 +440,14 @@ class MainWindow(QMainWindow):
     def _build_left_column(self) -> QWidget:
         col = QWidget()
         layout = QVBoxLayout(col)
-        layout.setSpacing(14)
+        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # Status panel
         status_panel = glass_panel(accent="red")
         sp_layout = QVBoxLayout(status_panel)
+        sp_layout.setSpacing(3)
+        sp_layout.setContentsMargins(12, 8, 12, 8)
         title = QLabel("STATUS")
         title.setObjectName("SectionTitle")
         sp_layout.addWidget(title)
@@ -477,6 +470,7 @@ class MainWindow(QMainWindow):
         sp_layout.addWidget(self.internet_status_label)
 
         self.mic_toggle_btn = HoverButton("🎤 START VOICE")
+        self.mic_toggle_btn.setMinimumHeight(30)
         self.mic_toggle_btn.setCheckable(True)
         self.mic_toggle_btn.clicked.connect(self._toggle_voice)
         sp_layout.addWidget(self.mic_toggle_btn)
@@ -486,6 +480,8 @@ class MainWindow(QMainWindow):
         # System metrics panel
         metrics_panel = glass_panel(accent="red")
         mp_layout = QGridLayout(metrics_panel)
+        mp_layout.setVerticalSpacing(0)
+        mp_layout.setContentsMargins(12, 8, 12, 8)
         mtitle = QLabel("SYSTEM")
         mtitle.setObjectName("SectionTitle")
         mp_layout.addWidget(mtitle, 0, 0, 1, 2)
@@ -524,6 +520,8 @@ class MainWindow(QMainWindow):
         # independent Observe toggle (can run alongside any mode).
         mode_panel = glass_panel(accent="red")
         mode_layout = QVBoxLayout(mode_panel)
+        mode_layout.setSpacing(5)
+        mode_layout.setContentsMargins(12, 8, 12, 8)
         mode_title = QLabel("MODE")
         mode_title.setObjectName("SectionTitle")
         mode_layout.addWidget(mode_title)
@@ -537,6 +535,7 @@ class MainWindow(QMainWindow):
         self._mode_button_group = QButtonGroup(self)
         self._mode_button_group.setExclusive(True)
         mode_grid = QGridLayout()
+        mode_grid.setSpacing(5)
         mode_defs = [
             (Mode.NORMAL if AI_AVAILABLE else None, "NORMAL"),
             (Mode.AUTOMATIC if AI_AVAILABLE else None, "AUTOMATIC"),
@@ -546,7 +545,8 @@ class MainWindow(QMainWindow):
         for i, (mode, label) in enumerate(mode_defs):
             btn = HoverButton(label)
             btn.setCheckable(True)
-            btn.setMinimumHeight(32)
+            btn.setMinimumHeight(30)
+            btn.setStyleSheet(_COMPACT_BTN)
             if mode is not None:
                 btn.setChecked(mode == Mode.NORMAL)
                 btn.clicked.connect(lambda _, m=mode: self._set_mode(m))
@@ -557,11 +557,15 @@ class MainWindow(QMainWindow):
             mode_grid.addWidget(btn, i // 2, i % 2)
         mode_layout.addLayout(mode_grid)
 
+        tool_grid = QGridLayout()
+        tool_grid.setSpacing(5)
         self.observe_toggle_btn = HoverButton("👁 OBSERVE: OFF")
         self.observe_toggle_btn.setCheckable(True)
         self.observe_toggle_btn.clicked.connect(self._toggle_observation)
         self.observe_toggle_btn.setEnabled(AI_AVAILABLE)
-        mode_layout.addWidget(self.observe_toggle_btn)
+        self.observe_toggle_btn.setMinimumHeight(30)
+        self.observe_toggle_btn.setStyleSheet(_COMPACT_BTN)
+        tool_grid.addWidget(self.observe_toggle_btn, 0, 0)
 
         # Video mode: webcam hand-gesture control. Also toggleable from the
         # HUD's left panel while a HUD mode is up.
@@ -569,27 +573,39 @@ class MainWindow(QMainWindow):
         self.video_toggle_btn.setCheckable(True)
         self.video_toggle_btn.clicked.connect(self._toggle_video_mode)
         self.video_toggle_btn.setEnabled(GESTURE_AVAILABLE)
-        mode_layout.addWidget(self.video_toggle_btn)
+        self.video_toggle_btn.setMinimumHeight(30)
+        self.video_toggle_btn.setStyleSheet(_COMPACT_BTN)
+        tool_grid.addWidget(self.video_toggle_btn, 0, 1)
 
         # Song mode: small music-remote panel (play a song, media keys, volume).
         self.song_toggle_btn = HoverButton("🎵 SONG: OFF")
         self.song_toggle_btn.setCheckable(True)
         self.song_toggle_btn.clicked.connect(self._toggle_song_mode)
-        mode_layout.addWidget(self.song_toggle_btn)
+        self.song_toggle_btn.setMinimumHeight(30)
+        self.song_toggle_btn.setStyleSheet(_COMPACT_BTN)
+        tool_grid.addWidget(self.song_toggle_btn, 1, 0)
 
         # Focus Mode: study profile + your Quick Action + distraction blocking.
         self.focus_toggle_btn = HoverButton("🎯 FOCUS: OFF")
         self.focus_toggle_btn.setCheckable(True)
         self.focus_toggle_btn.clicked.connect(self._toggle_focus_mode)
-        mode_layout.addWidget(self.focus_toggle_btn)
+        self.focus_toggle_btn.setMinimumHeight(30)
+        self.focus_toggle_btn.setStyleSheet(_COMPACT_BTN)
+        tool_grid.addWidget(self.focus_toggle_btn, 1, 1)
 
         # Tools: usage insights + file finder (open as separate windows).
         self.insights_btn = HoverButton("📊 APP INSIGHTS")
         self.insights_btn.clicked.connect(self._open_insights_window)
-        mode_layout.addWidget(self.insights_btn)
+        self.insights_btn.setMinimumHeight(30)
+        self.insights_btn.setStyleSheet(_COMPACT_BTN)
+        tool_grid.addWidget(self.insights_btn, 2, 0)
         self.finder_btn = HoverButton("🔎 FILE FINDER")
         self.finder_btn.clicked.connect(self._open_finder_window)
-        mode_layout.addWidget(self.finder_btn)
+        self.finder_btn.setMinimumHeight(30)
+        self.finder_btn.setStyleSheet(_COMPACT_BTN)
+        tool_grid.addWidget(self.finder_btn, 2, 1)
+
+        mode_layout.addLayout(tool_grid)
 
         self._mode_panel = mode_panel
         layout.addWidget(mode_panel)

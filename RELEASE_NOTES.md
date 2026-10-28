@@ -1,3 +1,22 @@
+EV AI 1.0.7
+
+NEW
+- Standalone Windows app: download the zip, unzip, double-click EV_AI.exe. No Python or other install needed. SmartScreen may warn the first time (choose More info, then Run anyway).
+- Automatic updates for the standalone app: Settings, Check for updates downloads the new version and restarts into it. Your keys, settings, memory and database are kept.
+- Face recognition setup: Settings, Startup face check, Face recognition setup. It captures your face from the webcam inside the app and can turn the startup check on or off (button next to it).
+- New look for EV: violet aurora style with rounded panels and gradient buttons. Jarvis keeps its own gold square console look, so the two modes look clearly different.
+- Android app: landscape dashboard like the PC, a Portrait option (Settings, Screen layout) that fits the whole screen, Jarvis keeps the status panel, personality moved to Settings.
+
+IMPROVEMENTS
+- The left panel is more compact so every button is visible without scrolling.
+- Mode buttons no longer shrink so small that their names disappear.
+- The standalone download is smaller (unused Qt parts, jax, scipy and offline speech models removed).
+
+FIXES
+- Update helper no longer skips program files inside folders named data.
+
+---
+
 # EV AI 1.0.6
 
 NEW

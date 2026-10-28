@@ -22,13 +22,13 @@ import json
 import platform
 import sys
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QInputDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSlider, QTextEdit, QVBoxLayout,
-    QWidget, QFileDialog,
+    QWidget, QFileDialog, QProgressBar,
 )
 
 from config import settings, APP_ROOT
@@ -64,6 +64,20 @@ def _divider() -> QFrame:
     line.setFrameShape(QFrame.HLine)
     line.setStyleSheet("background: rgba(128,150,180,60); max-height: 1px; border: none;")
     return line
+
+
+class _FaceEnrollWorker(QThread):
+    """Runs core.face_auth.enroll_owner off the UI thread."""
+    progress = Signal(int, int)
+    finished_with = Signal(dict)
+
+    def run(self) -> None:
+        try:
+            from core.face_auth import enroll_owner
+            result = enroll_owner(progress_callback=lambda cur, total: self.progress.emit(cur, total))
+        except Exception as e:  # never let a camera problem crash the app
+            result = {"error": str(e)}
+        self.finished_with.emit(result)
 
 
 class SettingsDialog(QDialog):
@@ -573,6 +587,16 @@ class SettingsDialog(QDialog):
         self._face_status.setWordWrap(True)
         self._face_status.setProperty("role", "sub")
         root.addWidget(self._face_status)
+        self._refresh_face_status()
+
+        face_row = QHBoxLayout()
+        self._face_setup_btn = QPushButton("Face recognition setup")
+        self._face_setup_btn.clicked.connect(self._on_face_setup)
+        face_row.addWidget(self._face_setup_btn)
+        self._face_toggle_btn = QPushButton()
+        self._face_toggle_btn.clicked.connect(self._on_face_toggle)
+        face_row.addWidget(self._face_toggle_btn)
+        root.addLayout(face_row)
         self._refresh_face_status()
 
         pw_row = QHBoxLayout()
@@ -1354,10 +1378,91 @@ class SettingsDialog(QDialog):
         enrolled = is_enrolled()
         has_pw = has_password_set()
         lines = [f"Check on startup: {'enabled' if enabled else 'disabled'}"]
-        lines.append(f"Enrolled face: {'yes' if enrolled else 'no (run scripts/enroll_face.py)'}")
+        lines.append(f"Enrolled face: {'yes' if enrolled else 'no (press Face recognition setup)'}")
         lines.append(f"Password fallback: {'set' if has_pw else 'not set'}")
         self._face_status.setText("\n".join(lines))
         self._face_status.setStyleSheet("color: #8fd0ff; font-size: 11px;")
+        if hasattr(self, "_face_toggle_btn"):
+            self._face_toggle_btn.setText("Turn startup check OFF" if enabled else "Turn startup check ON")
+            self._face_toggle_btn.setEnabled(enrolled or enabled)
+
+    def _on_face_toggle(self) -> None:
+        from core.env_file import update_env
+        from core.face_auth import has_password_set
+        turning_on = not settings.FACE_AUTH_ENABLED
+        if turning_on and not has_password_set():
+            QMessageBox.information(
+                self, "Face check",
+                "Tip: set a password fallback too, so you can still get in if the camera can't recognise you.")
+        update_env({"FACE_AUTH_ENABLED": "true" if turning_on else "false"})
+        QMessageBox.information(self, "Face check",
+                                f"Startup face check will be {'ON' if turning_on else 'OFF'} the next time EV AI starts.")
+        # settings is read once at startup, so show the new state until then
+        settings.FACE_AUTH_ENABLED = turning_on
+        self._refresh_face_status()
+
+    def _on_face_setup(self) -> None:
+        """Captures ~25 photos of the owner from the webcam and trains the recogniser."""
+        box = QDialog(self)
+        box.setWindowTitle("Face recognition setup")
+        box.setStyleSheet(self.styleSheet())
+        box.setMinimumWidth(420)
+        layout = QVBoxLayout(box)
+        info = QLabel(
+            "Sit in good light and look at your webcam. When you press Start, slowly turn your head "
+            "a little left, right, up and down. It takes about 20-30 seconds. Photos stay on this computer.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        bar = QProgressBar()
+        bar.setRange(0, 25)
+        bar.setValue(0)
+        layout.addWidget(bar)
+        status = QLabel("")
+        status.setWordWrap(True)
+        layout.addWidget(status)
+        row = QHBoxLayout()
+        start_btn = QPushButton("Start")
+        close_btn = QPushButton("Cancel")
+        row.addWidget(start_btn)
+        row.addWidget(close_btn)
+        layout.addLayout(row)
+        close_btn.clicked.connect(box.reject)
+
+        worker_holder = {}
+
+        def _done(result: dict) -> None:
+            start_btn.setEnabled(True)
+            close_btn.setText("Close")
+            if "error" in result:
+                status.setText(f"Setup failed: {result['error']}")
+                return
+            bar.setValue(bar.maximum())
+            status.setText(f"Done. Your face was saved from {result['samples']} photos.")
+            self._refresh_face_status()
+            if not settings.FACE_AUTH_ENABLED:
+                answer = QMessageBox.question(
+                    box, "Face check", "Turn on the startup face check now? (It applies the next time EV AI starts.)")
+                if answer == QMessageBox.Yes:
+                    from core.env_file import update_env
+                    update_env({"FACE_AUTH_ENABLED": "true"})
+                    settings.FACE_AUTH_ENABLED = True
+                    self._refresh_face_status()
+
+        def _start() -> None:
+            start_btn.setEnabled(False)
+            bar.setValue(0)
+            status.setText("Look at the camera and slowly move your head…")
+            worker = _FaceEnrollWorker(box)
+            worker.progress.connect(lambda cur, total: (bar.setMaximum(total), bar.setValue(cur)))
+            worker.finished_with.connect(_done)
+            worker_holder["w"] = worker
+            worker.start()
+
+        start_btn.clicked.connect(_start)
+        box.exec()
+        worker = worker_holder.get("w")
+        if worker is not None and worker.isRunning():
+            worker.wait(15000)
 
     def _on_set_password(self) -> None:
         from core.face_auth import set_password
