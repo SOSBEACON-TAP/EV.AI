@@ -20,11 +20,36 @@ from config import APP_ROOT, settings
 OK, WARN, BAD = "ok", "warn", "bad"
 
 
+FROZEN = bool(getattr(sys, "frozen", False))
+
+# pip name -> import name, used when EV AI runs as the standalone .exe (packages are
+# bundled inside it, so there is no pip metadata to look at).
+_IMPORT_NAMES = {"opencv-contrib-python": "cv2"}
+
+
 def _pkg(name: str):
+    if FROZEN:
+        import importlib.util
+        try:
+            found = importlib.util.find_spec(_IMPORT_NAMES.get(name, name)) is not None
+        except (ImportError, ValueError):
+            found = False
+        return "bundled" if found else None
     try:
         return metadata.version(name)
     except metadata.PackageNotFoundError:
         return None
+
+
+def _adapt(advice: str) -> str:
+    """The pip/venv commands only make sense for the Python version of EV AI."""
+    if not FROZEN or "venv\\Scripts" not in advice:
+        return advice
+    if "playwright" in advice:
+        return ("WhatsApp / browser automation needs a Chromium download that the standalone app doesn't "
+                "include yet. Use the Python version of EV AI for that feature for now.")
+    return ("This package is built into the standalone app, so it can't be fixed with pip. "
+            "Update EV AI (Settings → Check for updates) or download the latest release again.")
 
 
 # (regex, level, title, advice) — first match per title wins, newest log lines first.
@@ -80,7 +105,7 @@ def scan_log(text: str) -> list[tuple]:
             extra = ""
             if match.groups():
                 extra = f" (missing: {match.group(1)})"
-            results.append((level, title + extra, advice))
+            results.append((level, title + extra, _adapt(advice)))
     for pattern, note in _HARMLESS:
         if re.search(pattern, blob):
             results.append((OK, "Ignorable message in the log", note))
@@ -92,6 +117,8 @@ def _check_python():
     v = sys.version_info
     if v < (3, 10):
         return (BAD, f"Python {v.major}.{v.minor} is too old", "Install Python 3.10 or newer and re-create the venv.")
+    if FROZEN:
+        return (OK, "Standalone app (Python is built in)", "")
     return (OK, f"Python {v.major}.{v.minor}.{v.micro}", "")
 
 
@@ -102,14 +129,14 @@ def _check_packages():
     missing = [n for n, key in required if _pkg(key) is None]
     if missing:
         out.append((BAD, "Missing packages: " + ", ".join(missing),
-                    "Run:  venv\\Scripts\\python.exe -m pip install -r requirements.txt"))
+                    _adapt("Run:  venv\\Scripts\\python.exe -m pip install -r requirements.txt")))
     else:
         out.append((OK, "Core packages installed", ""))
     mp = _pkg("mediapipe")
     if mp is None:
         out.append((WARN, "mediapipe not installed (Video mode / gestures won't work)",
-                    "Run:  venv\\Scripts\\python.exe -m pip install mediapipe==0.10.21"))
-    elif tuple(int(x) for x in re.findall(r"\d+", mp)[:3]) >= (0, 10, 31):
+                    _adapt("Run:  venv\\Scripts\\python.exe -m pip install mediapipe==0.10.21")))
+    elif mp != "bundled" and tuple(int(x) for x in re.findall(r"\d+", mp)[:3]) >= (0, 10, 31):
         out.append((BAD, f"mediapipe {mp} is too new for hand tracking",
                     "Run:  venv\\Scripts\\python.exe -m pip uninstall mediapipe -y   then   "
                     "venv\\Scripts\\python.exe -m pip install mediapipe==0.10.21"))
@@ -118,7 +145,7 @@ def _check_packages():
     if sys.platform == "win32":
         if _pkg("pycaw") is None or _pkg("comtypes") is None:
             out.append((WARN, "pycaw/comtypes not installed (gesture volume uses volume keys)",
-                        "Run:  venv\\Scripts\\python.exe -m pip install pycaw comtypes"))
+                        _adapt("Run:  venv\\Scripts\\python.exe -m pip install pycaw comtypes")))
         else:
             out.append((OK, "Exact volume control available", ""))
     return out
