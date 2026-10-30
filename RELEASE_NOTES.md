@@ -1,3 +1,10 @@
+EV AI 1.0.8
+
+FIXES
+- Error Doctor no longer reports bundled packages (PySide6, OpenCV, numpy, pyautogui, mediapipe and others) as missing in the standalone app, and no longer suggests venv commands there.
+
+---
+
 EV AI 1.0.7
 
 NEW
