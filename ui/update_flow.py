@@ -66,6 +66,7 @@ class UpdateFlow(QObject):
         self._label = button.text()
         self._info_worker = None
         self._install_worker = None
+        self._screen = None
 
     def start(self) -> None:
         url = settings.UPDATE_CHECK_URL
@@ -87,7 +88,14 @@ class UpdateFlow(QObject):
         self._button.setEnabled(True)
         self._button.setText(self._label)
 
+    def _close_screen(self) -> None:
+        screen = getattr(self, "_screen", None)
+        if screen is not None:
+            screen.close()
+            self._screen = None
+
     def _on_failed(self, message: str) -> None:
+        self._close_screen()
         self._idle()
         QMessageBox.warning(self._parent, "Check for updates", message)
 
@@ -115,13 +123,18 @@ class UpdateFlow(QObject):
         if answer != QMessageBox.Yes:
             return
         self._busy("Updating… 0%")
+        from ui.update_screen import UpdateScreen
+        self._screen = UpdateScreen()
+        self._screen.show_full()
         self._install_worker = InstallWorker(settings.UPDATE_CHECK_URL, self)
-        self._install_worker.progress.connect(lambda pct: self._button.setText(f"Updating… {pct}%"))
+        self._install_worker.progress.connect(lambda pct: (self._button.setText(f"Updating… {pct}%"),
+                                                           self._screen.set_progress(pct)))
         self._install_worker.finished_ok.connect(self._on_installed)
         self._install_worker.failed.connect(self._on_failed)
         self._install_worker.start()
 
     def _on_installed(self, result: dict) -> None:
+        self._close_screen()
         self._idle()
         if result.get("frozen"):
             answer = QMessageBox.question(

@@ -550,26 +550,7 @@ class SettingsDialog(QDialog):
         root.addWidget(_divider())
 
         # -- Maintenance ----------------------------------------------------
-        root.addWidget(_section_title("MAINTENANCE"))
-        self._cache_check = QCheckBox("Auto-delete __pycache__ folders")
-        self._cache_check.setChecked(user_prefs.get("auto_clear_pycache"))
-        self._cache_check.toggled.connect(self._on_auto_cache)
-        root.addWidget(self._cache_check)
-        cache_note = QLabel(
-            "Cleared at every launch, and Python is told not to recreate them. "
-            "Startup may be a touch slower as a result."
-        )
-        cache_note.setWordWrap(True)
-        cache_note.setProperty("role", "sub")
-        root.addWidget(cache_note)
-        shortcut_btn = QPushButton("Create EV shortcut (to pin to taskbar)")
-        shortcut_btn.clicked.connect(self._on_create_shortcut)
-        root.addWidget(shortcut_btn)
-
-        clear_btn = QPushButton("Clear __pycache__ now")
-        clear_btn.clicked.connect(self._on_clear_cache_now)
-        root.addWidget(clear_btn)
-
+        root.addWidget(_section_title("DATA"))
         data_row = QHBoxLayout()
         save_chat_btn = QPushButton("Save conversation…")
         save_chat_btn.clicked.connect(self._on_save_conversation)
@@ -628,17 +609,6 @@ class SettingsDialog(QDialog):
 
         root.addWidget(_divider())
 
-        # -- Update log (changelog) ----------------------------------------
-        root.addWidget(_section_title("UPDATE LOG"))
-        update_label = QLabel("What's changed, from Stage 1 onward.")
-        update_label.setWordWrap(True)
-        root.addWidget(update_label)
-        update_log_btn = QPushButton("View update log")
-        update_log_btn.clicked.connect(self._on_view_changelog)
-        root.addWidget(update_log_btn)
-
-        root.addWidget(_divider())
-
         # -- System & About -------------------------------------------------
         root.addWidget(_section_title("SYSTEM & ABOUT"))
         root.addWidget(_note_label(f"{settings.APP_NAME} version {settings.APP_VERSION} (build {_BUILD})"))
@@ -673,17 +643,6 @@ class SettingsDialog(QDialog):
                                    "not your API keys, email or password."))
 
         root.addWidget(_divider())
-
-        # -- Autostart --------------------------------------------------------
-        root.addWidget(_section_title("START AT WINDOWS LOGIN"))
-        autostart_row = QHBoxLayout()
-        enable_btn = QPushButton("Enable")
-        enable_btn.clicked.connect(self._on_enable_autostart)
-        disable_btn = QPushButton("Disable")
-        disable_btn.clicked.connect(self._on_disable_autostart)
-        autostart_row.addWidget(enable_btn)
-        autostart_row.addWidget(disable_btn)
-        root.addLayout(autostart_row)
 
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
@@ -748,7 +707,7 @@ class SettingsDialog(QDialog):
             self._tray_check: "minimize_to_tray", self._start_tray_check: "start_in_tray",
             self._hotkey_check: "global_hotkey", self._hover_check: "hover_sound",
             self._offline_check: "offline_first", self._briefing_check: "briefing_on_start",
-            self._cache_check: "auto_clear_pycache", self._auto_update_check: "auto_check_updates",
+            self._auto_update_check: "auto_check_updates",
             self._confirm_send_check: "confirm_before_sending",
         }
         for box, key in checks.items():
@@ -1181,13 +1140,11 @@ class SettingsDialog(QDialog):
         "ERROR DOCTOR": "error doctor fix problem troubleshoot diagnose camera missing package",
         "CONNECTED DEVICE": "device connect pair phone mobile code call ring ntfy shutdown switch off computer",
         "BEHAVIOUR": "sound hover speak voice tray hotkey offline always on top briefing observe interval mute",
-        "MAINTENANCE": "cache pycache shortcut taskbar pin save conversation data folder",
+        "DATA": "save conversation data folder",
         "STARTUP FACE CHECK": "face password camera security login unlock",
         "PRIVACY": "privacy microphone mic camera permissions history security",
         "ACTIVITY LOG": "log logs error errors debug",
-        "UPDATE LOG": "changelog changes whats new history",
         "SYSTEM & ABOUT": "version about update updates diagnostics export import reset defaults backup",
-        "START AT WINDOWS LOGIN": "autostart startup boot login launch",
     }
 
     @staticmethod

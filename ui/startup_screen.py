@@ -17,33 +17,94 @@ touched directly from the worker thread, since Qt widgets aren't
 thread-safe.
 """
 
-import random
 import time
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QRectF, QPointF
-from PySide6.QtGui import QGuiApplication, QColor, QPainter, QPen, QImage, QPixmap, QPainterPath
+from PySide6.QtGui import (
+    QGuiApplication, QColor, QPainter, QPen, QImage, QPixmap, QPainterPath, QRadialGradient,
+)
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QProgressBar,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
 )
 
 from config import settings
+from core import user_prefs as _prefs
 from core.face_auth import has_password_set, verify_password
 
-# Purely cosmetic — cycled underneath the real status line while
-# something is happening, for the sci-fi "systems coming online" feel
-# the user asked for. Never used in place of the real status text,
-# which always reflects what's actually going on (settings loading,
-# looking for you, etc.).
-_FLAVOR_PHRASES = [
-    "Establishing satellite uplink...",
-    "Calibrating optical sensors...",
-    "Syncing neural core...",
-    "Warming up the mainframe...",
-    "Aligning biometric array...",
-    "Initializing EV protocols...",
-    "Decrypting local systems...",
-    "Spinning up subsystems...",
-]
+_LOGO = Path(__file__).resolve().parent.parent / "assets" / "icons" / "ev_logo.png"
+
+class _SegBar(QWidget):
+    """Segmented loading bar (outlined box with blocks that fill up)."""
+    SEGMENTS = 20
+
+    def __init__(self):
+        super().__init__()
+        self._value = 0
+        self._color = QColor("#7fe0ff")
+        self.setFixedHeight(28)
+
+    def setValue(self, value: int) -> None:
+        self._value = max(0, min(100, int(value)))
+        self.update()
+
+    def set_color(self, hex_color: str) -> None:
+        self._color = QColor(hex_color)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        try:
+            p.setRenderHint(QPainter.Antialiasing)
+            outer = QRectF(1.5, 1.5, self.width() - 3, self.height() - 3)
+            p.setPen(QPen(self._color, 2))
+            p.setBrush(QColor(0, 0, 0, 70))
+            p.drawRoundedRect(outer, 5, 5)
+            inner = outer.adjusted(5, 5, -5, -5)
+            gap = 3.0
+            seg_w = (inner.width() - gap * (self.SEGMENTS - 1)) / self.SEGMENTS
+            filled = round(self.SEGMENTS * self._value / 100)
+            p.setPen(Qt.NoPen)
+            for i in range(self.SEGMENTS):
+                c = QColor(self._color)
+                c.setAlpha(255 if i < filled else 28)
+                p.setBrush(c)
+                p.drawRoundedRect(QRectF(inner.left() + i * (seg_w + gap), inner.top(), seg_w, inner.height()), 2, 2)
+        finally:
+            p.end()
+
+
+class _SpinLogo(QWidget):
+    """The EV logo, slowly rotating."""
+
+    def __init__(self, size: int = 120):
+        super().__init__()
+        self.setFixedSize(size, size)
+        self._pix = QPixmap(str(_LOGO)) if _LOGO.exists() else QPixmap()
+        self._angle = 0.0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(16)
+
+    def _tick(self) -> None:
+        self._angle = (self._angle + 1.8) % 360
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        try:
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            p.translate(self.width() / 2, self.height() / 2)
+            p.rotate(self._angle)
+            if self._pix.isNull():
+                p.setPen(QPen(QColor("#7fe0ff"), 3))
+                p.drawEllipse(QPointF(0, 0), self.width() * 0.35, self.height() * 0.15)
+            else:
+                side = min(self.width(), self.height())
+                p.drawPixmap(QRectF(-side / 2, -side / 2, side, side).toRect(), self._pix)
+        finally:
+            p.end()
 
 
 class _StartupWorker(QThread):
@@ -272,45 +333,39 @@ class StartupScreen(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self._show_face_scan = settings.FACE_AUTH_ENABLED
-        width = 340
-        self._base_height = 430 if self._show_face_scan else 170
+        self._jarvis = bool(_prefs.get("jarvis_ui"))
+        self._accent = "#ffc400" if self._jarvis else "#7fe0ff"
+        width = 460
         self._password_extra_height = 118
-        self.setFixedSize(width, self._base_height)
+        self.setFixedWidth(width)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 28, 32, 28)
-        layout.setSpacing(12)
-
-        title = QLabel(settings.APP_NAME)
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("color: #e8f1ff; font-size: 20px; font-weight: 600; background: transparent;")
-        layout.addWidget(title)
+        layout.setContentsMargins(36, 30, 36, 30)
+        layout.setSpacing(18)
+        layout.setAlignment(Qt.AlignCenter)
 
         if self._show_face_scan:
             self._face_scan = _FaceScanWidget()
+            self._logo = None
             layout.addWidget(self._face_scan, alignment=Qt.AlignCenter)
         else:
             self._face_scan = None
+            self._logo = _SpinLogo(130)
+            layout.addWidget(self._logo, alignment=Qt.AlignCenter)
 
+        self._bar = _SegBar()
+        self._set_bar_color(self._accent)
+        layout.addWidget(self._bar)
+
+        # The loading text sits under the bar. It is hidden during the face scan
+        # (the camera preview speaks for itself) and shown again if the scan fails.
         self._status = QLabel("Starting up...")
         self._status.setAlignment(Qt.AlignCenter)
         self._status.setWordWrap(True)
-        self._status.setStyleSheet("color: #e8f1ff; font-size: 13px; background: transparent;")
+        self._status.setStyleSheet(
+            f"color: {self._accent}; font-size: 13px; letter-spacing: 3px; background: transparent;")
         layout.addWidget(self._status)
-
-        self._flavor = QLabel(random.choice(_FLAVOR_PHRASES))
-        self._flavor.setAlignment(Qt.AlignCenter)
-        self._flavor.setStyleSheet("color: #6f88a3; font-size: 11px; background: transparent;")
-        layout.addWidget(self._flavor)
-
-        self._bar = QProgressBar()
-        self._bar.setRange(0, 100)
-        self._bar.setValue(0)
-        self._bar.setTextVisible(True)
-        self._bar.setFormat("%p%")
-        self._bar.setFixedHeight(16)
-        self._set_bar_color("#3aa0ff")
-        layout.addWidget(self._bar)
+        self._status.setVisible(not self._show_face_scan)
 
         # Password fallback — hidden until a face check actually fails
         # (or the camera isn't usable) and a password has been set via
@@ -357,6 +412,8 @@ class StartupScreen(QWidget):
 
         layout.addWidget(self._password_row)
         self._password_row.setVisible(False)
+        self._base_height = layout.sizeHint().height()
+        self.setFixedHeight(self._base_height)
         self._password_attempts = 0
         self._max_password_attempts = 5
 
@@ -371,10 +428,6 @@ class StartupScreen(QWidget):
         self._ease_timer = QTimer(self)
         self._ease_timer.timeout.connect(self._ease_progress)
         self._ease_timer.start(16)
-
-        self._flavor_timer = QTimer(self)
-        self._flavor_timer.timeout.connect(self._rotate_flavor)
-        self._flavor_timer.start(1100)
 
         self._worker = _StartupWorker()
         self._worker.progress.connect(self._on_progress)
@@ -431,19 +484,22 @@ class StartupScreen(QWidget):
             self._on_denied_callback(self._deny_reason)
 
     def _set_bar_color(self, hex_color: str) -> None:
-        self._bar.setStyleSheet(
-            "QProgressBar { background: #10202e; border-radius: 8px; color: #e8f1ff; "
-            "font-size: 10px; font-weight: 600; }"
-            f"QProgressBar::chunk {{ background: {hex_color}; border-radius: 8px; }}"
-        )
+        self._bar.set_color(hex_color)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         try:
             painter.setRenderHint(QPainter.Antialiasing)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(6, 12, 20, 240))
-            painter.drawRoundedRect(self.rect(), 14, 14)
+            glow = QRadialGradient(self.width() / 2, self.height() * 0.4, max(self.width(), self.height()) * 0.8)
+            if self._jarvis:
+                glow.setColorAt(0.0, QColor(46, 34, 4))
+                glow.setColorAt(1.0, QColor(10, 7, 1))
+            else:
+                glow.setColorAt(0.0, QColor(8, 36, 92))
+                glow.setColorAt(1.0, QColor(2, 8, 30))
+            painter.setBrush(glow)
+            painter.drawRoundedRect(self.rect(), 16, 16)
         finally:
             painter.end()
 
@@ -463,9 +519,6 @@ class StartupScreen(QWidget):
         self._center()
         self.show()
         self._worker.start()
-
-    def _rotate_flavor(self) -> None:
-        self._flavor.setText(random.choice(_FLAVOR_PHRASES))
 
     def _ease_progress(self) -> None:
         if self._displayed_percent < self._target_percent:
@@ -504,6 +557,9 @@ class StartupScreen(QWidget):
     def _on_denied(self, reason: str) -> None:
         self._deny_reason = reason
         self._set_bar_color("#ff4d4d")
+        self._status.setVisible(True)
+        self._status.setStyleSheet(
+            "color: #ff8a8a; font-size: 13px; letter-spacing: 1px; background: transparent;")
         if has_password_set():
             self._status.setText(f"Face not recognized — {reason}")
             self._show_password_prompt()
@@ -527,8 +583,8 @@ class StartupScreen(QWidget):
             self._password_row.setVisible(False)
             self.setFixedHeight(self._base_height)
             self._center()
-            self._set_bar_color("#3aa0ff")
-            self._status.setText("Welcome back.")
+            self._set_bar_color(self._accent)
+            self._status.setVisible(False)
             self._target_percent = 100
             self._closing_requested = True
             return

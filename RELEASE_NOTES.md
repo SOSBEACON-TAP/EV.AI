@@ -1,3 +1,19 @@
+EV AI 1.0.9
+
+NEW
+- New loading screen: the rotating EV logo above a segmented loading bar, with the loading text under the bar (gold when Jarvis was on). The startup transition animation is gone.
+- New update screen: while an update downloads, a full black screen with turning gears and a progress bar shows the real percentage.
+- EV AI now adds itself to the Start menu with its logo, so you can find it like any app and pin it to the taskbar (right-click, Pin to taskbar).
+
+IMPROVEMENTS
+- The face scan at startup no longer shows text under the camera preview.
+- Settings is simpler: Maintenance (Python cache options), Update log and Start at Windows login were removed. Save conversation and Open data folder are kept under Data.
+
+FIXES
+- Fixed "The update doesn't contain EV_AI.exe. Not installing." when updating the standalone app.
+
+---
+
 EV AI 1.0.8
 
 FIXES

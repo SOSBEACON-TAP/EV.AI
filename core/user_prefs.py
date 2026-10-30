@@ -53,6 +53,7 @@ DEFAULTS = {
     "voice_friendly": "en-US-AriaNeural",
     "voice_humorous": "en-US-DavisNeural",
     # -- Focus Mode ----------------------------------------------------------
+    "start_menu_target": "",           # where EV_AI.exe was when its Start menu entry was made
     "jarvis_ui": False,                # the yellow Jarvis look + tools is switched on
     "device_id": "",                   # secret id from the connected phone's device code
     "device_server": "",               # alert server (blank = ntfy.sh)

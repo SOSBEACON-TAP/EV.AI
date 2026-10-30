@@ -77,6 +77,32 @@ foreach ($path in $paths) {
 '''
 
 
+def _q(value) -> str:
+    """PowerShell single-quoted literal (only ' needs escaping)."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def create_shortcuts(target, args: str, work, icon, paths) -> tuple[int, str]:
+    """Creates .lnk files at `paths` pointing at `target`, stamped with EV's taskbar id.
+    Returns (exit code, PowerShell output)."""
+    script = (_PS
+              .replace("__TARGET__", _q(target))
+              .replace("__ARGS__", _q(args))
+              .replace("__WORK__", _q(work))
+              .replace("__ICON__", _q(icon))
+              .replace("__PATHS__", ", ".join(_q(p) for p in paths))
+              .replace("__AUMID__", _q(APP_USER_MODEL_ID)))
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
+        capture_output=True, text=True, creationflags=0x08000000,  # no console flash
+    )
+    out = (result.stdout or "").strip()
+    if result.returncode != 0:
+        out += "\n" + (result.stderr or "").strip()
+    return result.returncode, out
+
+
 def main() -> int:
     if os.name != "nt":
         print("Shortcuts are Windows-only.")
@@ -90,26 +116,11 @@ def main() -> int:
     if start_menu.is_dir():
         paths.append(start_menu / "EV.lnk")
 
-    def q(value) -> str:
-        """PowerShell single-quoted literal (only ' needs escaping)."""
-        return "'" + str(value).replace("'", "''") + "'"
-
-    script = (_PS
-              .replace("__TARGET__", q(target))
-              .replace("__ARGS__", q(f'"{APP_ROOT / "main.py"}"'))   # inner quotes: path may have spaces
-              .replace("__WORK__", q(APP_ROOT))
-              .replace("__ICON__", q(icon))
-              .replace("__PATHS__", ", ".join(q(p) for p in paths))
-              .replace("__AUMID__", q(APP_USER_MODEL_ID)))
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
-        capture_output=True, text=True, creationflags=0x08000000,  # no console flash
-    )
-    print((result.stdout or "").strip())
-    if result.returncode != 0:
-        print((result.stderr or "").strip())
-        return result.returncode
+    # inner quotes: the path may have spaces
+    code, out = create_shortcuts(target, f'"{APP_ROOT / "main.py"}"', APP_ROOT, icon, paths)
+    print(out)
+    if code != 0:
+        return code
     print("Done. Right-click 'EV' -> Show more options -> Pin to taskbar.")
     return 0
 

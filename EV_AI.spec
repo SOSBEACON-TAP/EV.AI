@@ -22,6 +22,7 @@ except Exception:
     pass
 # offline speech models (~40 MB) are not used; only the online recogniser is
 datas = [d for d in datas if "pocketsphinx" not in d[0].lower() and "pocketsphinx" not in d[1].lower()]
+hidden += ["scripts.create_shortcut", "core.shortcuts"]
 hidden += ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes", "comtypes.client", "win32com.client"]
 
 a = Analysis(

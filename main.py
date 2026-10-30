@@ -62,6 +62,13 @@ def main() -> int:
             pass
 
     try:
+        from core.shortcuts import ensure_start_menu_entry
+        import threading
+        threading.Thread(target=ensure_start_menu_entry, daemon=True).start()
+    except Exception:
+        pass
+
+    try:
         from app_version import BUILD as _build, VERSION as _version
         print(f"[EV AI] version {_version} build {_build}")
     except Exception:
@@ -87,29 +94,15 @@ def main() -> int:
     def _launch_main_window() -> None:
         window = MainWindow()
         hidden_start = bool(_user_prefs.get("start_in_tray") and window._tray.is_active())
-        if not hidden_start:
-            window.setWindowOpacity(0.0)   # invisible until the intro overlay covers the screen
         window.show()
         if hidden_start:
             window.hide()
             window._tray.notify_hidden()
         state["window"] = window
-        # Intro animation (inside the app window): the EV logo fills the window, then slowly
-        # shrinks and morphs into the glowing core in the middle.
-        if not hidden_start:
-            overlay = None
-            try:
-                from ui.transition import play_startup_transition
-                overlay = play_startup_transition(window)
-            except Exception:
-                import traceback
-                traceback.print_exc()
-            state["transition"] = overlay
-            if overlay is None:
-                print("[EV AI] Startup animation skipped (see data/animation_error.log)")
-            window.setWindowOpacity(max(0.6, min(1.0, int(_user_prefs.get("window_opacity")) / 100.0)))
+        if hidden_start:
+            print("[EV AI] Starting hidden in the tray")
         else:
-            print("[EV AI] Startup animation skipped: starting hidden in the tray")
+            window.setWindowOpacity(max(0.6, min(1.0, int(_user_prefs.get("window_opacity")) / 100.0)))
 
     def _deny_and_quit(reason: str) -> None:
         print(f"[EV AI] Startup blocked by face check: {reason}")
