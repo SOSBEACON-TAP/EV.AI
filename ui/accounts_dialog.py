@@ -464,8 +464,11 @@ def _restart_app() -> None:
     else:
         command = [sys.executable, str(APP_ROOT / "main.py")]
     flags = 0
+    updating = bool(getattr(sys, "frozen", False) and _updater.PENDING_SCRIPT is not None)
     if os.name == "nt":
-        flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED | NEW_PROCESS_GROUP | NO_WINDOW
+        # The update helper runs with no console window. (DETACHED_PROCESS and
+        # CREATE_NO_WINDOW can't be combined: the console window would show.)
+        flags = (0x08000000 | 0x00000200) if updating else (0x00000008 | 0x00000200)
     try:
         subprocess.Popen(command, cwd=str(APP_ROOT), creationflags=flags, close_fds=True)
     except OSError as e:
@@ -477,3 +480,6 @@ def _restart_app() -> None:
             widget.allow_close()
     app.closeAllWindows()
     QTimer.singleShot(0, app.quit)
+    if updating:
+        # Make sure the process really ends so the helper can replace the files.
+        QTimer.singleShot(3000, lambda: os._exit(0))

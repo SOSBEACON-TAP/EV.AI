@@ -1,3 +1,14 @@
+EV AI 1.0.10
+
+FIXES
+- Fixed the update getting stuck after you press Restart: EV AI now closes completely, the update helper no longer shows a console window, and it ends a stuck EV AI after a few seconds so the new version is installed and started.
+- The update helper writes data/update_log.txt so a failed update can be diagnosed.
+
+NOTE
+- If you are on 1.0.9 or older, install this version by hand once: unzip EV_AI-Windows.zip and copy the EV_AI folder's contents over your EV AI folder, choosing Replace. Updates from inside the app work from this version on.
+
+---
+
 EV AI 1.0.9
 
 NEW

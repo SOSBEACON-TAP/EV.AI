@@ -265,17 +265,36 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     new_dir = exes[0].parent
     script = app_root / "data" / "apply_update.bat"
     exe = Path(sys.executable).resolve()
-    script.write_text(
-        "@echo off\r\n"
-        ":wait\r\n"
-        f'tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul\r\n'
-        "if not errorlevel 1 (\r\n  ping -n 2 127.0.0.1 >nul\r\n  goto wait\r\n)\r\n"
-        f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env /R:5 /W:1 /NFL /NDL /NJH /NJS >nul\r\n'
-        f'rmdir /s /q "{stage}"\r\n'
-        f'start "" "{exe}"\r\n'
-        'del "%~f0"\r\n',
-        encoding="ascii",
-    )
+    pid = os.getpid()
+    log = app_root / "data" / "update_log.txt"
+    lines = [
+        "@echo off",
+        "set /a n=0",
+        ":wait",
+        f'tasklist /FI "PID eq {pid}" /FI "IMAGENAME eq EV_AI.exe" 2>nul | find "EV_AI.exe" >nul',
+        "if errorlevel 1 goto go",
+        "set /a n+=1",
+        # EV AI normally closes within a second or two; if something keeps it alive, end it
+        "if %n% GEQ 10 (",
+        f"  taskkill /F /PID {pid} >nul 2>&1",
+        "  ping -n 3 127.0.0.1 >nul",
+        "  goto go",
+        ")",
+        "ping -n 2 127.0.0.1 >nul",
+        "goto wait",
+        ":go",
+        f'echo Updating %date% %time% >> "{log}"',
+        f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env '
+        f'/R:5 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        f'rmdir /s /q "{stage}"',
+        f'start "" "{exe}"',
+        'del "%~f0"',
+    ]
+    text = "\r\n".join(lines) + "\r\n"
+    try:
+        script.write_text(text, encoding="mbcs")      # Windows' own code page, so cmd reads non-English paths
+    except LookupError:
+        script.write_text(text, encoding="utf-8")
     PENDING_SCRIPT = script
     return script
 
