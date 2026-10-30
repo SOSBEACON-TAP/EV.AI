@@ -258,9 +258,11 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
             z.extractall(stage)
     except zipfile.BadZipFile as e:
         raise UpdateError("The downloaded update is not a valid zip file.") from e
-    new_dir = stage / "EV_AI"
-    if not (new_dir / "EV_AI.exe").exists():
+    # The zip may hold the app at EV_AI/ or dist/EV_AI/: use whichever folder has the exe.
+    exes = sorted(stage.rglob("EV_AI.exe"), key=lambda p: len(p.parts))
+    if not exes:
         raise UpdateError("The update doesn't contain EV_AI.exe. Not installing.")
+    new_dir = exes[0].parent
     script = app_root / "data" / "apply_update.bat"
     exe = Path(sys.executable).resolve()
     script.write_text(

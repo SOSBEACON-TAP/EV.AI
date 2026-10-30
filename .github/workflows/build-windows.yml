@@ -47,7 +47,10 @@ jobs:
       - name: Zip
         working-directory: ${{ env.APPDIR }}
         shell: pwsh
-        run: 7z a -tzip -mx=9 EV_AI-Windows.zip dist/EV_AI
+        run: |
+          Push-Location dist
+          7z a -tzip -mx=9 ../EV_AI-Windows.zip EV_AI
+          Pop-Location
       - name: Write update manifest
         working-directory: ${{ env.APPDIR }}
         shell: pwsh
