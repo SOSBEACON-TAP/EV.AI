@@ -481,6 +481,9 @@ class SettingsDialog(QDialog):
         dev_row.addWidget(self._test_call_btn)
         dev_row.addWidget(new_code_btn)
         root.addLayout(dev_row)
+        compute_btn = QPushButton("Phone control (Compute)…")
+        compute_btn.clicked.connect(self._open_compute)
+        root.addWidget(compute_btn)
         self._refresh_device_status()
 
         root.addWidget(_divider())
@@ -1057,6 +1060,10 @@ class SettingsDialog(QDialog):
             self._device_code.clear()
         self._refresh_device_status()
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Connect device", message)
+
+    def _open_compute(self) -> None:
+        from ui.compute_ui import ComputeDialog
+        ComputeDialog(self).exec()
 
     def _disconnect_device(self) -> None:
         devices.disconnect()

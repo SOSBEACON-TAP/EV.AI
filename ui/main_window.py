@@ -183,6 +183,11 @@ class MainWindow(QMainWindow):
         self._phone_call_sent = False
         self._build_ui()
         self._hook_shutdown_call()
+        try:
+            from ui.compute_ui import controller
+            controller().start()
+        except Exception as e:
+            print(f"[EV AI] Compute unavailable: {e}")
         if user_prefs.get("jarvis_ui"):
             QTimer.singleShot(0, lambda: self._apply_jarvis_ui(True, announce=False))
         self._apply_state(AIState.IDLE)

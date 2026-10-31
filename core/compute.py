@@ -287,7 +287,9 @@ class ComputeHost:
             stop.set()
 
         threading.Thread(target=self.tx.stream, args=(topic, on_event, stop), daemon=True).start()
-        threading.Timer(PAIR_MINUTES * 60, stop.set).start()
+        timer = threading.Timer(PAIR_MINUTES * 60, stop.set)
+        timer.daemon = True
+        timer.start()
         self.on_state("pairing", pin)
         return pin
 
@@ -393,6 +395,8 @@ class ComputeHost:
             dev = self._device_id()
             self.tx.post_file(session_topic(dev, self.key), data, f"shot-{secrets.token_hex(4)}.bin")
             return ok("Screenshot sent.")
+        if cmd not in ("move", "click", "scroll", "type", "key"):
+            return {"ok": False, "msg": "Unknown command."}
         pg = _pg()
         w, h = pg.size()
         if cmd == "move":

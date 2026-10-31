@@ -37,6 +37,7 @@ playwright>=1.40.0
 
 # Stage 9 dependency (live dictation / keyboard control: type_text, press_key).
 pyautogui>=0.9.54
+cryptography>=42.0.0   # Compute: encrypts phone-control messages
 
 # Stage 10 dependency (startup face check: core/face_auth.py).
 # IMPORTANT: only ever have ONE opencv-* package installed. opencv-python,
