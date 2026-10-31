@@ -2,7 +2,7 @@ EV AI 1.0.11
 
 NEW
 - Long-term memory: older chat messages are condensed into a short summary saved on your PC (data/convo_summary.json), and your saved facts are included with each request, so EV AI remembers earlier conversations even after a restart without sending the whole history. Passwords and keys are never stored. Saying "clear memory" wipes it. Turn it off with the long_term_memory setting.
-- The update screen now shows a status line under the loading bar (Downloading update, then Installing).
+- Sci-fi status text under the loading bar on the startup screen and the update screen (BOOTING CORE SYSTEMS, INITIALIZING NEURAL LINK, LOADING AI MODULES ...), changing as the bar fills.
 
 ---
 

@@ -322,6 +322,26 @@ class _FaceScanWidget(QWidget):
             painter.end()
 
 
+# Sci-fi status lines shown under the loading bar, picked by how full the bar is.
+_SCIFI_PHRASES = (
+    (0, "BOOTING CORE SYSTEMS"),
+    (12, "INITIALIZING NEURAL LINK"),
+    (28, "CALIBRATING SENSORS"),
+    (45, "LOADING AI MODULES"),
+    (62, "SYNCING MEMORY BANKS"),
+    (78, "ESTABLISHING SECURE CHANNEL"),
+    (92, "ALL SYSTEMS ONLINE"),
+)
+
+
+def _scifi_text(percent: float, tick: int) -> str:
+    line = _SCIFI_PHRASES[0][1]
+    for threshold, text in _SCIFI_PHRASES:
+        if percent >= threshold:
+            line = text
+    return f"{line}{'.' * (tick % 4)}"
+
+
 class StartupScreen(QWidget):
     """Frameless, centered splash shown before MainWindow. Call start()
     with callbacks for the two outcomes; the screen closes itself either
@@ -521,6 +541,9 @@ class StartupScreen(QWidget):
         self._worker.start()
 
     def _ease_progress(self) -> None:
+        self._tick = getattr(self, "_tick", 0) + 1
+        if not getattr(self, "_status_locked", False):
+            self._status.setText(_scifi_text(self._displayed_percent, self._tick // 8))
         if self._displayed_percent < self._target_percent:
             # Chase the target at a bounded speed (not a fixed fraction of
             # the remaining gap) so it reads as a steady, slightly slow
@@ -539,7 +562,6 @@ class StartupScreen(QWidget):
 
     def _on_progress(self, percent: int, text: str) -> None:
         self._target_percent = percent
-        self._status.setText(text)
 
     def _on_frame(self, data: dict) -> None:
         if self._face_scan is not None:
@@ -555,6 +577,7 @@ class StartupScreen(QWidget):
             self._on_ok_callback()
 
     def _on_denied(self, reason: str) -> None:
+        self._status_locked = True
         self._deny_reason = reason
         self._set_bar_color("#ff4d4d")
         self._status.setVisible(True)
