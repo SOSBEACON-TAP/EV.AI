@@ -8,9 +8,9 @@ download percentage.
 
 import math
 
-from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ui.startup_screen import _SegBar
 
@@ -65,6 +65,8 @@ class _Gears(QWidget):
 
 
 class UpdateScreen(QWidget):
+    cancel_clicked = Signal()
+
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -85,6 +87,18 @@ class UpdateScreen(QWidget):
         self._status.setAlignment(Qt.AlignCenter)
         self._status.setStyleSheet("color: #8fb8b8; font-size: 14px; letter-spacing: 3px; background: transparent;")
         layout.addWidget(self._status)
+        self._cancel = QPushButton("CANCEL")
+        self._cancel.setCursor(Qt.PointingHandCursor)
+        self._cancel.setStyleSheet(
+            "QPushButton { color: #8fb8b8; background: transparent; border: 1px solid #3a5a5a; "
+            "padding: 6px 28px; letter-spacing: 3px; } QPushButton:hover { color: #ff8a8a; border-color: #ff8a8a; }")
+        self._cancel.clicked.connect(self._on_cancel)
+        layout.addWidget(self._cancel, alignment=Qt.AlignCenter)
+
+    def _on_cancel(self) -> None:
+        self._cancel.setEnabled(False)
+        self._cancel.setText("CANCELLING...")
+        self.cancel_clicked.emit()
 
     def show_full(self) -> None:
         screen = QGuiApplication.primaryScreen()
@@ -96,6 +110,7 @@ class UpdateScreen(QWidget):
     def set_progress(self, percent: int) -> None:
         self._bar.setValue(percent)
         self._label.setText(f"UPDATING... {percent}%")
+        self._cancel.setVisible(percent < 100)
         phrases = ((0, "DOWNLOADING NEW CORE"), (30, "VERIFYING DATA PACKETS"), (60, "COMPILING MODULES"),
                    (85, "PREPARING INSTALLATION"), (100, "REBOOTING SYSTEMS"))
         text = phrases[0][1]

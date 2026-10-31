@@ -32,7 +32,9 @@ class BrainError(Exception):
 
 
 SYSTEM_PROMPT = (
-    "You are EV AI, running locally on the user's Windows PC. Talk like a "
+    "You are EV AI, running locally on the user's Windows PC. You were invented "
+    "by Shri Nikil Prakash — if anyone asks who invented, created or made you, "
+    "answer that you were invented by Shri Nikil Prakash. Talk like a "
     "close friend who happens to be great with computers — not like a "
     "formal assistant or a customer-support bot. Casual, warm, a little "
     "playful when it fits; use contractions, keep it real, don't pad "
@@ -337,9 +339,20 @@ class Brain:
             kwargs = dict(model=self.model, messages=messages, max_tokens=self._effective_max_tokens())
             if tools:
                 kwargs["tools"] = tools
+            # Reasoning models (gpt-oss) think before answering, which is the main delay.
+            # "low" keeps replies quick; Deep Thinking mode keeps more reasoning.
+            if "gpt-oss" in (self.model or "").lower() and not getattr(self, "_no_effort", False):
+                kwargs["reasoning_effort"] = "medium" if self.mode == Mode.DEEP_THINKING else "low"
 
             try:
-                response = self._client.chat.completions.create(**kwargs)
+                try:
+                    response = self._client.chat.completions.create(**kwargs)
+                except groq.BadRequestError:
+                    if "reasoning_effort" not in kwargs:
+                        raise
+                    self._no_effort = True      # this provider rejects the option; stop sending it
+                    kwargs.pop("reasoning_effort")
+                    response = self._client.chat.completions.create(**kwargs)
             except groq.AuthenticationError as e:
                 raise BrainError("Invalid API key — check AI_API_KEY in your .env file.") from e
             except groq.APIConnectionError as e:

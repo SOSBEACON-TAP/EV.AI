@@ -552,6 +552,22 @@ class SettingsDialog(QDialog):
 
         root.addWidget(_divider())
 
+        # -- Feedback -------------------------------------------------------
+        root.addWidget(_section_title("FEEDBACK"))
+        root.addWidget(_note_label("Tell the developer what you think, report a problem or ask for a feature. "
+                                   "It is sent straight to his email."))
+        self._fb_text = QTextEdit()
+        self._fb_text.setPlaceholderText("Write your feedback here…")
+        self._fb_text.setFixedHeight(80)
+        root.addWidget(self._fb_text)
+        self._fb_contact = QLineEdit()
+        self._fb_contact.setPlaceholderText("Your email or name (optional, so he can reply)")
+        root.addWidget(self._fb_contact)
+        self._fb_btn = QPushButton("Send feedback")
+        self._fb_btn.clicked.connect(self._send_feedback)
+        root.addWidget(self._fb_btn)
+        root.addWidget(_divider())
+
         # -- Maintenance ----------------------------------------------------
         root.addWidget(_section_title("DATA"))
         data_row = QHBoxLayout()
@@ -635,9 +651,6 @@ class SettingsDialog(QDialog):
         io_row.addWidget(export_btn)
         io_row.addWidget(import_btn)
         root.addLayout(io_row)
-        replay_btn = QPushButton("Replay intro animation")
-        replay_btn.clicked.connect(self._on_replay_intro)
-        root.addWidget(replay_btn)
 
         reset_btn = QPushButton("Reset settings to defaults")
         reset_btn.clicked.connect(self._on_reset_settings)
@@ -1060,6 +1073,26 @@ class SettingsDialog(QDialog):
             self._device_code.clear()
         self._refresh_device_status()
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Connect device", message)
+
+    def _send_feedback(self) -> None:
+        from core import feedback
+        if not feedback.configured():
+            QMessageBox.information(self, "Feedback", "Feedback isn't set up in this build yet.")
+            return
+        text, contact = self._fb_text.toPlainText(), self._fb_contact.text()
+        self._fb_btn.setEnabled(False)
+        self._fb_btn.setText("Sending…")
+        self._fb_worker = _TaskWorker(lambda: feedback.send(text, contact), self)
+
+        def _done(ok, message):
+            self._fb_btn.setEnabled(True)
+            self._fb_btn.setText("Send feedback")
+            if ok:
+                self._fb_text.clear()
+            (QMessageBox.information if ok else QMessageBox.warning)(self, "Feedback", message)
+
+        self._fb_worker.done.connect(_done)
+        self._fb_worker.start()
 
     def _open_compute(self) -> None:
         from ui.compute_ui import ComputeDialog

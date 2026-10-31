@@ -39,12 +39,20 @@ class InstallWorker(QThread):
     def __init__(self, url: str, parent=None):
         super().__init__(parent)
         self._url = url
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    def _on_progress(self, done: int, total: int) -> None:
+        if self._cancelled:
+            raise updater.UpdateError("__cancelled__")
+        self.progress.emit(int(done * 100 / total))
 
     def run(self):
         try:
             result = updater.check_and_install(
-                self._url, settings.APP_VERSION, APP_ROOT,
-                progress=lambda done, total: self.progress.emit(int(done * 100 / total)),
+                self._url, settings.APP_VERSION, APP_ROOT, progress=self._on_progress,
             )
         except updater.UpdateError as e:
             self.failed.emit(str(e))
@@ -97,7 +105,16 @@ class UpdateFlow(QObject):
     def _on_failed(self, message: str) -> None:
         self._close_screen()
         self._idle()
+        if message == "__cancelled__":
+            QMessageBox.information(self._parent, "Update cancelled",
+                                    "The update was cancelled. You're still on the current version.")
+            return
         QMessageBox.warning(self._parent, "Check for updates", message)
+
+    def _cancel_install(self) -> None:
+        worker = getattr(self, "_install_worker", None)
+        if worker is not None and worker.isRunning():
+            worker.cancel()
 
     def _on_info(self, info: dict) -> None:
         self._idle()
@@ -126,6 +143,7 @@ class UpdateFlow(QObject):
         from ui.update_screen import UpdateScreen
         self._screen = UpdateScreen()
         self._screen.show_full()
+        self._screen.cancel_clicked.connect(self._cancel_install)
         self._install_worker = InstallWorker(settings.UPDATE_CHECK_URL, self)
         self._install_worker.progress.connect(lambda pct: (self._button.setText(f"Updating… {pct}%"),
                                                            self._screen.set_progress(pct)))

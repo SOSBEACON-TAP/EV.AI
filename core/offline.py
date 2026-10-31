@@ -101,13 +101,48 @@ class OfflineAssistant:
         if not low:
             return None
 
-        for step in (self._time, self._volume_media, self._timer, self._todo_note, self._math):
+        for step in (self._creator, self._time, self._volume_media, self._timer, self._clock_reminder,
+                     self._todo_note, self._math):
             reply = step(low, text)
             if reply:
                 return reply
         return self._open_app(low, fallback)
 
     # -- handlers -------------------------------------------------------------
+    def _creator(self, low: str, _text: str) -> str | None:
+        if re.search(r"\bwho (invented|created|made|built|developed|designed|programmed|owns|is the (creator|inventor|developer|father))\b.*\b(you|ev|ev ai|ev\.ai)\b"
+                     r"|\bwho('s| is) (your|the) (creator|inventor|developer|maker|owner)\b"
+                     r"|\bwho (are your|is your) (creator|inventor|developer|maker)s?\b"
+                     r"|\b(your|ev'?s?) (creator|inventor|developer)\b.*\bwho\b", low):
+            return "I was invented by Shri Nikil Prakash."
+        return None
+
+    def _clock_reminder(self, low: str, text: str) -> str | None:
+        """'remind me at 5:30 pm to call mom' / 'remind me tomorrow at 9 to ...' (no AI needed)."""
+        m = re.fullmatch(r"remind me (tomorrow )?(?:at )(\d{1,2})(?::(\d{2}))? ?(am|pm|a\.m\.|p\.m\.)? (?:to |that |about )?(.+)", low)
+        if not m:
+            return None
+        tomorrow, hh, mm, ap, msg = m.groups()
+        hour, minute = int(hh), int(mm or 0)
+        if ap:
+            pm = ap.startswith("p")
+            if hour == 12:
+                hour = 12 if pm else 0
+            elif pm:
+                hour += 12
+        if hour > 23 or minute > 59:
+            return None
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        due = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if tomorrow or due <= now:
+            due += timedelta(days=1)
+        message = text[text.lower().rindex(msg.lower()):] if msg.lower() in text.lower() else msg
+        result = self._run("set_reminder_at", at=due.strftime("%Y-%m-%d %H:%M"), message=message)
+        if "error" in result:
+            return result["error"]
+        return f"Done, I'll remind you {'tomorrow' if due.date() > now.date() else 'today'} at {due.strftime('%I:%M %p').lstrip('0')}: {message}."
+
     def _time(self, low: str, _text: str) -> str | None:
         now = datetime.now()
         if re.fullmatch(r"(what('s| is)? )?(the )?(current )?time( is it)?( now)?|what time is it( now)?", low):

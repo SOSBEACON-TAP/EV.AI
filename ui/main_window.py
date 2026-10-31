@@ -519,7 +519,8 @@ class MainWindow(QMainWindow):
         mp_layout.addWidget(self.date_value, 3, 1)
         mp_layout.addWidget(date_caption, 4, 1)
 
-        layout.addWidget(metrics_panel)
+        # (System info panel removed from the home screen in 1.0.13; the labels stay
+        # so the refresh timer keeps working, they are just not shown.)
 
         # Mode panel — mutually exclusive conversational presets, plus the
         # independent Observe toggle (can run alongside any mode).
