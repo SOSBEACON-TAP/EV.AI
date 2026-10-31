@@ -206,6 +206,12 @@ class MainWindow(QMainWindow):
         self._clock_timer.start(settings.UI_REFRESH_MS)
         self._refresh_metrics()
 
+        # Low-battery warning (laptops): speaks once at 20% and again at 10% while unplugged.
+        self._battery_warned = 100
+        self._battery_timer = QTimer(self)
+        self._battery_timer.timeout.connect(self._check_battery)
+        self._battery_timer.start(60_000)
+
         self._append_conversation("EV", "SYSTEM ONLINE. READY.")
 
         self.reminder_fired.connect(self._on_reminder_fired)
@@ -287,6 +293,7 @@ class MainWindow(QMainWindow):
         dialog.focus_toggle_requested.connect(self._toggle_focus_mode)
         dialog.ask_ai_requested.connect(self._ask_ai_text)
         dialog.look_changed.connect(self._apply_window_look)
+        dialog.home_layout_changed.connect(self.apply_home_layout)
         dialog.exec()
 
     # ------------------------------------------------------------------
@@ -357,6 +364,49 @@ class MainWindow(QMainWindow):
     def _on_focus_blocked(self, site: str, closed: bool) -> None:
         verb = "Closed" if closed else "Spotted"
         self._append_conversation("EV", f"(Focus Mode: {verb} {site.title()}. Back to work!)")
+
+    def _check_battery(self) -> None:
+        if not user_prefs.get("battery_alerts"):
+            return
+        try:
+            import psutil
+            bat = psutil.sensors_battery()
+        except Exception:
+            return
+        if bat is None:
+            return
+        pct = int(bat.percent)
+        if bat.power_plugged:
+            self._battery_warned = 100          # re-arm once it is plugged in
+            return
+        for level in (10, 20):
+            if pct <= level < self._battery_warned:
+                self._battery_warned = level
+                self._deliver_reply(f"Heads up, your battery is at {pct} percent. Plug in your charger soon.")
+                return
+
+    def apply_home_layout(self) -> None:
+        """Show/hide and resize the MODE panel buttons as set in Settings > HOME SCREEN."""
+        from core import home_layout
+        hidden, sizes = home_layout.hidden(), home_layout.sizes()
+        groups = (self._mode_grid, ("normal", "automatic", "serious", "deep")), \
+                 (self._tool_grid, ("observe", "video", "song", "focus", "insights", "finder"))
+        for grid, keys in groups:
+            for key in keys:                      # take everything out, then put the visible ones back in order
+                grid.removeWidget(self._home_registry[key])
+            slot = 0
+            for key in keys:
+                btn = self._home_registry[key]
+                if key in hidden:
+                    btn.setVisible(False)
+                    continue
+                size = sizes.get(key, "M")
+                btn.setMinimumHeight(home_layout.SIZES[size])
+                btn.setStyleSheet("QPushButton { padding: 5px 4px; letter-spacing: 0px; "
+                                  f"font-size: {home_layout.FONT[size]}px; }}")
+                grid.addWidget(btn, slot // 2, slot % 2)
+                btn.setVisible(True)
+                slot += 1
 
     def replay_intro(self) -> None:
         """Play the logo -> core intro animation again (Settings > Replay intro animation)."""
@@ -542,6 +592,8 @@ class MainWindow(QMainWindow):
         self._mode_button_group.setExclusive(True)
         mode_grid = QGridLayout()
         mode_grid.setSpacing(5)
+        self._mode_grid = mode_grid
+        self._home_registry = {}
         mode_defs = [
             (Mode.NORMAL if AI_AVAILABLE else None, "NORMAL"),
             (Mode.AUTOMATIC if AI_AVAILABLE else None, "AUTOMATIC"),
@@ -561,9 +613,11 @@ class MainWindow(QMainWindow):
             else:
                 btn.setEnabled(False)
             mode_grid.addWidget(btn, i // 2, i % 2)
+            self._home_registry[("normal", "automatic", "serious", "deep")[i]] = btn
         mode_layout.addLayout(mode_grid)
 
         tool_grid = QGridLayout()
+        self._tool_grid = tool_grid
         tool_grid.setSpacing(5)
         self.observe_toggle_btn = HoverButton("👁 OBSERVE: OFF")
         self.observe_toggle_btn.setCheckable(True)
@@ -612,6 +666,11 @@ class MainWindow(QMainWindow):
         tool_grid.addWidget(self.finder_btn, 2, 1)
 
         mode_layout.addLayout(tool_grid)
+        for key, btn in (("observe", self.observe_toggle_btn), ("video", self.video_toggle_btn),
+                         ("song", self.song_toggle_btn), ("focus", self.focus_toggle_btn),
+                         ("insights", self.insights_btn), ("finder", self.finder_btn)):
+            self._home_registry[key] = btn
+        self.apply_home_layout()
 
         self._mode_panel = mode_panel
         layout.addWidget(mode_panel)

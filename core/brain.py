@@ -18,6 +18,7 @@ provider simply isn't usable instead of the whole app failing to start.
 """
 
 import json
+import os
 
 from config import settings, OPENAI_COMPATIBLE
 from core.router import ToolRouter, ToolError
@@ -106,26 +107,39 @@ class Brain:
         self._client = None
         self._init_error: str | None = None
 
+        # Backup keys (same provider): if the main key hits its rate limit, EV switches to the
+        # next one automatically. Set AI_API_KEY_2 and AI_API_KEY_3 in .env (or in Settings).
+        self._keys: list[str] = []
+        for k in (self._api_key, os.getenv("AI_API_KEY_2", ""), os.getenv("AI_API_KEY_3", "")):
+            k = (k or "").strip()
+            if k and k not in self._keys:
+                self._keys.append(k)
+        self._key_index = 0
+
         if not self._api_key:
             return  # stays unconfigured — is_configured will be False
+        self._init_client(self._api_key)
 
+    def _init_client(self, key: str) -> None:
+        self._client = None
+        self._init_error = None
         try:
             if self.provider == "gemini":
                 from google import genai
-                self._client = genai.Client(api_key=self._api_key)
+                self._client = genai.Client(api_key=key)
             elif self.provider == "anthropic":
                 import anthropic
-                self._client = anthropic.Anthropic(api_key=self._api_key)
+                self._client = anthropic.Anthropic(api_key=key)
             elif self.provider == "groq":
                 from groq import Groq
-                self._client = Groq(api_key=self._api_key)
+                self._client = Groq(api_key=key)
             elif self.provider in OPENAI_COMPATIBLE:
                 import openai
                 base_url = settings.AI_BASE_URL or OPENAI_COMPATIBLE[self.provider][0] or None
                 if self.provider == "custom" and not base_url:
                     self._init_error = "AI_PROVIDER=custom needs AI_BASE_URL (e.g. http://localhost:11434/v1)."
                 else:
-                    self._client = openai.OpenAI(api_key=self._api_key, base_url=base_url)
+                    self._client = openai.OpenAI(api_key=key, base_url=base_url)
             else:
                 known = ", ".join(["anthropic", "gemini", "groq", *OPENAI_COMPATIBLE])
                 self._init_error = f"Unknown AI_PROVIDER '{self.provider}' — use one of: {known}."
@@ -134,6 +148,15 @@ class Brain:
                 f"The package for AI_PROVIDER='{self.provider}' isn't installed. "
                 "Run: pip install -r requirements.txt"
             )
+
+    def _switch_key(self) -> bool:
+        """Move to the next backup key. Returns False when there is none left."""
+        if self._key_index + 1 >= len(self._keys):
+            return False
+        self._key_index += 1
+        self._init_client(self._keys[self._key_index])
+        print(f"[EV AI] Switched to backup API key #{self._key_index + 1}")
+        return self._client is not None
 
     @property
     def is_configured(self) -> bool:
@@ -201,17 +224,25 @@ class Brain:
         self._history.append({"role": "user", "content": user_text})
         self._trim_history()
 
-        try:
-            if self.provider == "gemini":
-                reply_text = self._ask_gemini()
-            elif self.provider == "groq" or self.provider in OPENAI_COMPATIBLE:
-                reply_text = self._ask_groq()
-            else:
-                reply_text = self._ask_anthropic()
-        except BrainError:
-            raise
-        except Exception as e:
-            raise BrainError(f"Unexpected AI error: {e}") from e
+        reply_text = None
+        while reply_text is None:
+            try:
+                if self.provider == "gemini":
+                    reply_text = self._ask_gemini()
+                elif self.provider == "groq" or self.provider in OPENAI_COMPATIBLE:
+                    reply_text = self._ask_groq()
+                else:
+                    reply_text = self._ask_anthropic()
+            except BrainError as e:
+                msg = str(e).lower()
+                if ("rate limit" in msg or "invalid api key" in msg) and self._switch_key():
+                    continue            # try again with the next backup key
+                if self._key_index and self._keys:
+                    self._key_index = 0                 # all keys tried: start from the main key next time
+                    self._init_client(self._keys[0])
+                raise
+            except Exception as e:
+                raise BrainError(f"Unexpected AI error: {e}") from e
 
         self._history.append({"role": "assistant", "content": reply_text})
         self._trim_history()

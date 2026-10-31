@@ -86,6 +86,7 @@ class SettingsDialog(QDialog):
     global_hotkey_changed = Signal(bool)
     profile_applied = Signal(str)
     replay_intro_requested = Signal()
+    home_layout_changed = Signal()
     quick_actions_requested = Signal()
     focus_toggle_requested = Signal()
     ask_ai_requested = Signal(str)
@@ -495,6 +496,11 @@ class SettingsDialog(QDialog):
         self._speak_check.toggled.connect(lambda on: user_prefs.set_value("speak_replies", on))
         root.addWidget(self._speak_check)
 
+        battery_check = QCheckBox("Warn me when the battery is low (laptops)")
+        battery_check.setChecked(user_prefs.get("battery_alerts"))
+        battery_check.toggled.connect(lambda on: user_prefs.set_value("battery_alerts", on))
+        root.addWidget(battery_check)
+
         self._top_check = QCheckBox("Keep the dashboard above other windows")
         self._top_check.setChecked(user_prefs.get("always_on_top"))
         self._top_check.toggled.connect(self._on_always_on_top)
@@ -550,6 +556,30 @@ class SettingsDialog(QDialog):
         root.addLayout(obs_row)
         root.addWidget(_note_label("Applies the next time Observe is turned on."))
 
+        root.addWidget(_divider())
+
+        # -- Home screen layout ---------------------------------------------
+        root.addWidget(_section_title("HOME SCREEN"))
+        root.addWidget(_note_label("Choose which buttons show in the MODE panel and how big each one is."))
+        from core import home_layout
+        self._home_rows = {}
+        for key, label in home_layout.BUTTONS:
+            row = QHBoxLayout()
+            check = QCheckBox(label)
+            check.setChecked(key not in home_layout.hidden())
+            combo = QComboBox()
+            for code, text in (("S", "Small"), ("M", "Normal"), ("L", "Large")):
+                combo.addItem(text, code)
+            combo.setCurrentIndex({"S": 0, "M": 1, "L": 2}[home_layout.size_of(key)])
+            check.toggled.connect(lambda _on, k=key: self._home_changed(k))
+            combo.currentIndexChanged.connect(lambda _i, k=key: self._home_changed(k))
+            row.addWidget(check, 1)
+            row.addWidget(combo)
+            root.addLayout(row)
+            self._home_rows[key] = (check, combo)
+        home_reset = QPushButton("Reset home screen layout")
+        home_reset.clicked.connect(self._home_reset)
+        root.addWidget(home_reset)
         root.addWidget(_divider())
 
         # -- Feedback -------------------------------------------------------
@@ -1073,6 +1103,27 @@ class SettingsDialog(QDialog):
             self._device_code.clear()
         self._refresh_device_status()
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Connect device", message)
+
+    def _home_changed(self, key: str) -> None:
+        from core import home_layout
+        check, combo = self._home_rows[key]
+        hidden = home_layout.hidden()
+        (hidden.discard if check.isChecked() else hidden.add)(key)
+        home_layout.set_hidden(hidden)
+        home_layout.set_size(key, combo.currentData())
+        self.home_layout_changed.emit()
+
+    def _home_reset(self) -> None:
+        from core import home_layout
+        home_layout.reset()
+        for check, combo in self._home_rows.values():
+            check.blockSignals(True)
+            combo.blockSignals(True)
+            check.setChecked(True)
+            combo.setCurrentIndex(1)
+            check.blockSignals(False)
+            combo.blockSignals(False)
+        self.home_layout_changed.emit()
 
     def _send_feedback(self) -> None:
         from core import feedback

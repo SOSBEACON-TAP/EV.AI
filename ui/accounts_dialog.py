@@ -207,6 +207,18 @@ class AccountsDialog(QDialog):
         self._api_key = _secret_field(bool(settings.AI_API_KEY))
         root.addWidget(self._api_key)
 
+        note = QLabel("Backup keys (optional): if the main key hits its rate limit, EV switches to the next one automatically. "
+                      "Use keys from the same provider.")
+        note.setWordWrap(True)
+        root.addWidget(note)
+        self._backup_keys = []
+        for n in (2, 3):
+            field = _secret_field(bool(os.getenv(f"AI_API_KEY_{n}")))
+            field.setPlaceholderText(f"backup key {n} — saved, leave blank to keep it" if os.getenv(f"AI_API_KEY_{n}")
+                                     else f"backup key {n} (optional)")
+            root.addWidget(field)
+            self._backup_keys.append((n, field))
+
         root.addWidget(QLabel("Model"))
         self._model = QLineEdit(settings.AI_MODEL)
         root.addWidget(self._model)
@@ -428,6 +440,9 @@ class AccountsDialog(QDialog):
         }
         if new_key:
             updates["AI_API_KEY"] = new_key
+        for n, field in self._backup_keys:
+            if field.text().strip():
+                updates[f"AI_API_KEY_{n}"] = field.text().strip()
         new_email_password = self._email_password.text().strip()
         if new_email_password:
             updates["EMAIL_APP_PASSWORD"] = "".join(new_email_password.split())

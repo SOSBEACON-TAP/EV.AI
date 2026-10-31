@@ -1,3 +1,20 @@
+EV AI 1.0.13
+
+NEW
+- Cancel button on the update screen: stop a download and stay on your current version.
+- Edit your home screen: Settings, HOME SCREEN lets you hide any mode or tool button and make each one Small, Normal or Large. Reset brings it back.
+- Backup API keys: add up to 2 more keys (Settings, AI, email and voice). If the main key hits its rate limit, EV switches to the next key by itself.
+- Feedback: Settings, FEEDBACK sends your message to the developer's email.
+- Faster replies: gpt-oss models on Groq now answer with low reasoning effort (Deep Thinking keeps more).
+- Say "remind me at 5:30 pm to call mom" or "remind me tomorrow at 9 to ..." and it is set instantly, without waiting for the AI.
+- Low battery warning (laptops): EV speaks at 20% and 10% while unplugged. Turn it off in Settings.
+- Ask "who invented you" and EV answers: Shri Nikil Prakash.
+
+CHANGES
+- Removed the SYSTEM info panel from the home screen and the "Replay intro animation" button from Settings.
+
+---
+
 EV AI 1.0.12
 
 NEW
