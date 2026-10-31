@@ -161,12 +161,28 @@ class Brain:
                           "'are you sure?' first. Only ask if the recipient or the message itself is missing or ambiguous.")
         except Exception:
             pass
+        try:
+            from core import convo_memory
+            from tools.memory import get_store
+            extra += convo_memory.prompt_block(get_store())
+        except Exception:
+            try:
+                from core import convo_memory
+                extra += convo_memory.prompt_block()
+            except Exception:
+                pass
         return SYSTEM_PROMPT + PROMPT_ADDITIONS.get(self.mode, "") + extra
 
     def _effective_max_tokens(self) -> int:
         return MAX_TOKENS.get(self.mode, 400)
 
     def reset_context(self) -> None:
+        # Keep what was said: fold the whole short-term window into long-term memory first.
+        try:
+            from core import convo_memory
+            convo_memory.remember_dropped(list(self._history))
+        except Exception:
+            pass
         self._history.clear()
 
     def ask(self, user_text: str) -> str:
@@ -605,4 +621,10 @@ class Brain:
         # Bounded short-term context, not a full transcript — keeps
         # token usage predictable on long-running sessions.
         if len(self._history) > self.history_limit:
+            dropped = self._history[:-self.history_limit]
             self._history = self._history[-self.history_limit:]
+            try:
+                from core import convo_memory
+                convo_memory.remember_dropped(dropped)
+            except Exception:
+                pass

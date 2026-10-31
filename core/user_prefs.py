@@ -53,6 +53,7 @@ DEFAULTS = {
     "voice_friendly": "en-US-AriaNeural",
     "voice_humorous": "en-US-DavisNeural",
     # -- Focus Mode ----------------------------------------------------------
+    "long_term_memory": True,          # keep a condensed summary of older chats on this PC
     "start_menu_target": "",           # where EV_AI.exe was when its Start menu entry was made
     "jarvis_ui": False,                # the yellow Jarvis look + tools is switched on
     "device_id": "",                   # secret id from the connected phone's device code

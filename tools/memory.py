@@ -50,6 +50,11 @@ def clear_memory(confirmed: bool = False) -> dict:
             "message": "This will permanently delete everything EV remembers — preferences, project info, "
                        "and custom commands. Ask the user to confirm first.",
         }
+    try:
+        from core import convo_memory
+        convo_memory.clear()
+    except Exception:
+        pass
     return get_store().clear_all()
 
 
