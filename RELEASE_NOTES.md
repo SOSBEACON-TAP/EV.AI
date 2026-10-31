@@ -1,3 +1,10 @@
+EV AI 1.0.12
+
+NEW
+- Compute: control this computer from your phone or tablet, only when both agree. Settings, Phone control (Compute) shows a 6-digit PIN; type it in the EV AI app (Computer screen, Compute) and allow it here. Every session asks again, a red banner with a STOP button shows while the phone is in control, and sessions end by themselves after 30 minutes. The phone can see the screen, click, move the mouse, scroll, type, change volume, lock and sleep. Everything is encrypted. Needs the latest EV AI app on the phone.
+
+---
+
 EV AI 1.0.11
 
 NEW
