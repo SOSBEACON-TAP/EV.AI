@@ -81,6 +81,10 @@ class UpdateScreen(QWidget):
         self._label.setAlignment(Qt.AlignCenter)
         self._label.setStyleSheet("color: #35e5e5; font-size: 20px; letter-spacing: 4px; background: transparent;")
         layout.addWidget(self._label)
+        self._status = QLabel("Downloading update...")
+        self._status.setAlignment(Qt.AlignCenter)
+        self._status.setStyleSheet("color: #8fb8b8; font-size: 14px; background: transparent;")
+        layout.addWidget(self._status)
 
     def show_full(self) -> None:
         screen = QGuiApplication.primaryScreen()
@@ -92,3 +96,7 @@ class UpdateScreen(QWidget):
     def set_progress(self, percent: int) -> None:
         self._bar.setValue(percent)
         self._label.setText(f"UPDATING... {percent}%")
+        if percent >= 100:
+            self._status.setText("Installing - EV.AI will restart shortly...")
+        else:
+            self._status.setText("Downloading update...")

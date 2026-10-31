@@ -1,3 +1,10 @@
+EV AI 1.0.11
+
+NEW
+- The update screen now shows a status line under the loading bar (Downloading update, then Installing).
+
+---
+
 EV AI 1.0.10
 
 FIXES
