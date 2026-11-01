@@ -269,6 +269,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     log = app_root / "data" / "update_log.txt"
     lines = [
         "@echo off",
+        f'echo Helper started %date% %time% waiting for PID {pid} >> "{log}"',
         "set /a n=0",
         ":wait",
         f'tasklist /FI "PID eq {pid}" /FI "IMAGENAME eq EV_AI.exe" 2>nul | find "EV_AI.exe" >nul',
@@ -283,6 +284,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         "ping -n 2 127.0.0.1 >nul",
         "goto wait",
         ":go",
+        f'echo Old EV AI closed after %n% checks, copying from {new_dir} >> "{log}"',
         f'echo Updating %date% %time% >> "{log}"',
         f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env '
         f'/R:5 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
