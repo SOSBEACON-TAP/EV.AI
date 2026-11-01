@@ -46,11 +46,40 @@ a = Analysis(
     ],
 )
 pyz = PYZ(a.pure)
+# File details shown in Properties > Details of EV_AI.exe (publisher name there is ours;
+# the SmartScreen "Publisher" line needs a paid code-signing certificate instead).
+_vfile = None
+try:
+    import os, sys as _sys
+    _sys.path.insert(0, SPECPATH)
+    from app_version import VERSION as _V
+    from PyInstaller.utils.win32.versioninfo import (VSVersionInfo, FixedFileInfo, StringFileInfo,
+                                                      StringTable, StringStruct, VarFileInfo, VarStruct)
+    _t = tuple(int(x) for x in (_V.split(".") + ["0", "0", "0"])[:3]) + (0,)
+    _info = VSVersionInfo(
+        ffi=FixedFileInfo(filevers=_t, prodvers=_t, mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0),
+        kids=[StringFileInfo([StringTable("040904B0", [
+            StringStruct("CompanyName", "Shri Nikil Prakash V"),
+            StringStruct("FileDescription", "EV AI Assistant"),
+            StringStruct("FileVersion", _V),
+            StringStruct("InternalName", "EV_AI"),
+            StringStruct("LegalCopyright", "Copyright (c) Shri Nikil Prakash V"),
+            StringStruct("OriginalFilename", "EV_AI.exe"),
+            StringStruct("ProductName", "EV AI"),
+            StringStruct("ProductVersion", _V)])]),
+            VarFileInfo([VarStruct("Translation", [1033, 1200])])])
+    _vfile = os.path.join(SPECPATH, "build_version_info.txt")
+    open(_vfile, "w", encoding="utf-8").write(str(_info))
+except Exception as _e:   # never let the version details break the build
+    print("version info skipped:", _e)
+    _vfile = None
+
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
     name="EV_AI",
     icon="assets/icons/ev.ico",
+    version=_vfile,
     console=False,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="EV_AI")

@@ -547,42 +547,27 @@ class MainWindow(QMainWindow):
         mp_layout = QGridLayout(metrics_panel)
         mp_layout.setVerticalSpacing(0)
         mp_layout.setContentsMargins(12, 8, 12, 8)
-        mtitle = QLabel("SYSTEM")
+        mtitle = QLabel("TIME & DATE")
         mtitle.setObjectName("SectionTitle")
         mp_layout.addWidget(mtitle, 0, 0, 1, 2)
-
-        self.cpu_value = QLabel("--%")
-        self.cpu_value.setObjectName("MetricValue")
-        cpu_caption = QLabel("CPU")
-        cpu_caption.setObjectName("MetricCaption")
-        mp_layout.addWidget(self.cpu_value, 1, 0)
-        mp_layout.addWidget(cpu_caption, 2, 0)
-
-        self.ram_value = QLabel("--%")
-        self.ram_value.setObjectName("MetricValue")
-        ram_caption = QLabel("RAM")
-        ram_caption.setObjectName("MetricCaption")
-        mp_layout.addWidget(self.ram_value, 1, 1)
-        mp_layout.addWidget(ram_caption, 2, 1)
 
         self.time_value = QLabel("--:--:--")
         self.time_value.setObjectName("MetricValue")
         time_caption = QLabel("TIME")
         time_caption.setObjectName("MetricCaption")
-        mp_layout.addWidget(self.time_value, 3, 0)
-        mp_layout.addWidget(time_caption, 4, 0)
+        mp_layout.addWidget(self.time_value, 1, 0)
+        mp_layout.addWidget(time_caption, 2, 0)
 
         self.date_value = QLabel("----------")
         self.date_value.setObjectName("MetricValue")
         date_caption = QLabel("DATE")
         date_caption.setObjectName("MetricCaption")
-        mp_layout.addWidget(self.date_value, 3, 1)
-        mp_layout.addWidget(date_caption, 4, 1)
+        mp_layout.addWidget(self.date_value, 1, 1)
+        mp_layout.addWidget(date_caption, 2, 1)
 
-        # System info panel removed from the home screen in 1.0.13. Keep the (hidden) panel alive
-        # so the labels the refresh timer writes to are not deleted by Qt.
-        metrics_panel.setVisible(False)
+        # Clock panel: CPU/RAM were removed (Jarvis shows the system stats).
         self._metrics_panel = metrics_panel
+        layout.addWidget(metrics_panel)
 
         # Mode panel — mutually exclusive conversational presets, plus the
         # independent Observe toggle (can run alongside any mode).
@@ -789,7 +774,6 @@ class MainWindow(QMainWindow):
         quick_actions = [
             ("Open YouTube", "open youtube"),
             ("Search the Web", "search the web for "),
-            ("System Info", "what is the cpu usage"),
             ("Clear Conversation", "__clear__"),
         ]
         for label, command in quick_actions:
@@ -1640,13 +1624,9 @@ class MainWindow(QMainWindow):
         try:
             cpu_text = f"{psutil.cpu_percent(interval=None):.0f}%"
             ram_text = f"{psutil.virtual_memory().percent:.0f}%"
-            self.cpu_value.setText(cpu_text)
-            self.ram_value.setText(ram_text)
         except Exception:
             # Never let a metrics failure crash the UI.
             cpu_text, ram_text = "N/A", "N/A"
-            self.cpu_value.setText(cpu_text)
-            self.ram_value.setText(ram_text)
         if self._hud_overlay is not None:
             self._hud_overlay.set_metrics(cpu_text, ram_text)
 

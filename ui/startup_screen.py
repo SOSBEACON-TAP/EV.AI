@@ -385,7 +385,7 @@ class StartupScreen(QWidget):
         self._status.setStyleSheet(
             f"color: {self._accent}; font-size: 13px; letter-spacing: 3px; background: transparent;")
         layout.addWidget(self._status)
-        self._status.setVisible(not self._show_face_scan)
+        self._status.setVisible(True)
 
         # Password fallback — hidden until a face check actually fails
         # (or the camera isn't usable) and a password has been set via

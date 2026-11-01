@@ -16,3 +16,4 @@ venv/
 dist/
 *.lnk
 .env
+build_version_info.txt

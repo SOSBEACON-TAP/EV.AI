@@ -386,8 +386,8 @@ class Brain:
             try:
                 try:
                     response = self._client.chat.completions.create(**kwargs)
-                except groq.BadRequestError:
-                    if "reasoning_effort" not in kwargs:
+                except groq.APIStatusError as _e:
+                    if "reasoning_effort" not in kwargs or getattr(_e, "status_code", 0) not in (400, 404, 422):
                         raise
                     self._no_effort = True      # this provider rejects the option; stop sending it
                     kwargs.pop("reasoning_effort")

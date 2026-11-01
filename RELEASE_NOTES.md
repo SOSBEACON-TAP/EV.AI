@@ -1,3 +1,13 @@
+EV AI 1.0.15
+
+CHANGES
+- The loading screen text (BOOTING CORE SYSTEMS, LOADING AI MODULES ...) now also shows during the face scan.
+- Home screen: the SYSTEM panel is back as TIME & DATE (CPU and RAM were removed, Jarvis shows those). The SYSTEM INFO quick action is removed.
+- EV_AI.exe details (right click, Properties, Details) now show the publisher: Shri Nikil Prakash V. Windows SmartScreen still says Unknown publisher; that needs a paid code-signing certificate.
+- Replies: if a provider rejects the fast-reasoning option, EV retries without it.
+
+---
+
 EV AI 1.0.14
 
 FIXES
