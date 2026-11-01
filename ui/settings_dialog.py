@@ -591,30 +591,17 @@ class SettingsDialog(QDialog):
         # -- Feedback -------------------------------------------------------
         root.addWidget(_section_title("FEEDBACK"))
         root.addWidget(_note_label("Tell the developer what you think, report a problem or ask for a feature. "
-                                   "It is sent straight to his email."))
+                                   "It is sent straight to the developer's email."))
         self._fb_text = QTextEdit()
         self._fb_text.setPlaceholderText("Write your feedback here…")
         self._fb_text.setFixedHeight(80)
         root.addWidget(self._fb_text)
         self._fb_contact = QLineEdit()
-        self._fb_contact.setPlaceholderText("Your email or name (optional, so he can reply)")
+        self._fb_contact.setPlaceholderText("Your email or name (optional, so the developer can reply)")
         root.addWidget(self._fb_contact)
         self._fb_btn = QPushButton("Send feedback")
         self._fb_btn.clicked.connect(self._send_feedback)
         root.addWidget(self._fb_btn)
-        root.addWidget(_divider())
-
-        # -- Maintenance ----------------------------------------------------
-        root.addWidget(_section_title("DATA"))
-        data_row = QHBoxLayout()
-        save_chat_btn = QPushButton("Save conversation…")
-        save_chat_btn.clicked.connect(self._on_save_conversation)
-        folder_btn = QPushButton("Open data folder")
-        folder_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(APP_ROOT))))
-        data_row.addWidget(save_chat_btn)
-        data_row.addWidget(folder_btn)
-        root.addLayout(data_row)
-
         root.addWidget(_divider())
 
         # -- Face check + password fallback --------------------------------

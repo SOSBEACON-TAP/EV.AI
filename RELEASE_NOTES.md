@@ -1,3 +1,11 @@
+EV AI 1.0.17
+
+CHANGES
+- Settings: removed the DATA section (Save conversation and Open data folder).
+- Feedback wording now says "the developer" instead of "he".
+
+---
+
 EV AI 1.0.16
 
 FIXES
