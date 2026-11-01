@@ -195,6 +195,7 @@ class MainWindow(QMainWindow):
             print(f"[EV AI] Update check skipped: {e}")
         try:
             from ui.compute_ui import controller
+            controller().set_ask(self._remote_ask)
             controller().start()
         except Exception as e:
             print(f"[EV AI] Compute unavailable: {e}")
@@ -374,6 +375,22 @@ class MainWindow(QMainWindow):
     def _on_focus_blocked(self, site: str, closed: bool) -> None:
         verb = "Closed" if closed else "Spotted"
         self._append_conversation("EV", f"(Focus Mode: {verb} {site.title()}. Back to work!)")
+
+    def _remote_ask(self, text: str) -> str:
+        """Runs a command sent from the phone (Compute > Ask EV). Called on a background thread,
+        only while a remote session you approved is active."""
+        try:
+            if self._offline is not None:
+                reply = self._offline.handle(text, fallback=False)
+                if reply:
+                    return reply
+            if not AI_AVAILABLE or self._tool_router is None:
+                return "The AI isn't available on the computer."
+            if getattr(self, "_remote_brain", None) is None:
+                self._remote_brain = Brain(router=self._tool_router)
+            return self._remote_brain.ask(text)
+        except Exception as e:
+            return f"Sorry, that failed: {e}"
 
     def _check_battery(self) -> None:
         if not user_prefs.get("battery_alerts"):

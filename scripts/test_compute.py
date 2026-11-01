@@ -52,6 +52,9 @@ r = cmd("key", {"name": "f4"}); assert not r["ok"] or True  # blocked or pyautog
 before = last_n(); cmd("ping", n="same"); cmd("ping", n="same"); assert last_n() == before + 1
 before = last_n(); cmd("ping", t=time.time() - 500); assert last_n() == before
 before = last_n(); cmd("ping", k=os.urandom(32)); assert last_n() == before
+host.ask_fn = lambda t: "Reply to " + t + " नमस्ते"
+r = cmd("ask", {"text": "what time is it"}); assert r["ok"] and r["kind"] == "ask" and r["msg"].startswith("Reply to what time") and "नमस्ते" in r["msg"]
+host.ask_fn = None; r = cmd("ask", {"text": "x"}); assert not r["ok"]
 cmd("bye"); assert not host.session_active
 r = cmd("lock"); assert not r["ok"]
 host.shutdown(); print("compute protocol OK")

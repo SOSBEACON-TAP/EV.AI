@@ -62,7 +62,7 @@ def pin_key(pin: str, device_id: str) -> bytes:
 def seal(key: bytes, obj: dict) -> bytes:
     """nonce(12) + AES-GCM(ciphertext+tag) of the JSON object."""
     nonce = os.urandom(12)
-    return nonce + _aes()(key).encrypt(nonce, json.dumps(obj, separators=(",", ":")).encode(), b"ev-compute")
+    return nonce + _aes()(key).encrypt(nonce, json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8"), b"ev-compute")
 
 
 def unseal(key: bytes, data: bytes) -> dict | None:
@@ -230,6 +230,7 @@ class ComputeHost:
         self._pair_stop = threading.Event()
         self._session_until = 0.0
         self._phone_name = ""
+        self.ask_fn: Callable[[str], str] | None = None   # set by the UI: runs a command through EV AI
         self._seen: dict[str, float] = {}
         self._lock = threading.Lock()
 
@@ -380,6 +381,14 @@ class ComputeHost:
         ok = lambda m="Done.": {"ok": True, "msg": m}  # noqa: E731
         if cmd == "status":
             return ok(_status())
+        if cmd == "ask":
+            if self.ask_fn is None:
+                return {"ok": False, "msg": "EV AI can't take questions right now."}
+            text = str(a.get("text", "")).strip()[:500]
+            if not text:
+                return {"ok": False, "msg": "Type something to ask."}
+            reply = str(self.ask_fn(text) or "")[:1200] or "(no reply)"
+            return {"ok": True, "msg": reply, "kind": "ask"}
         if cmd == "lock":
             return ok(_lock())
         if cmd == "sleep":

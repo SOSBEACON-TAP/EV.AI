@@ -1,5 +1,10 @@
 EV AI 1.0.17
 
+NEW
+- Ask EV from your phone: during a Compute session, type a command in the phone app and EV on the computer runs it and sends the reply back.
+- Find my phone: Settings, Connected device, "Find my phone" (or say "find my phone") rings your phone loudly at alarm volume. Needs the latest app on the phone.
+- Start with Windows: a switch in Settings, Behaviour.
+
 CHANGES
 - Settings: removed the DATA section (Save conversation and Open data folder).
 - Feedback wording now says "the developer" instead of "he".

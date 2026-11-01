@@ -482,6 +482,10 @@ class SettingsDialog(QDialog):
         dev_row.addWidget(self._test_call_btn)
         dev_row.addWidget(new_code_btn)
         root.addLayout(dev_row)
+        self._find_btn = QPushButton("Find my phone (rings it loudly)")
+        self._find_btn.setEnabled(bool(devices.connected_id()))
+        self._find_btn.clicked.connect(self._find_phone)
+        root.addWidget(self._find_btn)
         compute_btn = QPushButton("Phone control (Compute)…")
         compute_btn.clicked.connect(self._open_compute)
         root.addWidget(compute_btn)
@@ -506,6 +510,12 @@ class SettingsDialog(QDialog):
         cs_check.toggled.connect(lambda on: user_prefs.set_value("chatsorter_enabled", on))
         root.addWidget(cs_check)
         root.addWidget(_note_label("Needs your ChatSorter API key in Settings, AI, email and voice. Off by default."))
+
+        from core import autostart
+        self._autostart_check = QCheckBox("Start EV AI when I log in to Windows")
+        self._autostart_check.setChecked(autostart.is_enabled())
+        self._autostart_check.toggled.connect(self._on_autostart)
+        root.addWidget(self._autostart_check)
 
         self._top_check = QCheckBox("Keep the dashboard above other windows")
         self._top_check.setChecked(user_prefs.get("always_on_top"))
@@ -1089,6 +1099,8 @@ class SettingsDialog(QDialog):
         self._device_status.setText(f"✅ Connected: {devices.mask(dev)}" if dev else "Not connected")
         self._device_disconnect_btn.setEnabled(bool(dev))
         self._test_call_btn.setEnabled(bool(dev))
+        if hasattr(self, "_find_btn"):
+            self._find_btn.setEnabled(bool(dev))
 
     def _connect_device(self) -> None:
         ok, message = devices.connect(self._device_code.text())
@@ -1137,6 +1149,26 @@ class SettingsDialog(QDialog):
 
         self._fb_worker.done.connect(_done)
         self._fb_worker.start()
+
+    def _on_autostart(self, on: bool) -> None:
+        from core import autostart
+        ok, message = autostart.set_enabled(on)
+        if not ok:
+            self._autostart_check.blockSignals(True)
+            self._autostart_check.setChecked(not on)
+            self._autostart_check.blockSignals(False)
+            QMessageBox.warning(self, "Start with Windows", message)
+
+    def _find_phone(self) -> None:
+        self._find_btn.setEnabled(False)
+        self._find_worker = _TaskWorker(devices.find_phone, self)
+
+        def _finished(ok, message):
+            self._find_btn.setEnabled(bool(devices.connected_id()))
+            (QMessageBox.information if ok else QMessageBox.warning)(self, "Find my phone", message)
+
+        self._find_worker.done.connect(_finished)
+        self._find_worker.start()
 
     def _open_compute(self) -> None:
         from ui.compute_ui import ComputeDialog

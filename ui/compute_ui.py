@@ -116,6 +116,9 @@ class ComputeController(QObject):
         self.host.end_session("Stopped on the computer.")
         self._banner.hide()
 
+    def set_ask(self, fn) -> None:
+        self.host.ask_fn = fn
+
     def start(self) -> None:
         try:
             self.host.start()

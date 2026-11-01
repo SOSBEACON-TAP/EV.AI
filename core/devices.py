@@ -121,3 +121,10 @@ def call_for_shutdown(task: str) -> tuple[bool, str]:
     if not user_prefs.get("call_on_shutdown") or not connected_id():
         return False, "Phone call on shutdown is off or no device is connected."
     return ring_phone(shutdown_message(task))
+
+
+def find_phone() -> tuple[bool, str]:
+    """Rings the phone loudly (alarm volume) so you can find it. The "FIND:" prefix tells the app."""
+    ok, msg = ring_phone("FIND:EV is helping you find this phone.")
+    return ok, ("Your phone should be ringing loudly now. Open the app and tap Answer or Decline to stop it."
+                if ok else msg)

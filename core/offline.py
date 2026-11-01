@@ -101,7 +101,7 @@ class OfflineAssistant:
         if not low:
             return None
 
-        for step in (self._creator, self._time, self._volume_media, self._timer, self._clock_reminder,
+        for step in (self._creator, self._find_phone, self._time, self._volume_media, self._timer, self._clock_reminder,
                      self._todo_note, self._math):
             reply = step(low, text)
             if reply:
@@ -115,6 +115,13 @@ class OfflineAssistant:
                      r"|\bwho (are your|is your) (creator|inventor|developer|maker)s?\b"
                      r"|\b(your|ev'?s?) (creator|inventor|developer)\b.*\bwho\b", low):
             return "I was invented by Shri Nikil Prakash."
+        return None
+
+    def _find_phone(self, low: str, _text: str) -> str | None:
+        if re.fullmatch(r"(find|ring|locate|call) (my |the )?(phone|mobile)|where('s| is) my (phone|mobile)|i lost my (phone|mobile)", low):
+            from core import devices
+            ok, msg = devices.find_phone()
+            return msg
         return None
 
     def _clock_reminder(self, low: str, text: str) -> str | None:
