@@ -42,6 +42,8 @@ def send(message: str, contact: str = "") -> tuple[bool, str]:
         url = "https://api.web3forms.com/submit"
         body.update(access_key=FEEDBACK_URL.split(":", 1)[1], subject="EV AI feedback",
                     from_name=contact.strip()[:60] or "EV AI user")
+        if "@" in contact:
+            body["email"] = contact.strip()[:120]      # Web3Forms uses this as the Reply-To address
     else:
         url = FEEDBACK_URL
         if contact.strip():
