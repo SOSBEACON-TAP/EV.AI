@@ -501,6 +501,12 @@ class SettingsDialog(QDialog):
         battery_check.toggled.connect(lambda on: user_prefs.set_value("battery_alerts", on))
         root.addWidget(battery_check)
 
+        cs_check = QCheckBox("Use ChatSorter for long-term memory (sends your messages to chatsorter.com)")
+        cs_check.setChecked(user_prefs.get("chatsorter_enabled"))
+        cs_check.toggled.connect(lambda on: user_prefs.set_value("chatsorter_enabled", on))
+        root.addWidget(cs_check)
+        root.addWidget(_note_label("Needs your ChatSorter API key in Settings, AI, email and voice. Off by default."))
+
         self._top_check = QCheckBox("Keep the dashboard above other windows")
         self._top_check.setChecked(user_prefs.get("always_on_top"))
         self._top_check.toggled.connect(self._on_always_on_top)

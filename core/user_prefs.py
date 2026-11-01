@@ -56,6 +56,8 @@ DEFAULTS = {
     "home_hidden": "",                 # home-screen buttons you removed (comma-separated keys)
     "home_sizes": "{}",                # per-button size: {"normal": "L", ...} (S, M or L)
     "battery_alerts": True,            # speak a warning when the battery is low and unplugged
+    "chatsorter_enabled": False,       # opt-in: store/fetch memories through ChatSorter (needs CHATSORTER_API_KEY)
+    "chatsorter_chat_id": "",          # random id for your memory space, made on first use
     "long_term_memory": True,          # keep a condensed summary of older chats on this PC
     "start_menu_target": "",           # where EV_AI.exe was when its Start menu entry was made
     "jarvis_ui": False,                # the yellow Jarvis look + tools is switched on

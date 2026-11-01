@@ -7,6 +7,7 @@ NEW
 - Feedback: Settings, FEEDBACK sends your message to the developer's email.
 - Faster replies: gpt-oss models on Groq now answer with low reasoning effort (Deep Thinking keeps more).
 - Say "remind me at 5:30 pm to call mom" or "remind me tomorrow at 9 to ..." and it is set instantly, without waiting for the AI.
+- ChatSorter long-term memory (optional, off by default): add your ChatSorter key in Settings, AI, email and voice, then tick the box in Settings. Your messages are sent to chatsorter.com only while it is on.
 - Low battery warning (laptops): EV speaks at 20% and 10% while unplugged. Turn it off in Settings.
 - Ask "who invented you" and EV answers: Shri Nikil Prakash.
 
