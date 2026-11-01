@@ -579,8 +579,10 @@ class MainWindow(QMainWindow):
         mp_layout.addWidget(self.date_value, 3, 1)
         mp_layout.addWidget(date_caption, 4, 1)
 
-        # (System info panel removed from the home screen in 1.0.13; the labels stay
-        # so the refresh timer keeps working, they are just not shown.)
+        # System info panel removed from the home screen in 1.0.13. Keep the (hidden) panel alive
+        # so the labels the refresh timer writes to are not deleted by Qt.
+        metrics_panel.setVisible(False)
+        self._metrics_panel = metrics_panel
 
         # Mode panel — mutually exclusive conversational presets, plus the
         # independent Observe toggle (can run alongside any mode).
@@ -1628,6 +1630,8 @@ class MainWindow(QMainWindow):
         self.conversation_view.append(f"<b>{speaker}:</b> {text}")
 
     def _refresh_metrics(self):
+        if not hasattr(self, "_metrics_panel"):
+            return
         now = datetime.datetime.now()
         self.time_value.setText(now.strftime("%H:%M:%S"))
         # DD-MM-YY + weekday, e.g. "12-10-26 Saturday".

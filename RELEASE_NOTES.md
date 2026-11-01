@@ -1,3 +1,10 @@
+EV AI 1.0.14
+
+FIXES
+- Fixed EV AI not opening after the 1.0.13 update (a hidden panel was being deleted while the app started).
+
+---
+
 EV AI 1.0.13
 
 NEW
