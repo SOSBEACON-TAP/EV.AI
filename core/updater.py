@@ -272,7 +272,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
                  f"SilentlyContinue | Where-Object {{ $_.Path -eq '{ps_exe}' }} | Stop-Process -Force\" >nul 2>&1")
     lines = [
         "@echo off",
-        f'echo Helper started %date% %time% waiting for EV AI (PID {pid}) to close >> "{log}"',
+        f'echo Helper started %date% %time% waiting for EV AI (PID {pid}) to close > "{log}"',
         "set /a n=0",
         ":wait",
         # Wait until NO EV_AI.exe is running: EV AI can leave helper processes behind that keep
@@ -280,13 +280,19 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         'tasklist /FI "IMAGENAME eq EV_AI.exe" 2>nul | find /I "EV_AI.exe" >nul',
         "if errorlevel 1 goto go",
         "set /a n+=1",
+        "if %n% EQU 3 (",
+        f'  echo Still running after 3 checks, closing EV AI by its process id >> "{log}"',
+        f"  taskkill /F /PID {pid} >nul 2>&1",
+        ")",
         "if %n% EQU 6 (",
-        f'  echo Still running after 6 checks, closing this copy of EV AI >> "{log}"',
+        f'  echo Still running after 6 checks, closing this copy of EV AI by its path >> "{log}"',
         f"  {kill_mine}",
         ")",
-        "if %n% GEQ 20 (",
-        f'  echo Still running after 20 checks, closing every EV_AI.exe >> "{log}"',
-        "  taskkill /F /IM EV_AI.exe /T >nul 2>&1",
+        # NOTE: never use /T here. The helper was started by EV AI, so killing EV AI's process
+        # tree would kill the helper itself, which is exactly what stopped earlier updates.
+        "if %n% GEQ 14 (",
+        f'  echo Still running after 14 checks, closing every EV_AI.exe >> "{log}"',
+        "  taskkill /F /IM EV_AI.exe >nul 2>&1",
         "  ping -n 4 127.0.0.1 >nul",
         "  goto go",
         ")",

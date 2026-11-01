@@ -1,3 +1,13 @@
+EV AI 1.0.16
+
+FIXES
+- Update fix: the update helper no longer kills itself. It used to end EV AI's whole process tree, which included the helper, so the new files were never copied. EV AI now also really closes itself within a few seconds when restarting for an update, and each update log only shows the latest attempt.
+
+NOTE
+- If you are on 1.0.15 or older, install this version by hand once (unzip, copy the EV_AI folder contents over your EV AI folder, choose Replace). In-app updates work from this version on.
+
+---
+
 EV AI 1.0.15
 
 CHANGES

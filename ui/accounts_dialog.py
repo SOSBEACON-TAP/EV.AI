@@ -503,4 +503,9 @@ def _restart_app() -> None:
     QTimer.singleShot(0, app.quit)
     if updating:
         # Make sure the process really ends so the helper can replace the files.
-        QTimer.singleShot(3000, lambda: os._exit(0))
+        # A plain thread timer, not a Qt one: if shutdown handlers block the Qt event loop,
+        # a Qt timer never fires and EV AI stays alive, which kept update files locked.
+        import threading
+        _t = threading.Timer(2.5, lambda: os._exit(0))
+        _t.daemon = True
+        _t.start()
