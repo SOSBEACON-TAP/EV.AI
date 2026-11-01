@@ -267,31 +267,46 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     exe = Path(sys.executable).resolve()
     pid = os.getpid()
     log = app_root / "data" / "update_log.txt"
+    ps_exe = str(exe).replace("'", "''")
+    kill_mine = ('powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Process -Name EV_AI -ErrorAction '
+                 f"SilentlyContinue | Where-Object {{ $_.Path -eq '{ps_exe}' }} | Stop-Process -Force\" >nul 2>&1")
     lines = [
         "@echo off",
-        f'echo Helper started %date% %time% waiting for PID {pid} >> "{log}"',
+        f'echo Helper started %date% %time% waiting for EV AI (PID {pid}) to close >> "{log}"',
         "set /a n=0",
         ":wait",
-        f'tasklist /FI "PID eq {pid}" /FI "IMAGENAME eq EV_AI.exe" 2>nul | find "EV_AI.exe" >nul',
+        # Wait until NO EV_AI.exe is running: EV AI can leave helper processes behind that keep
+        # files locked (this is what made updates fail before), so we wait by name, not by PID.
+        'tasklist /FI "IMAGENAME eq EV_AI.exe" 2>nul | find /I "EV_AI.exe" >nul',
         "if errorlevel 1 goto go",
         "set /a n+=1",
-        # EV AI normally closes within a second or two; if something keeps it alive, end it
-        "if %n% GEQ 10 (",
-        f"  taskkill /F /PID {pid} >nul 2>&1",
-        "  ping -n 3 127.0.0.1 >nul",
+        "if %n% EQU 6 (",
+        f'  echo Still running after 6 checks, closing this copy of EV AI >> "{log}"',
+        f"  {kill_mine}",
+        ")",
+        "if %n% GEQ 20 (",
+        f'  echo Still running after 20 checks, closing every EV_AI.exe >> "{log}"',
+        "  taskkill /F /IM EV_AI.exe /T >nul 2>&1",
+        "  ping -n 4 127.0.0.1 >nul",
         "  goto go",
         ")",
         "ping -n 2 127.0.0.1 >nul",
         "goto wait",
         ":go",
-        f'echo Old EV AI closed after %n% checks, copying from {new_dir} >> "{log}"',
-        f'echo Updating %date% %time% >> "{log}"',
+        f'echo EV AI closed after %n% checks, copying from {new_dir} >> "{log}"',
         f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env '
-        f'/R:5 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
-        f'echo robocopy exit code %errorlevel% (0-7 is success, 8 or more is a failure) >> "{log}"',
+        f'/R:10 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        "set rc=%errorlevel%",
+        f'echo robocopy exit code %rc% (0-7 is success, 8 or more is a failure) >> "{log}"',
+        "if %rc% GEQ 8 goto failed",
         f'rmdir /s /q "{stage}"',
         f'start "" "{exe}"',
         'del "%~f0"',
+        "exit /b 0",
+        ":failed",
+        f'echo UPDATE FAILED, starting the old version again >> "{log}"',
+        f'start "" "{exe}"',
+        "exit /b 1",
     ]
     text = "\r\n".join(lines) + "\r\n"
     try:
