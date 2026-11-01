@@ -286,6 +286,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'echo Updating %date% %time% >> "{log}"',
         f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env '
         f'/R:5 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        f'echo robocopy exit code %errorlevel% (0-7 is success, 8 or more is a failure) >> "{log}"',
         f'rmdir /s /q "{stage}"',
         f'start "" "{exe}"',
         'del "%~f0"',
@@ -297,6 +298,28 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         script.write_text(text, encoding="utf-8")
     PENDING_SCRIPT = script
     return script
+
+
+def failed_update_notice(app_root: Path, running_version: str) -> str:
+    """After a restart: if an update was staged but this is still the old version, say so
+    and include the end of data/update_log.txt. Returns '' when everything is fine."""
+    marker = app_root / "data" / "update_pending.json"
+    if not marker.exists():
+        return ""
+    try:
+        wanted = json.loads(marker.read_text(encoding="utf-8")).get("version", "")
+    except Exception:
+        wanted = ""
+    marker.unlink(missing_ok=True)
+    if not wanted or parse_version(running_version) >= parse_version(wanted):
+        return ""
+    try:
+        tail = "\n".join((app_root / "data" / "update_log.txt").read_text(encoding="utf-8", errors="ignore")
+                         .strip().splitlines()[-8:])
+    except Exception:
+        tail = "(no update log was written, the update helper may not have run)"
+    return (f"The update to {wanted} did not install, you are still on {running_version}.\n\n"
+            f"Update log:\n{tail}\n\nPlease send this to the developer, or install by hand from the Releases page.")
 
 
 def check_and_install(url: str, current_version: str, app_root: Path, progress=None) -> dict:
@@ -313,6 +336,11 @@ def check_and_install(url: str, current_version: str, app_root: Path, progress=N
             stage_frozen(zip_path, app_root)
         finally:
             zip_path.unlink(missing_ok=True)
+        try:
+            (app_root / "data" / "update_pending.json").write_text(
+                json.dumps({"version": info["version"], "from": current_version}), encoding="utf-8")
+        except Exception:
+            pass
         return {"version": info["version"], "files": 0, "requirements_ok": True,
                 "note": "", "backup": "", "frozen": True}
     zip_path = download(info["zip_url"], info["sha256"], progress)

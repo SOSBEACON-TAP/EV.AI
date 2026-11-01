@@ -184,6 +184,16 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._hook_shutdown_call()
         try:
+            from PySide6.QtWidgets import QMessageBox
+            from config import APP_ROOT
+            from core import updater as _upd
+            from app_version import VERSION as _ver
+            _note = _upd.failed_update_notice(APP_ROOT, _ver)
+            if _note:
+                QTimer.singleShot(4000, lambda: QMessageBox.warning(self, "Update did not install", _note))
+        except Exception as e:
+            print(f"[EV AI] Update check skipped: {e}")
+        try:
             from ui.compute_ui import controller
             controller().start()
         except Exception as e:
