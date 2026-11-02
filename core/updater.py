@@ -270,13 +270,15 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     ps_exe = str(exe).replace("'", "''")
     kill_mine = ('powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Process -Name EV_AI -ErrorAction '
                  f"SilentlyContinue | Where-Object {{ $_.Path -eq '{ps_exe}' }} | Stop-Process -Force\" >nul 2>&1")
+    busy = app_root / "data" / "update_busy.txt"
+    internal, internal_old, new_internal = app_root / "_internal", app_root / "_internal.old", new_dir / "_internal"
     lines = [
         "@echo off",
         f'echo Helper started %date% %time% waiting for EV AI (PID {pid}) to close > "{log}"',
+        f'echo busy > "{busy}"',
         "set /a n=0",
         ":wait",
-        # Wait until NO EV_AI.exe is running: EV AI can leave helper processes behind that keep
-        # files locked (this is what made updates fail before), so we wait by name, not by PID.
+        # Wait until NO EV_AI.exe is running (EV AI can leave helper processes behind that keep files locked).
         'tasklist /FI "IMAGENAME eq EV_AI.exe" 2>nul | find /I "EV_AI.exe" >nul',
         "if errorlevel 1 goto go",
         "set /a n+=1",
@@ -288,8 +290,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'  echo Still running after 6 checks, closing this copy of EV AI by its path >> "{log}"',
         f"  {kill_mine}",
         ")",
-        # NOTE: never use /T here. The helper was started by EV AI, so killing EV AI's process
-        # tree would kill the helper itself, which is exactly what stopped earlier updates.
+        # NOTE: never use /T here: the helper was started by EV AI, so killing the tree kills the helper.
         "if %n% GEQ 14 (",
         f'  echo Still running after 14 checks, closing every EV_AI.exe >> "{log}"',
         "  taskkill /F /IM EV_AI.exe >nul 2>&1",
@@ -299,18 +300,37 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         "ping -n 2 127.0.0.1 >nul",
         "goto wait",
         ":go",
-        f'echo EV AI closed after %n% checks, copying from {new_dir} >> "{log}"',
-        f'robocopy "{new_dir}" "{app_root}" /E /XD "{app_root / "data"}" "{app_root / "database"}" /XF .env '
-        f'/R:10 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        "ver >nul",
+        f'echo EV AI closed after %n% checks, swapping in the new version >> "{log}"',
+        # The big _internal folder is swapped by renaming (instant, same drive) instead of copying
+        # thousands of files, so there is almost nothing that can fail halfway.
+        f'if exist "{internal_old}" rd /s /q "{internal_old}" >> "{log}" 2>&1',
+        f'if exist "{internal_old}" goto failed',
+        # (|| runs the next command only when the one before it failed; it does not rely on the
+        # ERRORLEVEL value, which batch files do not reset reliably)
+        f'if exist "{internal}" (',
+        f'  move "{internal}" "{internal_old}" >> "{log}" 2>&1 || goto failed',
+        ")",
+        f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 || goto rollback',
+        # the few loose files next to it (EV_AI.exe ...): top folder only, _internal excluded
+        f'robocopy "{new_dir}" "{app_root}" /XD _internal /R:10 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
         "set rc=%errorlevel%",
         f'echo robocopy exit code %rc% (0-7 is success, 8 or more is a failure) >> "{log}"',
-        "if %rc% GEQ 8 goto failed",
+        "if %rc% GEQ 8 goto rollback",
+        f'echo UPDATE OK >> "{log}"',
+        f'start "" /b cmd /c rd /s /q "{internal_old}"',
         f'rmdir /s /q "{stage}"',
+        f'del "{busy}" >nul 2>&1',
         f'start "" "{exe}"',
         'del "%~f0"',
         "exit /b 0",
+        ":rollback",
+        f'echo Swap failed, putting the old version back >> "{log}"',
+        f'if exist "{internal}" rd /s /q "{internal}" >> "{log}" 2>&1',
+        f'if exist "{internal_old}" move "{internal_old}" "{internal}" >> "{log}" 2>&1',
         ":failed",
         f'echo UPDATE FAILED, starting the old version again >> "{log}"',
+        f'del "{busy}" >nul 2>&1',
         f'start "" "{exe}"',
         "exit /b 1",
     ]
@@ -321,6 +341,16 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         script.write_text(text, encoding="utf-8")
     PENDING_SCRIPT = script
     return script
+
+
+def update_in_progress(app_root: Path, max_age: float = 300.0) -> bool:
+    """True while the update helper is still swapping files (it leaves data/update_busy.txt)."""
+    import time
+    try:
+        busy = app_root / "data" / "update_busy.txt"
+        return busy.exists() and (time.time() - busy.stat().st_mtime) < max_age
+    except Exception:
+        return False
 
 
 def failed_update_notice(app_root: Path, running_version: str) -> str:

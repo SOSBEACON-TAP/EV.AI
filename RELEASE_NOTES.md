@@ -1,3 +1,14 @@
+EV AI 1.0.18
+
+FIXES
+- Updates are now installed by swapping the program folder (an instant rename) instead of copying thousands of files one by one, so they no longer fail halfway with "path not found" or "file in use" errors. If anything goes wrong the old version is put back and started again.
+- If you open EV AI while an update is still being installed, it now waits instead of starting a second copy on top of it.
+
+NOTE
+- If you are on 1.0.17 or older, install this version by hand once (close EV AI, unzip, copy the EV_AI folder contents over your EV AI folder, choose Replace, keep data). In-app updates work from this version on.
+
+---
+
 EV AI 1.0.17
 
 NEW

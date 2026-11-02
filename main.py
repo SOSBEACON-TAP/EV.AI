@@ -75,6 +75,17 @@ def main() -> int:
         pass
     app = QApplication(sys.argv)
     app.setApplicationName(settings.APP_NAME)
+    # If the update helper is still swapping files, don't start a second copy on top of it.
+    if getattr(sys, "frozen", False):
+        try:
+            from core import updater as _upd
+            from config import APP_ROOT as _root
+            if _upd.update_in_progress(_root):
+                from PySide6.QtWidgets import QMessageBox as _MB
+                _MB.information(None, "EV AI", "EV AI is installing an update. It will open by itself in a moment.")
+                return 0
+        except Exception as e:
+            print(f"[EV AI] Update-in-progress check skipped: {e}")
     # Give the app font a real point size: some widgets otherwise ask for a
     # size of -1, which Qt reports as "QFont::setPointSize: Point size <= 0".
     _font = app.font()
