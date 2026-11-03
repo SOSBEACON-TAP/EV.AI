@@ -219,10 +219,6 @@ class AccountsDialog(QDialog):
             root.addWidget(field)
             self._backup_keys.append((n, field))
 
-        root.addWidget(QLabel("ChatSorter API key (optional, for long-term memory)"))
-        self._cs_key = _secret_field(bool(os.getenv("CHATSORTER_API_KEY")))
-        root.addWidget(self._cs_key)
-
         root.addWidget(QLabel("Model"))
         self._model = QLineEdit(settings.AI_MODEL)
         root.addWidget(self._model)
@@ -444,8 +440,6 @@ class AccountsDialog(QDialog):
         }
         if new_key:
             updates["AI_API_KEY"] = new_key
-        if self._cs_key.text().strip():
-            updates["CHATSORTER_API_KEY"] = self._cs_key.text().strip()
         for n, field in self._backup_keys:
             if field.text().strip():
                 updates[f"AI_API_KEY_{n}"] = field.text().strip()

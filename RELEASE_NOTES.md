@@ -1,3 +1,10 @@
+EV AI 1.0.19
+
+CHANGES
+- Removed the ChatSorter option (key field and checkbox). Long-term memory stays built in and local.
+
+---
+
 EV AI 1.0.18
 
 FIXES
@@ -59,7 +66,6 @@ NEW
 - Feedback: Settings, FEEDBACK sends your message to the developer's email.
 - Faster replies: gpt-oss models on Groq now answer with low reasoning effort (Deep Thinking keeps more).
 - Say "remind me at 5:30 pm to call mom" or "remind me tomorrow at 9 to ..." and it is set instantly, without waiting for the AI.
-- ChatSorter long-term memory (optional, off by default): add your ChatSorter key in Settings, AI, email and voice, then tick the box in Settings. Your messages are sent to chatsorter.com only while it is on.
 - Update fix: the update helper now waits until every EV AI process has closed before copying files (leftover processes were keeping files locked, so updates failed half-way). If the copy still fails, EV AI starts the old version again instead of leaving a broken one.
 - If an in-app update ever fails to install, EV AI now tells you after the restart and shows the update log.
 - Low battery warning (laptops): EV speaks at 20% and 10% while unplugged. Turn it off in Settings.

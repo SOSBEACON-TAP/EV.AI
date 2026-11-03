@@ -196,7 +196,6 @@ class Brain:
                 extra += convo_memory.prompt_block()
             except Exception:
                 pass
-        extra += getattr(self, "_cs_block", "")
         return SYSTEM_PROMPT + PROMPT_ADDITIONS.get(self.mode, "") + extra
 
     def _effective_max_tokens(self) -> int:
@@ -224,13 +223,6 @@ class Brain:
 
         self._history.append({"role": "user", "content": user_text})
         self._trim_history()
-
-        try:
-            from core import chatsorter
-            chatsorter.store_async(user_text)
-            self._cs_block = chatsorter.memories_block(user_text)
-        except Exception:
-            self._cs_block = ""
 
         reply_text = None
         while reply_text is None:
