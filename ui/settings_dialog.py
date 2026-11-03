@@ -20,6 +20,7 @@ import contextlib
 import io
 import json
 import platform
+from pathlib import Path
 import sys
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal
@@ -505,6 +506,14 @@ class SettingsDialog(QDialog):
         battery_check.toggled.connect(lambda on: user_prefs.set_value("battery_alerts", on))
         root.addWidget(battery_check)
 
+        usb_check = QCheckBox("Announce USB drives plugged in to this PC")
+        usb_check.setChecked(user_prefs.get("usb_alert"))
+        usb_check.toggled.connect(lambda on: user_prefs.set_value("usb_alert", on))
+        root.addWidget(usb_check)
+        portable_btn = QPushButton("Make a portable EV AI on a USB drive…")
+        portable_btn.clicked.connect(self._make_portable)
+        root.addWidget(portable_btn)
+
         from core import autostart
         self._autostart_check = QCheckBox("Start EV AI when I log in to Windows")
         self._autostart_check.setChecked(autostart.is_enabled())
@@ -590,6 +599,29 @@ class SettingsDialog(QDialog):
         home_reset = QPushButton("Reset home screen layout")
         home_reset.clicked.connect(self._home_reset)
         root.addWidget(home_reset)
+        root.addWidget(_divider())
+
+        # -- VPN ------------------------------------------------------------
+        root.addWidget(_section_title("VPN"))
+        root.addWidget(_note_label("Controls a VPN you already have (EV AI is not a VPN service). Type its name "
+                                   "exactly as in Windows Settings, Network, VPN, or as in OpenVPN GUI. "
+                                   "Then say: connect VPN, disconnect VPN, VPN status."))
+        vpn_row = QHBoxLayout()
+        self._vpn_name = QLineEdit(user_prefs.get("vpn_name"))
+        self._vpn_name.setPlaceholderText("VPN name")
+        self._vpn_kind = QComboBox()
+        self._vpn_kind.addItem("Windows VPN", "windows")
+        self._vpn_kind.addItem("OpenVPN GUI", "openvpn")
+        self._vpn_kind.setCurrentIndex(1 if user_prefs.get("vpn_kind") == "openvpn" else 0)
+        vpn_row.addWidget(self._vpn_name, 1)
+        vpn_row.addWidget(self._vpn_kind)
+        root.addLayout(vpn_row)
+        vpn_btns = QHBoxLayout()
+        for text, action in (("Connect", "connect"), ("Disconnect", "disconnect"), ("Status", "status")):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, a=action: self._vpn_action(a))
+            vpn_btns.addWidget(b)
+        root.addLayout(vpn_btns)
         root.addWidget(_divider())
 
         # -- Feedback -------------------------------------------------------
@@ -1143,6 +1175,55 @@ class SettingsDialog(QDialog):
 
         self._fb_worker.done.connect(_done)
         self._fb_worker.start()
+
+    def _vpn_action(self, action: str) -> None:
+        from core import vpn
+        user_prefs.set_value("vpn_name", self._vpn_name.text().strip())
+        user_prefs.set_value("vpn_kind", self._vpn_kind.currentData())
+        self._vpn_worker = _TaskWorker(
+            (lambda: (True, vpn.status())) if action == "status"
+            else (vpn.connect if action == "connect" else vpn.disconnect), self)
+        self._vpn_worker.done.connect(lambda ok, msg: (QMessageBox.information if ok else QMessageBox.warning)(self, "VPN", msg))
+        self._vpn_worker.start()
+
+    def _make_portable(self) -> None:
+        from core import portable, usb_watch
+        if not getattr(sys, "frozen", False):
+            QMessageBox.information(self, "Portable EV AI", "This works in the standalone Windows app (EV_AI.exe).")
+            return
+        drives = usb_watch.removable_drives()
+        if not drives:
+            QMessageBox.information(self, "Portable EV AI", "Plug in a USB drive first, then try again.")
+            return
+        names = [f"{d}  {label}".strip() for d, label in drives.items()]
+        choice, ok = QInputDialog.getItem(self, "Portable EV AI", "Copy EV AI to which drive?", names, 0, False)
+        if not ok:
+            return
+        drive = list(drives)[names.index(choice)]
+        secrets_too = QMessageBox.question(
+            self, "Portable EV AI",
+            "Also copy your API keys (.env), face data, WhatsApp login and screenshots?\n\n"
+            "Choose No to leave them off, so nobody can use them if the drive is lost. "
+            "You would then type your key again on the other PC.") == QMessageBox.Yes
+        self._portable_dialog = QLabel("Copying EV AI to the USB drive…\n\nThis can take several minutes. "
+                                       "Please wait and don't unplug it.")
+        self._portable_dialog.setWindowTitle("Copying EV AI to USB")
+        self._portable_dialog.setMargin(24)
+        self._portable_dialog.show()
+        src = portable.app_root()
+
+        def work():
+            portable.make_copy(src, Path(drive), secrets_too)
+            return True, f"EV AI is on {drive}. On another PC open the drive and double-click 'Start EV AI.bat'."
+
+        self._portable_worker = _TaskWorker(work, self)
+
+        def done(ok, message):
+            self._portable_dialog.close()
+            (QMessageBox.information if ok else QMessageBox.warning)(self, "Portable EV AI", message)
+
+        self._portable_worker.done.connect(done)
+        self._portable_worker.start()
 
     def _on_autostart(self, on: bool) -> None:
         from core import autostart

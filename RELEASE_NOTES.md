@@ -1,5 +1,11 @@
 EV AI 1.0.19
 
+NEW
+- Ultron mode: a third mode next to EV and Jarvis. Red and black console look, a colder and slightly sarcastic voice, all of EV's tools. Use the "Switch to Ultron" button on the home screen.
+- USB: EV AI comes to the front and announces any USB drive you plug in to the PC (switch in Settings, Behaviour).
+- Portable EV AI: Settings, "Make a portable EV AI on a USB drive". On another PC, open the drive and double-click "Start EV AI.bat". (Windows does not allow programs to start by themselves from USB drives.) Your keys, face data and WhatsApp login are only copied if you say yes.
+- VPN: Settings, VPN. Type the name of a VPN you already have (Windows VPN or OpenVPN GUI), then say "connect VPN", "disconnect VPN" or "VPN status". EV AI is not a VPN service.
+
 CHANGES
 - Removed the ChatSorter option (key field and checkbox). Long-term memory stays built in and local.
 

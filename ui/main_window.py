@@ -116,6 +116,7 @@ _COMPACT_BTN = "QPushButton { padding: 5px 4px; letter-spacing: 0px; font-size: 
 
 
 class MainWindow(QMainWindow):
+    usb_inserted = Signal(str, str)   # drive, label (from the USB watcher thread)
     reminder_fired = Signal(str)  # emitted from tools/reminders.py's background timer thread
 
     def __init__(self):
@@ -179,7 +180,9 @@ class MainWindow(QMainWindow):
         self._recent_commands = []  # last few things the user typed/said
 
         self._jarvis_on = False
+        self._ultron_on = False
         self._pre_jarvis_mode = None
+        self._pre_ultron_mode = None
         self._phone_call_sent = False
         self._build_ui()
         self._hook_shutdown_call()
@@ -201,6 +204,8 @@ class MainWindow(QMainWindow):
             print(f"[EV AI] Compute unavailable: {e}")
         if user_prefs.get("jarvis_ui"):
             QTimer.singleShot(0, lambda: self._apply_jarvis_ui(True, announce=False))
+        elif user_prefs.get("ultron_ui"):
+            QTimer.singleShot(0, lambda: self._apply_ultron_ui(True, announce=False))
         self._apply_state(AIState.IDLE)
 
         if not VOICE_AVAILABLE:
@@ -216,6 +221,15 @@ class MainWindow(QMainWindow):
         self._clock_timer.timeout.connect(self._refresh_metrics)
         self._clock_timer.start(settings.UI_REFRESH_MS)
         self._refresh_metrics()
+
+        # USB drives plugged in to this PC: bring EV forward and announce them.
+        self.usb_inserted.connect(self._on_usb_inserted)
+        try:
+            from core.usb_watch import UsbWatcher
+            self._usb_watcher = UsbWatcher(lambda d, l: self.usb_inserted.emit(d, l))
+            self._usb_watcher.start()
+        except Exception as e:
+            print(f"[EV AI] USB watcher unavailable: {e}")
 
         # Low-battery warning (laptops): speaks once at 20% and again at 10% while unplugged.
         self._battery_warned = 100
@@ -391,6 +405,16 @@ class MainWindow(QMainWindow):
             return self._remote_brain.ask(text)
         except Exception as e:
             return f"Sorry, that failed: {e}"
+
+    def _on_usb_inserted(self, drive: str, label: str) -> None:
+        if not user_prefs.get("usb_alert"):
+            return
+        self.show()
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        self.raise_()
+        self.activateWindow()
+        name = f"{label} ({drive.rstrip(chr(92))})" if label else drive.rstrip(chr(92))
+        self._deliver_reply(f"USB drive {name} detected.")
 
     def _check_battery(self) -> None:
         if not user_prefs.get("battery_alerts"):
@@ -717,6 +741,9 @@ class MainWindow(QMainWindow):
         self.jarvis_switch_btn = HoverButton("⚡ SWITCH TO JARVIS")
         self.jarvis_switch_btn.clicked.connect(self._toggle_jarvis)
         core_layout.addWidget(self.jarvis_switch_btn, alignment=Qt.AlignCenter)
+        self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON")
+        self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
+        core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
 
         self.ai_core = AICoreWidget()
         core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
@@ -1155,7 +1182,46 @@ class MainWindow(QMainWindow):
     def _toggle_jarvis(self):
         self._apply_jarvis_ui(not self._jarvis_on, announce=True)
 
+    def _toggle_ultron(self):
+        self._apply_ultron_ui(not self._ultron_on, announce=True)
+
+    def _apply_ultron_ui(self, on: bool, announce: bool = False):
+        """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
+        if on and self._jarvis_on:
+            self._apply_jarvis_ui(False)
+        self._ultron_on = on
+        user_prefs.set_value("ultron_ui", on)
+        self.ai_core.set_ultron(on)
+        from ui.ultron_style import ULTRON_QSS
+        self._central.setStyleSheet(ULTRON_QSS if on else "")
+        self._logo_label.setText("U L T R O N" if on else settings.APP_NAME)
+        if on:
+            self._pre_ultron_mode = self._current_mode if self._current_mode not in (None, Mode.ULTRON) else Mode.NORMAL
+            self.ultron_switch_btn.setText("☠ SWITCH BACK TO EV")
+            self.ultron_switch_btn.setStyleSheet(
+                "QPushButton { background: rgba(255,42,42,40); border: 1px solid #FF2A2A; color: #FF2A2A; "
+                "padding: 6px 16px; border-radius: 6px; font-weight: 600; }")
+            if self._brain is not None:
+                self._brain.set_mode(Mode.ULTRON)
+            self._current_mode = Mode.ULTRON if AI_AVAILABLE else None
+            for btn in self._mode_buttons.values():
+                btn.setChecked(False)
+        else:
+            self.ultron_switch_btn.setText("☠ SWITCH TO ULTRON")
+            self.ultron_switch_btn.setStyleSheet("")
+            back = getattr(self, "_pre_ultron_mode", None) or Mode.NORMAL
+            if self._brain is not None:
+                self._brain.set_mode(back)
+            self._current_mode = back if AI_AVAILABLE else None
+            for m, btn in self._mode_buttons.items():
+                btn.setChecked(m == back)
+        if announce:
+            self._deliver_reply("Ultron online. Try to keep up." if on else "Switched back to EV.")
+        self._sync_corner_ui()
+
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
+        if on and getattr(self, "_ultron_on", False):
+            self._apply_ultron_ui(False)
         self._jarvis_on = on
         user_prefs.set_value("jarvis_ui", on)
         self.ai_core.set_jarvis(on)
@@ -1194,6 +1260,8 @@ class MainWindow(QMainWindow):
         self._sync_corner_ui()
 
     def _set_mode(self, mode: Mode):
+        if getattr(self, "_ultron_on", False):
+            self._apply_ultron_ui(False)      # picking a normal mode leaves Ultron
         if self._brain is not None:
             self._brain.set_mode(mode)
         for m, btn in self._mode_buttons.items():

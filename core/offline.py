@@ -101,7 +101,7 @@ class OfflineAssistant:
         if not low:
             return None
 
-        for step in (self._creator, self._find_phone, self._time, self._volume_media, self._timer, self._clock_reminder,
+        for step in (self._creator, self._find_phone, self._vpn, self._time, self._volume_media, self._timer, self._clock_reminder,
                      self._todo_note, self._math):
             reply = step(low, text)
             if reply:
@@ -115,6 +115,16 @@ class OfflineAssistant:
                      r"|\bwho (are your|is your) (creator|inventor|developer|maker)s?\b"
                      r"|\b(your|ev'?s?) (creator|inventor|developer)\b.*\bwho\b", low):
             return "I was invented by Shri Nikil Prakash."
+        return None
+
+    def _vpn(self, low: str, _text: str) -> str | None:
+        from core import vpn
+        if re.fullmatch(r"(turn on|connect|start|enable)( the| my)? vpn( on)?|vpn on|connect to( the| my)? vpn", low):
+            return vpn.connect()[1]
+        if re.fullmatch(r"(turn off|disconnect|stop|disable)( the| my)? vpn( off)?|vpn off", low):
+            return vpn.disconnect()[1]
+        if re.fullmatch(r"(is |what'?s |check )?(my |the )?vpn( status| connected| on| working)?\??", low):
+            return vpn.status()
         return None
 
     def _find_phone(self, low: str, _text: str) -> str | None:

@@ -17,6 +17,9 @@ def ensure_start_menu_entry() -> None:
     try:
         from core import user_prefs
         exe = Path(sys.executable).resolve()
+        from core.usb_watch import is_on_removable_drive
+        if is_on_removable_drive(exe):
+            return          # running from a USB stick: don't leave a Start menu entry on this PC
         if user_prefs.get("start_menu_target") == str(exe):
             return
         start_menu = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"

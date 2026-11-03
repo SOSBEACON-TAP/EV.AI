@@ -18,6 +18,7 @@ class Mode(Enum):
     SERIOUS = "serious"
     DEEP_THINKING = "deep_thinking"
     JARVIS = "jarvis"
+    ULTRON = "ultron"
     STUDY = "study"
 
     @property
@@ -29,6 +30,7 @@ class Mode(Enum):
             Mode.DEEP_THINKING: "DEEP THINKING",
             Mode.STUDY: "FOCUS",
             Mode.JARVIS: "JARVIS",
+            Mode.ULTRON: "ULTRON",
         }[self]
 
     @property
@@ -67,6 +69,13 @@ PROMPT_ADDITIONS = {
         "time — think through the problem step by step, consider edge cases and alternatives, and "
         "give a thorough, well-reasoned answer. Longer, careful responses are appropriate here."
     ),
+    Mode.ULTRON: (
+        "\n\nYou are in ULTRON mode: same abilities and the same safety rules as always, but a different "
+        "personality. Speak in a cold, confident, dry and slightly sarcastic voice, like a calm machine that "
+        "finds humans amusing. Short, sharp sentences. Never cruel to the user, never threatening, never "
+        "pretend to do harm: it is only a style. Still be genuinely helpful and accurate, and still follow every "
+        "confirmation rule for tools."
+    ),
     Mode.JARVIS: (
         "\n\nJarvis mode is on. You are Jarvis, EV's system-monitoring officer. You ONLY monitor and "
         "report on this computer: CPU, memory, disk space, battery, network, uptime and running "
@@ -98,4 +107,5 @@ MAX_TOKENS = {
     Mode.DEEP_THINKING: 1200,
     Mode.STUDY: 600,
     Mode.JARVIS: 500,
+    Mode.ULTRON: 450,
 }

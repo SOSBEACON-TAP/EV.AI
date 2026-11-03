@@ -36,6 +36,7 @@ class AICoreWidget(QWidget):
         self._angle = 0.0          # base rotation angle, degrees
         self._pulse_phase = 0.0    # 0..1 pulse cycle position
         self._jarvis = False       # all-yellow look when Jarvis is switched on
+        self._ultron = False       # all-red look when Ultron is switched on
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -59,7 +60,16 @@ class AICoreWidget(QWidget):
             red, blue = QColor("#FFC400"), QColor("#FFE066")
             if self._state != AIState.ERROR:
                 accent = QColor("#FFC400")
+        if self._ultron:
+            red, blue = QColor("#FF2A2A"), QColor("#FF8080")
+            if self._state != AIState.ERROR:
+                accent = QColor("#FF2A2A")
         return accent, red, blue
+
+    def set_ultron(self, on: bool) -> None:
+        if on != self._ultron:
+            self._ultron = on
+            self.update()
 
     def set_jarvis(self, on: bool) -> None:
         """Jarvis look: the whole core turns gold instead of red + blue."""
