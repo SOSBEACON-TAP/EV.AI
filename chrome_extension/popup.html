@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { width: 340px; margin: 0; padding: 14px; background: #0a0f14; color: #cfe8f5; font: 13px Segoe UI, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; letter-spacing: 2px; color: #4cc9f0; }
+  small { color: #7a93a3; }
+  input, textarea, button { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; border-radius: 6px;
+    border: 1px solid #234; background: #0f1a22; color: #cfe8f5; font: inherit; }
+  button { background: #12445a; cursor: pointer; border-color: #4cc9f0; }
+  button:hover { background: #1a5c78; }
+  #answer { margin-top: 10px; white-space: pre-wrap; line-height: 1.4; }
+  #status { margin: 6px 0; }
+  .ok { color: #43d17a; } .bad { color: #ff7b7b; }
+</style>
+<h1>EV AI</h1>
+<small>Talks only to EV AI on this computer.</small>
+<div id="status"></div>
+<div id="pairBox">
+  <small>Open EV AI, Settings, Chrome, and type the 6-digit code here:</small>
+  <input id="code" inputmode="numeric" maxlength="6" placeholder="123456">
+  <button id="pair">Pair with EV AI</button>
+</div>
+<div id="askBox" hidden>
+  <textarea id="q" rows="3" placeholder="Ask EV about this page… (e.g. Summarise this page)"></textarea>
+  <button id="ask">Ask EV about this page</button>
+  <button id="unpair" style="background:transparent;border-color:#345;">Unpair</button>
+  <div id="answer"></div>
+</div>
+<script src="popup.js"></script>

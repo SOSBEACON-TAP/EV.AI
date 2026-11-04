@@ -5,6 +5,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, coll
 datas = [
     ("assets", "assets"),
     ("ui/styles", "ui/styles"),
+    ("chrome_extension", "chrome_extension"),
 ]
 binaries = []
 hidden = []

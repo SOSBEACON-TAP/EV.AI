@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "EV AI for Chrome",
+  "version": "1.0.0",
+  "description": "Ask EV AI about the page you are on and control Chrome with your voice. Talks only to EV AI on this computer.",
+  "permissions": ["tabs", "scripting", "storage", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "EV AI", "default_popup": "popup.html" }
+}

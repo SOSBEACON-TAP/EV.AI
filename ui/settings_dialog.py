@@ -624,6 +624,24 @@ class SettingsDialog(QDialog):
         root.addLayout(vpn_btns)
         root.addWidget(_divider())
 
+        # -- Chrome ---------------------------------------------------------
+        root.addWidget(_section_title("CHROME"))
+        root.addWidget(_note_label("Ask EV about the page you are on and control Chrome by voice (scroll, click, tabs, "
+                                   "search). The extension talks only to EV AI on this computer and reads a page only when you ask. "
+                                   "Install: Chrome, Extensions, turn on Developer mode, Load unpacked, choose the 'chrome_extension' "
+                                   "folder next to EV AI. Then type the code below into the extension."))
+        self._chrome_code = QLabel("")
+        self._chrome_code.setStyleSheet("font-size: 22px; letter-spacing: 6px; font-weight: 700;")
+        root.addWidget(self._chrome_code)
+        chrome_btns = QHBoxLayout()
+        for text, fn in (("Show pairing code", self._chrome_show_code), ("Open extension folder", self._chrome_open_folder),
+                         ("Unpair all browsers", self._chrome_unpair)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            chrome_btns.addWidget(b)
+        root.addLayout(chrome_btns)
+        root.addWidget(_divider())
+
         # -- Feedback -------------------------------------------------------
         root.addWidget(_section_title("FEEDBACK"))
         root.addWidget(_note_label("Tell the developer what you think, report a problem or ask for a feature. "
@@ -1175,6 +1193,34 @@ class SettingsDialog(QDialog):
 
         self._fb_worker.done.connect(_done)
         self._fb_worker.start()
+
+    def _chrome_show_code(self):
+        from core import browser_bridge
+        b = browser_bridge.get()
+        if b is None:
+            self._chrome_code.setText("")
+            QMessageBox.information(self, "Chrome", "The Chrome link is not running. Restart EV AI to start it.")
+            return
+        self._chrome_code.setText(f"{b.code}   ({'connected' if b.connected else 'not connected yet'})")
+
+    def _chrome_open_folder(self):
+        import os
+        import sys
+        from pathlib import Path
+        root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+        folder = root / "_internal" / "chrome_extension" if (root / "_internal" / "chrome_extension").exists() else root / "chrome_extension"
+        try:
+            os.startfile(str(folder))
+        except Exception:
+            QMessageBox.information(self, "Chrome", f"The extension folder is:\n{folder}")
+
+    def _chrome_unpair(self):
+        from core import browser_bridge
+        b = browser_bridge.get()
+        if b is not None:
+            b.forget_all()
+            self._chrome_code.setText("")
+            QMessageBox.information(self, "Chrome", "All browsers unpaired. Show a new code to pair again.")
 
     def _vpn_action(self, action: str) -> None:
         from core import vpn

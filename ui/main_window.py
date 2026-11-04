@@ -116,6 +116,7 @@ _COMPACT_BTN = "QPushButton { padding: 5px 4px; letter-spacing: 0px; font-size: 
 
 
 class MainWindow(QMainWindow):
+    bridge_reply = Signal(str)        # answer to a voice question about the Chrome page (from a worker thread)
     usb_inserted = Signal(str, str)   # drive, label (from the USB watcher thread)
     reminder_fired = Signal(str)  # emitted from tools/reminders.py's background timer thread
 
@@ -221,6 +222,15 @@ class MainWindow(QMainWindow):
         self._clock_timer.timeout.connect(self._refresh_metrics)
         self._clock_timer.start(settings.UI_REFRESH_MS)
         self._refresh_metrics()
+
+        # Chrome extension bridge (127.0.0.1 only; see core/browser_bridge.py)
+        self.bridge_reply.connect(lambda t: self._deliver_reply(t))
+        if user_prefs.get("chrome_bridge"):
+            try:
+                from core import browser_bridge
+                browser_bridge.create(self._bridge_ask, self.bridge_reply.emit).start()
+            except Exception as e:
+                print(f"[EV AI] Chrome bridge unavailable: {e}")
 
         # USB drives plugged in to this PC: bring EV forward and announce them.
         self.usb_inserted.connect(self._on_usb_inserted)
@@ -405,6 +415,16 @@ class MainWindow(QMainWindow):
             return self._remote_brain.ask(text)
         except Exception as e:
             return f"Sorry, that failed: {e}"
+
+    def _bridge_ask(self, question: str, page: dict) -> str:
+        """A question about a web page you chose to share from the Chrome extension (worker thread)."""
+        if not AI_AVAILABLE:
+            return "The AI isn't available on the computer."
+        from core.browser_bridge import page_prompt
+        if getattr(self, "_page_brain", None) is None:
+            self._page_brain = Brain(router=None)
+        self._page_brain._history.clear()          # each page question stands alone
+        return self._page_brain.ask(page_prompt(question, page))
 
     def _on_usb_inserted(self, drive: str, label: str) -> None:
         if not user_prefs.get("usb_alert"):

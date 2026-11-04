@@ -53,6 +53,7 @@ DEFAULTS = {
     "voice_friendly": "en-US-AriaNeural",
     "voice_humorous": "en-US-DavisNeural",
     # -- Focus Mode ----------------------------------------------------------
+    "chrome_bridge": True,         # let the EV AI Chrome extension connect (this PC only)
     "ultron_ui": False,                # Ultron mode (red look + colder personality) was on at last exit
     "usb_alert": True,                 # announce USB drives plugged in to this PC
     "vpn_name": "",                    # name of your existing VPN connection

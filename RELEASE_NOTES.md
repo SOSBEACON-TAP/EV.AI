@@ -1,3 +1,13 @@
+EV AI 1.0.20
+
+NEW
+- Chrome extension: ask EV about the page you are on and control Chrome with your voice. Install: Chrome, Extensions, turn on Developer mode, Load unpacked, choose the "chrome_extension" folder inside EV AI's folder. Then open EV AI, Settings, Chrome, Show pairing code, and type the 6 digits into the extension.
+- Ask about a page: click the EV icon in Chrome and ask "Summarise this page". Or just say "what is this page about" to EV.
+- Voice control of Chrome (while the extension is connected): scroll down, scroll up, go to the top, next tab, previous tab, close this tab, new tab, go back, reload, click sign in, google cats, open youtube.com in chrome, switch to gmail tab.
+- Private by design: the extension talks only to EV AI on your own PC (never over the internet), needs the pairing code once, reads a page only when you ask, and EV can only send a short list of safe commands. To answer a question about a page, the page text goes to your AI provider the same way a normal question does. Unpair any time in Settings, Chrome.
+
+---
+
 EV AI 1.0.19
 
 NEW

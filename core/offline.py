@@ -101,7 +101,7 @@ class OfflineAssistant:
         if not low:
             return None
 
-        for step in (self._creator, self._find_phone, self._vpn, self._time, self._volume_media, self._timer, self._clock_reminder,
+        for step in (self._creator, self._find_phone, self._vpn, self._chrome, self._time, self._volume_media, self._timer, self._clock_reminder,
                      self._todo_note, self._math):
             reply = step(low, text)
             if reply:
@@ -125,6 +125,52 @@ class OfflineAssistant:
             return vpn.disconnect()[1]
         if re.fullmatch(r"(is |what'?s |check )?(my |the )?vpn( status| connected| on| working)?\??", low):
             return vpn.status()
+        return None
+
+    def _chrome(self, low: str, text: str) -> str | None:
+        """Voice control of Chrome through the EV AI extension (only when the extension is connected)."""
+        from core import browser_bridge
+        b = browser_bridge.get()
+        if b is None or not b.connected:
+            return None
+        low = re.sub(r"^(please |hey ev |ev )", "", low).strip(" .!")
+        sends = (
+            (r"scroll down|page down", {"action": "scroll", "dir": "down"}, "Scrolling down."),
+            (r"scroll up|page up", {"action": "scroll", "dir": "up"}, "Scrolling up."),
+            (r"(scroll|go) to (the )?top( of (the )?page)?", {"action": "scroll", "dir": "top"}, "Back to the top."),
+            (r"(scroll|go) to (the )?(bottom|end)( of (the )?page)?", {"action": "scroll", "dir": "bottom"}, "Down to the bottom."),
+            (r"next tab|switch to (the )?next tab", {"action": "next_tab"}, "Next tab."),
+            (r"(previous|last|prev) tab", {"action": "prev_tab"}, "Previous tab."),
+            (r"close (this |the |current )?tab", {"action": "close_tab"}, "Tab closed."),
+            (r"(open )?(a )?new tab", {"action": "new_tab"}, "New tab."),
+            (r"go back|back a page|previous page", {"action": "back"}, "Going back."),
+            (r"go forward|forward a page|next page", {"action": "forward"}, "Going forward."),
+            (r"(reload|refresh)( this| the)?( page)?", {"action": "reload"}, "Reloading."),
+        )
+        for pattern, cmd, reply in sends:
+            if re.fullmatch(pattern, low):
+                b.send(cmd)
+                return reply
+        if re.fullmatch(r"(summari[sz]e|explain|read|describe)( this| the)?( web)? ?page( to me)?|what('s| is) (this|on this) page( about)?\??|what is this site about\??", low):
+            b.ask_about_page("Summarise this page briefly." if re.match(r"summari|read", low) else "What is this page about?")
+            return "Reading the page in Chrome..."
+        m = re.fullmatch(r"(?:click|press|tap)( on)? (.+)", low)
+        if m:
+            b.send({"action": "click", "text": m.group(2)})
+            return f"Clicking {m.group(2)}."
+        m = re.fullmatch(r"(?:google|search google for|search chrome for) (.+)|search (?:for )?(.+) (?:in|on) chrome", low)
+        if m:
+            q = next(g for g in m.groups() if g)
+            b.send({"action": "search", "query": q})
+            return f"Searching for {q}."
+        m = re.fullmatch(r"open (.+) in chrome", low)
+        if m:
+            b.send({"action": "open_url", "url": m.group(1).replace(" dot ", ".").replace(" ", "")})
+            return f"Opening {m.group(1)}."
+        m = re.fullmatch(r"switch to (.+?)( tab)?", low)
+        if m and m.group(2):
+            b.send({"action": "switch_tab", "text": m.group(1)})
+            return f"Switching to {m.group(1)}."
         return None
 
     def _find_phone(self, low: str, _text: str) -> str | None:
