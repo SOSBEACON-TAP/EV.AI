@@ -1,5 +1,8 @@
 EV AI 1.0.20
 
+FIXES
+- Updates that stopped with "The process cannot access the file because it is being used by another process": the update helper now keeps trying for about a minute (antivirus scans and leftover programs release files slowly), closes any program still running from the EV AI folder, and lists what is blocking it if it still cannot continue. Because the helper is created by the version you are running, this fix helps from the update AFTER 1.0.20. If you are on 1.0.18 or older, install 1.0.20 by hand once.
+
 NEW
 - Chrome extension: ask EV about the page you are on and control Chrome with your voice. Install: Chrome, Extensions, turn on Developer mode, Load unpacked, choose the "chrome_extension" folder inside EV AI's folder. Then open EV AI, Settings, Chrome, Show pairing code, and type the 6 digits into the extension.
 - Ask about a page: click the EV icon in Chrome and ask "Summarise this page". Or just say "what is this page about" to EV.

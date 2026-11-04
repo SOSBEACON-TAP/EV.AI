@@ -271,9 +271,18 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     kill_mine = ('powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Process -Name EV_AI -ErrorAction '
                  f"SilentlyContinue | Where-Object {{ $_.Path -eq '{ps_exe}' }} | Stop-Process -Force\" >nul 2>&1")
     busy = app_root / "data" / "update_busy.txt"
+    root_ps = str(app_root).replace("'", "''")
+    _holders = (f"Get-Process -ErrorAction SilentlyContinue | Where-Object {{ $_.Id -ne $PID -and "
+                f"@('explorer','cmd','powershell','conhost') -notcontains $_.ProcessName -and "
+                f"( ($_.Path -and $_.Path -like '{root_ps}\\*') -or "
+                f"($_.Modules | Where-Object {{ $_.FileName -like '{root_ps}\\*' }} | Select-Object -First 1) ) }}")
+    holders_list = f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{_holders} | ForEach-Object {{ \'  \' + $_.ProcessName + \' \' + $_.Id }}"'
+    kill_holders = (f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{_holders} | ForEach-Object {{ \'  closed \' + '
+                    f'$_.ProcessName + \' \' + $_.Id; $_ | Stop-Process -Force }}"')
     internal, internal_old, new_internal = app_root / "_internal", app_root / "_internal.old", new_dir / "_internal"
     lines = [
         "@echo off",
+        'cd /d "%TEMP%"',                      # the helper itself must not hold the app folder open
         f'echo Helper started %date% %time% waiting for EV AI (PID {pid}) to close > "{log}"',
         f'echo busy > "{busy}"',
         "set /a n=0",
@@ -306,11 +315,25 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         # thousands of files, so there is almost nothing that can fail halfway.
         f'if exist "{internal_old}" rd /s /q "{internal_old}" >> "{log}" 2>&1',
         f'if exist "{internal_old}" goto failed',
-        # (|| runs the next command only when the one before it failed; it does not rely on the
-        # ERRORLEVEL value, which batch files do not reset reliably)
-        f'if exist "{internal}" (',
-        f'  move "{internal}" "{internal_old}" >> "{log}" 2>&1 || goto failed',
-        ")",
+        # Windows refuses to rename a folder while ANY program (antivirus scan, a leftover process,
+        # an Explorer window) still has a file in it open, so try again for up to ~75 seconds.
+        "set /a t=0",
+        ":trymove",
+        f'if not exist "{internal}" goto moved',
+        # (&& runs goto only when move succeeded; it does not rely on ERRORLEVEL)
+        f'move "{internal}" "{internal_old}" >nul 2>&1 && goto moved',
+        "set /a t+=1",
+        "if %t% EQU 3 call :killholders",
+        "if %t% EQU 12 call :killholders",
+        "if %t% GEQ 30 goto movefailed",
+        "ping -n 3 127.0.0.1 >nul",
+        "goto trymove",
+        ":movefailed",
+        f'echo Could not move the old files: something still has them open. Programs running from the EV AI folder: >> "{log}"',
+        f"{holders_list} >> \"{log}\" 2>&1",
+        "goto failed",
+        ":moved",
+        f'echo Old files moved aside after %t% retries >> "{log}"',
         f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 || goto rollback',
         # the few loose files next to it (EV_AI.exe ...): top folder only, _internal excluded
         f'robocopy "{new_dir}" "{app_root}" /XD _internal /R:10 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
@@ -333,6 +356,10 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'del "{busy}" >nul 2>&1',
         f'start "" "{exe}"',
         "exit /b 1",
+        ":killholders",
+        f'echo Closing programs that still run from the EV AI folder >> "{log}"',
+        f"{kill_holders} >> \"{log}\" 2>&1",
+        "exit /b 0",
     ]
     text = "\r\n".join(lines) + "\r\n"
     try:
@@ -368,11 +395,12 @@ def failed_update_notice(app_root: Path, running_version: str) -> str:
         return ""
     try:
         tail = "\n".join((app_root / "data" / "update_log.txt").read_text(encoding="utf-8", errors="ignore")
-                         .strip().splitlines()[-8:])
+                         .strip().splitlines()[-10:])
     except Exception:
         tail = "(no update log was written, the update helper may not have run)"
     return (f"The update to {wanted} did not install, you are still on {running_version}.\n\n"
-            f"Update log:\n{tail}\n\nPlease send this to the developer, or install by hand from the Releases page.")
+            f"Update log:\n{tail}\n\nTry again after closing any File Explorer window that shows the EV AI folder "
+            f"and pausing your antivirus for a minute. If it still fails, send this to the developer, or install by hand from the Releases page.")
 
 
 def check_and_install(url: str, current_version: str, app_root: Path, progress=None) -> dict:
