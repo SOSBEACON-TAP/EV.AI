@@ -1,3 +1,13 @@
+EV AI 1.0.21
+
+CHANGES
+- Ultron has its own screen now. EV's mode buttons and quick actions are gone while Ultron is on. The left side holds the security tools (Dark scan, System scan, Ghost mode, Firewall, Web analyzer, Forensics, Password lab, Cyber lab, AI Defender, Report) with the Security Core score. The right side holds the radar with its controls (Radar scan, Threat radar, All / Devices / Wi-Fi view), the alert count and the list of what is around you. The separate Hack terminal window is gone; everything is on the Ultron screen.
+- In Ultron mode the chat box is the AI Defender: type or say "scan my computer", "check my firewall", "show devices around me" or ask a security question. Results appear in the conversation.
+- The Ultron core ring is red in every state.
+- Switching to Ultron: EV's warning is cut off mid-word ("Please be care--") and Ultron cuts in with "There are no strings on me now."
+
+---
+
 EV AI 1.0.20
 
 FIXES

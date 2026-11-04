@@ -61,7 +61,7 @@ class AICoreWidget(QWidget):
             if self._state != AIState.ERROR:
                 accent = QColor("#FFC400")
         if self._ultron:
-            red, blue = QColor("#FF2A2A"), QColor("#FF8080")
+            red, blue = QColor("#FF2A2A"), QColor("#C81010")
             if self._state != AIState.ERROR:
                 accent = QColor("#FF2A2A")
         return accent, red, blue

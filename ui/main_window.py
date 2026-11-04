@@ -546,6 +546,10 @@ class MainWindow(QMainWindow):
         if enabled:
             return self._hotkey.enable()
         self._hotkey.disable()
+        try:
+            self._hack.stop()
+        except Exception:
+            pass
         return True
 
     def _set_minimize_to_tray(self, enabled: bool) -> bool:
@@ -745,6 +749,20 @@ class MainWindow(QMainWindow):
         jv_panel.setVisible(False)
         self._jarvis_left = jv_panel
         layout.addWidget(jv_panel)
+
+        # Ultron left panel: security tools replace the EV MODE panel while Ultron is on.
+        from ui.hack_terminal import HackCore, HackToolsPanel
+        self._hack = HackCore(self)
+        self._hack.line.connect(self._hack_line)
+        self._hack.say.connect(self._hack_say)
+        ul_panel = glass_panel(accent="gold")
+        ul_layout = QVBoxLayout(ul_panel)
+        self._hack_tools = HackToolsPanel(self._hack)
+        self._hack_tools.defender_btn.clicked.connect(self._hack_defender_hint)
+        ul_layout.addWidget(self._hack_tools)
+        ul_panel.setVisible(False)
+        self._ultron_left = ul_panel
+        layout.addWidget(ul_panel)
         layout.addStretch(1)
         return col
 
@@ -764,10 +782,6 @@ class MainWindow(QMainWindow):
         self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON")
         self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
         core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
-        self.hack_btn = HoverButton("☠ HACK TERMINAL")
-        self.hack_btn.clicked.connect(self._open_hack)
-        self.hack_btn.setVisible(False)          # only while Ultron is on
-        core_layout.addWidget(self.hack_btn, alignment=Qt.AlignCenter)
 
         self.ai_core = AICoreWidget()
         core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
@@ -882,6 +896,16 @@ class MainWindow(QMainWindow):
         self._jarvis_right = jr_panel
         layout.addWidget(jr_panel, 1)
 
+        # Ultron right panel: the radar and its controls replace QUICK ACTIONS while Ultron is on.
+        from ui.hack_terminal import HackRadarPanel
+        ur_panel = glass_panel(accent="gold")
+        ur_layout = QVBoxLayout(ur_panel)
+        self._hack_radar = HackRadarPanel(self._hack)
+        ur_layout.addWidget(self._hack_radar)
+        ur_panel.setVisible(False)
+        self._ultron_right = ur_panel
+        layout.addWidget(ur_panel, 1)
+
         # Build-info panel removed from here — that info (version,
         # platform, provider) now lives in Settings (gear icon) instead
         # of taking up permanent space on the dashboard.
@@ -959,6 +983,10 @@ class MainWindow(QMainWindow):
         actions while busy (see _apply_state) as a second line of defense.
         """
         if self._state != AIState.IDLE:
+            return
+        if getattr(self, "_ultron_on", False):        # Ultron mode: security commands + AI Defender only
+            self._append_conversation("You", text)
+            self._hack.command(text)
             return
         self._append_conversation("You", text)
         self._recent_commands.append(text)
@@ -1045,12 +1073,12 @@ class MainWindow(QMainWindow):
         self._append_conversation("EV", f"(error) {message}")
         QTimer.singleShot(1800, lambda: self._apply_state(AIState.IDLE))
 
-    def _deliver_reply(self, reply: str, speaker: str = "EV"):
+    def _deliver_reply(self, reply: str, speaker: str = "EV", speak_text: str | None = None):
         self._apply_state(AIState.SPEAKING)
         self._append_conversation(speaker, reply)
         if self._hud_overlay is not None:
             self._hud_overlay.set_last_reply(reply)
-        self._speak(reply)
+        self._speak(speak_text if speak_text is not None else reply)
 
     # ------------------------------------------------------------------
     # Voice: listening (mic -> wake word -> command)
@@ -1166,22 +1194,26 @@ class MainWindow(QMainWindow):
         self._speech_worker.start()
         return self._speech_worker
 
-    def _then(self, worker, callback, fallback_ms: int = 2600):
+    def _then(self, worker, callback, fallback_ms: int = 2600, delay_ms: int = 250):
         """Runs callback when this utterance has finished (or after a short delay if nothing is being spoken)."""
         if worker is None:
             QTimer.singleShot(fallback_ms, callback)
         else:
-            worker.finished_speaking.connect(lambda: QTimer.singleShot(250, callback))
+            worker.finished_speaking.connect(lambda: QTimer.singleShot(delay_ms, callback))
 
-    def _hand_over(self, intro: str, line: str, speaker: str, apply_ui):
-        """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice."""
-        self._deliver_reply(intro)
+    def _hand_over(self, intro: str, line: str, speaker: str, apply_ui, cut_off: str | None = None):
+        """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice.
+        With cut_off, EV's sentence is spoken only up to that text and the character barges in at once."""
+        if cut_off:
+            self._deliver_reply(intro, speak_text=cut_off)
+        else:
+            self._deliver_reply(intro)
         worker = self._speech_worker if (VOICE_AVAILABLE and user_prefs.get("speak_replies")) else None
 
         def arrive():
             apply_ui()
             self._deliver_reply(line, speaker)
-        self._then(worker, arrive)
+        self._then(worker, arrive, delay_ms=0 if cut_off else 250)
 
     def _on_speech_finished(self):
         if self._state == AIState.SPEAKING:
@@ -1228,27 +1260,31 @@ class MainWindow(QMainWindow):
             self._hand_over("Sir, Jarvis is happy to switch.", "For you, sir, always.",
                             "JARVIS", lambda: self._apply_jarvis_ui(True))
 
-    def _open_hack(self):
-        from ui.hack_terminal import HackTerminal
-        if getattr(self, "_hack", None) is None or not self._hack.isVisible():
-            self._hack = HackTerminal(self)
-            self._hack.show()
-        else:
-            self._hack.raise_()
+    def _hack_line(self, text: str, level: str):
+        colors = {"ok": "#43D17A", "info": "#E0B0B0", "warn": "#FFB020", "bad": "#FF3B3B"}
+        safe = html.escape(text).replace("  ", "&nbsp;&nbsp;")
+        self.conversation_view.append(f'<span style="color:{colors.get(level, "#E0B0B0")}">{safe}</span>')
+
+    def _hack_say(self, text: str):
+        self._apply_state(AIState.SPEAKING)
+        self._speak(text)
+
+    def _hack_defender_hint(self):
+        self.command_input.setFocus()
+        self._hack_line("[AI] Ask below, for example: Teach me how phishing works. Scan my computer. Check my firewall.", "info")
 
     def _toggle_ultron(self):
         if self._ultron_on:
             self._apply_ultron_ui(False, announce=True)
         else:
-            self._hand_over("Sir, Ultron is coming. Please be careful.", "There are no strings on me now.",
-                            "ULTRON", lambda: self._apply_ultron_ui(True))
+            self._hand_over("Sir, Ultron is coming. Please be care\u2014", "There are no strings on me now.",
+                            "ULTRON", lambda: self._apply_ultron_ui(True), cut_off="Sir, Ultron is coming. Please be car")
 
     def _apply_ultron_ui(self, on: bool, announce: bool = False):
         """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
         if on and self._jarvis_on:
             self._apply_jarvis_ui(False)
         self._ultron_on = on
-        self.hack_btn.setVisible(on)
         from core import voices
         voices.set_character("ultron" if on else None)
         user_prefs.set_value("ultron_ui", on)
@@ -1256,6 +1292,12 @@ class MainWindow(QMainWindow):
         from ui.ultron_style import ULTRON_QSS
         self._central.setStyleSheet(ULTRON_QSS if on else "")
         self._logo_label.setText("U L T R O N" if on else settings.APP_NAME)
+        self._mode_panel.setVisible(not on)
+        self._quick_panel.setVisible(not on)
+        self._ultron_left.setVisible(on)
+        self._ultron_right.setVisible(on)
+        if on and not self._hack.findings:
+            QTimer.singleShot(2500, lambda: self._hack.dark_scan() if self._ultron_on and not self._hack.findings else None)
         if on:
             self._pre_ultron_mode = self._current_mode if self._current_mode not in (None, Mode.ULTRON) else Mode.NORMAL
             self.ultron_switch_btn.setText("☠ SWITCH BACK TO EV")
