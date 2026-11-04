@@ -744,6 +744,10 @@ class MainWindow(QMainWindow):
         self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON")
         self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
         core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
+        self.hack_btn = HoverButton("☠ HACK TERMINAL")
+        self.hack_btn.clicked.connect(self._open_hack)
+        self.hack_btn.setVisible(False)          # only while Ultron is on
+        core_layout.addWidget(self.hack_btn, alignment=Qt.AlignCenter)
 
         self.ai_core = AICoreWidget()
         core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
@@ -1021,9 +1025,9 @@ class MainWindow(QMainWindow):
         self._append_conversation("EV", f"(error) {message}")
         QTimer.singleShot(1800, lambda: self._apply_state(AIState.IDLE))
 
-    def _deliver_reply(self, reply: str):
+    def _deliver_reply(self, reply: str, speaker: str = "EV"):
         self._apply_state(AIState.SPEAKING)
-        self._append_conversation("EV", reply)
+        self._append_conversation(speaker, reply)
         if self._hud_overlay is not None:
             self._hud_overlay.set_last_reply(reply)
         self._speak(reply)
@@ -1129,7 +1133,7 @@ class MainWindow(QMainWindow):
             # No TTS available — fall back to a short pause so the SPEAKING
             # state is still visible, then return to IDLE.
             QTimer.singleShot(1000, lambda: self._apply_state(AIState.IDLE))
-            return
+            return None
 
         # Let a previous utterance finish naturally rather than overlapping
         # two TTS engines; interrupting is what the STOP button is for.
@@ -1140,6 +1144,24 @@ class MainWindow(QMainWindow):
         self._speech_worker = SpeechWorker(text, parent=self)
         self._speech_worker.finished_speaking.connect(self._on_speech_finished)
         self._speech_worker.start()
+        return self._speech_worker
+
+    def _then(self, worker, callback, fallback_ms: int = 2600):
+        """Runs callback when this utterance has finished (or after a short delay if nothing is being spoken)."""
+        if worker is None:
+            QTimer.singleShot(fallback_ms, callback)
+        else:
+            worker.finished_speaking.connect(lambda: QTimer.singleShot(250, callback))
+
+    def _hand_over(self, intro: str, line: str, speaker: str, apply_ui):
+        """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice."""
+        self._deliver_reply(intro)
+        worker = self._speech_worker if (VOICE_AVAILABLE and user_prefs.get("speak_replies")) else None
+
+        def arrive():
+            apply_ui()
+            self._deliver_reply(line, speaker)
+        self._then(worker, arrive)
 
     def _on_speech_finished(self):
         if self._state == AIState.SPEAKING:
@@ -1180,16 +1202,35 @@ class MainWindow(QMainWindow):
     # Jarvis switch: gold core, different panels, Jarvis personality prompt
     # ------------------------------------------------------------------
     def _toggle_jarvis(self):
-        self._apply_jarvis_ui(not self._jarvis_on, announce=True)
+        if self._jarvis_on:
+            self._apply_jarvis_ui(False, announce=True)
+        else:
+            self._hand_over("Sir, Jarvis is happy to switch.", "For you, sir, always.",
+                            "JARVIS", lambda: self._apply_jarvis_ui(True))
+
+    def _open_hack(self):
+        from ui.hack_terminal import HackTerminal
+        if getattr(self, "_hack", None) is None or not self._hack.isVisible():
+            self._hack = HackTerminal(self)
+            self._hack.show()
+        else:
+            self._hack.raise_()
 
     def _toggle_ultron(self):
-        self._apply_ultron_ui(not self._ultron_on, announce=True)
+        if self._ultron_on:
+            self._apply_ultron_ui(False, announce=True)
+        else:
+            self._hand_over("Sir, Ultron is coming. Please be careful.", "There are no strings on me now.",
+                            "ULTRON", lambda: self._apply_ultron_ui(True))
 
     def _apply_ultron_ui(self, on: bool, announce: bool = False):
         """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
         if on and self._jarvis_on:
             self._apply_jarvis_ui(False)
         self._ultron_on = on
+        self.hack_btn.setVisible(on)
+        from core import voices
+        voices.set_character("ultron" if on else None)
         user_prefs.set_value("ultron_ui", on)
         self.ai_core.set_ultron(on)
         from ui.ultron_style import ULTRON_QSS
@@ -1216,13 +1257,15 @@ class MainWindow(QMainWindow):
             for m, btn in self._mode_buttons.items():
                 btn.setChecked(m == back)
         if announce:
-            self._deliver_reply("Ultron online. Try to keep up." if on else "Switched back to EV.")
+            self._deliver_reply("Switched back to EV." if not on else "Ultron online.")
         self._sync_corner_ui()
 
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
         if on and getattr(self, "_ultron_on", False):
             self._apply_ultron_ui(False)
         self._jarvis_on = on
+        from core import voices
+        voices.set_character("jarvis" if on else None)
         user_prefs.set_value("jarvis_ui", on)
         self.ai_core.set_jarvis(on)
         from ui.jarvis_style import JARVIS_QSS

@@ -44,9 +44,25 @@ SAMPLES = {
 }
 
 
+# Jarvis and Ultron each have their own voice (online Edge voices), separate from EV's.
+CHARACTERS = {
+    "jarvis": {"edge": True, "voice": "en-GB-RyanNeural", "rate": "-3%", "pitch": "-2Hz", "gender": "male"},
+    "ultron": {"edge": True, "voice": "en-US-GuyNeural", "rate": "-14%", "pitch": "-14Hz", "gender": "male"},
+}
+_character: str | None = None
+
+
+def set_character(name: str | None) -> None:
+    """Called when Jarvis or Ultron mode switches on/off, so everything spoken uses that character's voice."""
+    global _character
+    _character = name if name in CHARACTERS else None
+
+
 def resolve(personality: str | None = None) -> dict:
     """What the speech worker should use right now:
     {"edge": bool, "voice": str, "rate": str, "pitch": str, "gender": str}"""
+    if _character:
+        return dict(CHARACTERS[_character])
     key = personality or current_personality()
     provider_is_edge = (settings.TTS_PROVIDER or "").lower() == "edge"
     if key in STYLE and user_prefs.get("voice_per_personality"):
