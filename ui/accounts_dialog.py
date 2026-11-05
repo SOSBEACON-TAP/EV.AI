@@ -500,6 +500,17 @@ def _restart_app() -> None:
         # A plain thread timer, not a Qt one: if shutdown handlers block the Qt event loop,
         # a Qt timer never fires and EV AI stays alive, which kept update files locked.
         import threading
-        _t = threading.Timer(2.5, lambda: os._exit(0))
+
+        def _hard_exit():
+            # os._exit still runs every loaded library's shutdown code (camera, audio, AI libraries),
+            # and one of them can hang or crash while Windows waits, so the process stays listed and keeps
+            # the update files locked. TerminateProcess ends it immediately instead.
+            try:
+                import ctypes
+                ctypes.windll.kernel32.TerminateProcess(ctypes.windll.kernel32.GetCurrentProcess(), 0)
+            except Exception:
+                pass
+            os._exit(0)
+        _t = threading.Timer(1.5, _hard_exit)
         _t.daemon = True
         _t.start()

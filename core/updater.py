@@ -279,6 +279,16 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     holders_list = f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{_holders} | ForEach-Object {{ \'  \' + $_.ProcessName + \' \' + $_.Id }}"'
     kill_holders = (f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{_holders} | ForEach-Object {{ \'  closed \' + '
                     f'$_.ProcessName + \' \' + $_.Id; $_ | Stop-Process -Force }}"')
+    move_files_ps = (
+        f"$src='{root_ps}\\_internal'; $dst='{root_ps}\\_internal.old'; "
+        "New-Item -ItemType Directory -Force -Path $dst | Out-Null; "
+        "Get-ChildItem -LiteralPath $src -Recurse -File -Force | ForEach-Object { "
+        "$t = Join-Path $dst $_.FullName.Substring($src.Length + 1); "
+        "New-Item -ItemType Directory -Force -Path (Split-Path $t) | Out-Null; "
+        "Move-Item -LiteralPath $_.FullName -Destination $t -Force }; "
+        "$left = @(Get-ChildItem -LiteralPath $src -Recurse -File -Force).Count; "
+        "Write-Output ('files left in the old folder: ' + $left); if ($left -gt 0) { exit 1 }")
+    move_files = f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{move_files_ps}"'
     internal, internal_old, new_internal = app_root / "_internal", app_root / "_internal.old", new_dir / "_internal"
     lines = [
         "@echo off",
@@ -313,10 +323,13 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'echo EV AI closed after %n% checks, swapping in the new version >> "{log}"',
         # The big _internal folder is swapped by renaming (instant, same drive) instead of copying
         # thousands of files, so there is almost nothing that can fail halfway.
-        f'if exist "{internal_old}" rd /s /q "{internal_old}" >> "{log}" 2>&1',
+        # leftovers of an earlier update (a program that was still shutting down kept them locked)
+        f'for /d %%D in ("{internal_old}*") do rd /s /q "%%D" >nul 2>&1',
+        f'if exist "{internal_old}" move "{internal_old}" "{internal_old}.%random%" >nul 2>&1',
         f'if exist "{internal_old}" goto failed',
-        # Windows refuses to rename a folder while ANY program (antivirus scan, a leftover process,
-        # an Explorer window) still has a file in it open, so try again for up to ~75 seconds.
+        "set mode=folder",
+        # Windows refuses to rename a folder while ANY program still has a file in it open
+        # (antivirus scan, a program that is slow to shut down, an Explorer window), so try a few times.
         "set /a t=0",
         ":trymove",
         f'if not exist "{internal}" goto moved',
@@ -324,17 +337,31 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'move "{internal}" "{internal_old}" >nul 2>&1 && goto moved',
         "set /a t+=1",
         "if %t% EQU 3 call :killholders",
-        "if %t% EQU 12 call :killholders",
-        "if %t% GEQ 30 goto movefailed",
+        "if %t% GEQ 8 goto movefiles",
         "ping -n 3 127.0.0.1 >nul",
         "goto trymove",
+        ":movefiles",
+        # Plan B: a program that cannot be closed (stuck while shutting down) keeps the FOLDER locked, but
+        # Windows still lets us RENAME the individual files it has loaded. Move every file out one by one.
+        f'echo Folder is locked by a program that will not close. Moving the old files one by one instead >> "{log}"',
+        f"{move_files} >> \"{log}\" 2>&1 || goto movefailed",
+        "set mode=files",
+        f'if not exist "{internal}" mkdir "{internal}"',
+        f'if exist "{app_root}\\EV_AI.exe.old" del /f /q "{app_root}\\EV_AI.exe.old" >nul 2>&1',
+        f'if exist "{app_root}\\EV_AI.exe" ren "{app_root}\\EV_AI.exe" EV_AI.exe.old >> "{log}" 2>&1',
+        f'robocopy "{new_internal}" "{internal}" /E /R:5 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        "set rc=%errorlevel%",
+        f'echo robocopy of the new files exit code %rc% >> "{log}"',
+        "if %rc% GEQ 8 goto rollback",
+        "goto loose",
         ":movefailed",
         f'echo Could not move the old files: something still has them open. Programs running from the EV AI folder: >> "{log}"',
         f"{holders_list} >> \"{log}\" 2>&1",
         "goto failed",
         ":moved",
-        f'echo Old files moved aside after %t% retries >> "{log}"',
+        f'echo Old folder moved aside after %t% retries >> "{log}"',
         f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 || goto rollback',
+        ":loose",
         # the few loose files next to it (EV_AI.exe ...): top folder only, _internal excluded
         f'robocopy "{new_dir}" "{app_root}" /XD _internal /R:10 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
         "set rc=%errorlevel%",
@@ -342,6 +369,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         "if %rc% GEQ 8 goto rollback",
         f'echo UPDATE OK >> "{log}"',
         f'start "" /b cmd /c rd /s /q "{internal_old}"',
+        f'if exist "{app_root}\\EV_AI.exe.old" start "" /b cmd /c del /f /q "{app_root}\\EV_AI.exe.old"',
         f'rmdir /s /q "{stage}"',
         f'del "{busy}" >nul 2>&1',
         f'start "" "{exe}"',
@@ -349,8 +377,13 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         "exit /b 0",
         ":rollback",
         f'echo Swap failed, putting the old version back >> "{log}"',
+        'if "%mode%"=="files" goto rollbackfiles',
         f'if exist "{internal}" rd /s /q "{internal}" >> "{log}" 2>&1',
         f'if exist "{internal_old}" move "{internal_old}" "{internal}" >> "{log}" 2>&1',
+        "goto failed",
+        ":rollbackfiles",
+        f'robocopy "{internal_old}" "{internal}" /E /IS /IT /R:3 /W:1 /MOVE /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        f'if exist "{app_root}\\EV_AI.exe.old" (del /f /q "{app_root}\\EV_AI.exe" >nul 2>&1 & ren "{app_root}\\EV_AI.exe.old" EV_AI.exe)',
         ":failed",
         f'echo UPDATE FAILED, starting the old version again >> "{log}"',
         f'del "{busy}" >nul 2>&1',
@@ -368,6 +401,17 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         script.write_text(text, encoding="utf-8")
     PENDING_SCRIPT = script
     return script
+
+
+def cleanup_leftovers(app_root: Path) -> None:
+    """Removes folders/files an earlier update left behind (best effort, never raises)."""
+    import shutil
+    try:
+        for old in app_root.glob("_internal.old*"):
+            shutil.rmtree(old, ignore_errors=True)
+        (app_root / "EV_AI.exe.old").unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def update_in_progress(app_root: Path, max_age: float = 300.0) -> bool:

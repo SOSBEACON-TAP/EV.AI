@@ -1,3 +1,10 @@
+EV AI 1.0.22
+
+FIXES
+- Updates that stopped because an old EV AI process would not close (the update log showed the same EV_AI process id after every attempt): EV AI now ends itself instantly when it restarts for an update, and if Windows still keeps the old folder locked, the update helper moves the old files out one by one instead of giving up. Because the helper is created by the version you are running, this works from the update AFTER 1.0.22. If your update fails once more, restart the PC (that clears the stuck process) and press update again, or install 1.0.22 by hand.
+
+---
+
 EV AI 1.0.21
 
 CHANGES

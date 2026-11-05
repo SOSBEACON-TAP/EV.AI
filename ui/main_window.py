@@ -192,6 +192,8 @@ class MainWindow(QMainWindow):
             from config import APP_ROOT
             from core import updater as _upd
             from app_version import VERSION as _ver
+            import threading as _th
+            _th.Thread(target=_upd.cleanup_leftovers, args=(APP_ROOT,), daemon=True).start()
             _note = _upd.failed_update_notice(APP_ROOT, _ver)
             if _note:
                 QTimer.singleShot(4000, lambda: QMessageBox.warning(self, "Update did not install", _note))
