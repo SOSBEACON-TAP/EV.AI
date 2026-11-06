@@ -3,7 +3,7 @@
 Bump VERSION and edit RELEASE_NOTES before running scripts/make_release.py.
 (Kept apart from config.py so updates never overwrite your update-check address.)
 """
-VERSION = "1.0.23"
+VERSION = "1.0.22"
 BUILD = 52   # goes up with every zip I send you, so you can tell which files are installed
 FEEDBACK_URL = "web3forms:0fe9640b-0e80-484b-9ab5-6556a106f3db"   # see core/feedback.py: "web3forms:<key>" or a Formspree form URL
 RELEASE_NOTES = (

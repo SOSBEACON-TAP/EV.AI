@@ -1,4 +1,4 @@
-EV AI 1.0.23
+EV AI 1.0.22
 
 NEW
 - Ultron has two radars on the right: WI-FI RADAR (devices on your network and Wi-Fi around you) and LOCATION RADAR (real places around you from OpenStreetMap: hospitals, pharmacies, police, ATMs, food, fuel, shops). Press LOCATE ME. A PC has no GPS, so the position comes from your internet connection and is only right to about the city. Your phone's Radar uses real GPS.
