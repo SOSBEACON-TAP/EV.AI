@@ -1362,10 +1362,18 @@ class MainWindow(QMainWindow):
             self._apply_karen_ui(False)
 
     def _toggle_game(self):
-        self._apply_game_ui(not self._game_on, announce=True)
+        if self._game_on:
+            self._apply_game_ui(False, announce=True)
+        else:
+            self._hand_over("Sir, Game mode is ready to switch.", "Game on. Press F6 to start the clicker.",
+                            "GAME", lambda: self._apply_game_ui(True))
 
     def _toggle_karen(self):
-        self._apply_karen_ui(not self._karen_on, announce=True)
+        if self._karen_on:
+            self._apply_karen_ui(False, announce=True)
+        else:
+            self._hand_over("Sir, Karen is coming to switch.", "Hello. Rules here need the parent's PIN.",
+                            "KAREN", lambda: self._apply_karen_ui(True))
 
     def _apply_game_ui(self, on: bool, announce: bool = False):
         if on:
@@ -1376,6 +1384,8 @@ class MainWindow(QMainWindow):
             if self._karen_on:
                 self._apply_karen_ui(False)
         self._game_on = on
+        from core import voices
+        voices.set_character("game" if on else None)
         from ui.mode_styles import GAME_QSS
         self._central.setStyleSheet(GAME_QSS if on else "")
         self.ai_core.set_tint(("#2BFF88", "#5CFFA3") if on else None)
@@ -1385,7 +1395,7 @@ class MainWindow(QMainWindow):
         (self._game_panel.activate if on else self._game_panel.deactivate)()
         self.game_switch_btn.setText("🎮 LEAVE GAME MODE" if on else "🎮 GAME MODE")
         if announce:
-            self._deliver_reply("Game mode on. Press F6 to start or stop the auto-clicker." if on else "Game mode off.")
+            self._deliver_reply("Switched back to EV.")
 
     def _apply_karen_ui(self, on: bool, announce: bool = False):
         if on:
@@ -1396,6 +1406,8 @@ class MainWindow(QMainWindow):
             if self._game_on:
                 self._apply_game_ui(False)
         self._karen_on = on
+        from core import voices
+        voices.set_character("karen" if on else None)
         from ui.mode_styles import KAREN_QSS
         self._central.setStyleSheet(KAREN_QSS if on else "")
         self.ai_core.set_tint(("#B26BFF", "#D9B3FF") if on else None)
@@ -1405,7 +1417,7 @@ class MainWindow(QMainWindow):
         self._karen_panel.refresh()
         self.karen_switch_btn.setText("🛡 LEAVE KAREN MODE" if on else "🛡 KAREN MODE")
         if announce:
-            self._deliver_reply("Karen mode screen. Rules need the parent's PIN." if on else "Back to the normal screen. Karen controls keep running if they are on.")
+            self._deliver_reply("Switched back to EV. Karen's limits keep running if they are on.")
 
     def _karen_state_changed(self, enabled: bool):
         self.setWindowTitle(f"{settings.APP_NAME} - Karen mode ON" if enabled else settings.APP_NAME)

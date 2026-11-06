@@ -47,6 +47,8 @@ SAMPLES = {
 # Jarvis and Ultron each have their own voice (online Edge voices), separate from EV's.
 CHARACTERS = {
     "jarvis": {"edge": True, "voice": "en-GB-RyanNeural", "rate": "-3%", "pitch": "-2Hz", "gender": "male"},
+    "game": {"edge": True, "voice": "en-US-ChristopherNeural", "rate": "+8%", "pitch": "+2Hz", "gender": "male"},
+    "karen": {"edge": True, "voice": "en-US-JennyNeural", "rate": "-4%", "pitch": "+0Hz", "gender": "female"},
     "ultron": {"edge": True, "voice": "en-US-GuyNeural", "rate": "-14%", "pitch": "-14Hz", "gender": "male"},
 }
 _character: str | None = None
