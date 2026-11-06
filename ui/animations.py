@@ -37,6 +37,7 @@ class AICoreWidget(QWidget):
         self._pulse_phase = 0.0    # 0..1 pulse cycle position
         self._jarvis = False       # all-yellow look when Jarvis is switched on
         self._ultron = False       # all-red look when Ultron is switched on
+        self._tint = None          # (ring1, ring2) hex colours for Game / Karen mode
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -64,7 +65,15 @@ class AICoreWidget(QWidget):
             red, blue = QColor("#FF2A2A"), QColor("#C81010")
             if self._state != AIState.ERROR:
                 accent = QColor("#FF2A2A")
+        if self._tint:
+            red, blue = QColor(self._tint[0]), QColor(self._tint[1])
+            if self._state != AIState.ERROR:
+                accent = QColor(self._tint[0])
         return accent, red, blue
+
+    def set_tint(self, colours) -> None:
+        self._tint = colours
+        self.update()
 
     def set_ultron(self, on: bool) -> None:
         if on != self._ultron:

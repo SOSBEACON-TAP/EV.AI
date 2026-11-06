@@ -15,6 +15,7 @@ everything else here is self-contained.
 """
 
 import datetime
+import time
 from pathlib import Path
 import html
 
@@ -182,6 +183,8 @@ class MainWindow(QMainWindow):
         self._recent_commands = []  # last few things the user typed/said
 
         self._jarvis_on = False
+        self._game_on = False
+        self._karen_on = False
         self._ultron_on = False
         self._pre_jarvis_mode = None
         self._pre_ultron_mode = None
@@ -234,6 +237,7 @@ class MainWindow(QMainWindow):
                 browser_bridge.create(self._bridge_ask, self.bridge_reply.emit, self._bridge_count).start()
             except Exception as e:
                 print(f"[EV AI] Chrome bridge unavailable: {e}")
+        self._start_karen()
 
         # USB drives plugged in to this PC: bring EV forward and announce them.
         self.usb_inserted.connect(self._on_usb_inserted)
@@ -808,6 +812,28 @@ class MainWindow(QMainWindow):
         ul_panel.setVisible(False)
         self._ultron_left = ul_panel
         layout.addWidget(ul_panel)
+
+        # Game mode and Karen mode panels replace the MODE panel while they are on.
+        from core import karen as karenmod
+        from ui.game_panel import GamePanel
+        from ui.karen_panel import KarenPanel
+        self._karen = karenmod.Karen()
+        gm_panel = glass_panel(accent="gold")
+        QVBoxLayout(gm_panel).addWidget(GamePanel())
+        self._game_panel = gm_panel.findChild(GamePanel)
+        self._game_panel.say.connect(lambda t: self._deliver_reply(t))
+        gm_panel.setVisible(False)
+        self._game_left = gm_panel
+        layout.addWidget(gm_panel)
+        kp_panel = glass_panel(accent="gold")
+        QVBoxLayout(kp_panel).addWidget(KarenPanel(self._karen))
+        self._karen_panel = kp_panel.findChild(KarenPanel)
+        self._karen_panel.say.connect(lambda t: self._deliver_reply(t))
+        self._karen_panel.sites_changed.connect(self._karen_push_sites)
+        self._karen_panel.state_changed.connect(self._karen_state_changed)
+        kp_panel.setVisible(False)
+        self._karen_left = kp_panel
+        layout.addWidget(kp_panel)
         layout.addStretch(1)
         return col
 
@@ -827,6 +853,15 @@ class MainWindow(QMainWindow):
         self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON")
         self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
         core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
+        mode_row = QHBoxLayout()
+        mode_row.setAlignment(Qt.AlignCenter)
+        self.game_switch_btn = HoverButton("🎮 GAME MODE")
+        self.game_switch_btn.clicked.connect(self._toggle_game)
+        self.karen_switch_btn = HoverButton("🛡 KAREN MODE")
+        self.karen_switch_btn.clicked.connect(self._toggle_karen)
+        mode_row.addWidget(self.game_switch_btn)
+        mode_row.addWidget(self.karen_switch_btn)
+        core_layout.addLayout(mode_row)
 
         self.ai_core = AICoreWidget()
         core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
@@ -1319,6 +1354,96 @@ class MainWindow(QMainWindow):
         self.command_input.setFocus()
         self._hack_line("[AI] Ask below, for example: Teach me how phishing works. Scan my computer. Check my firewall.", "info")
 
+    # ---- Game mode and Karen mode ------------------------------------------------------------
+    def _leave_game_karen(self):
+        if self._game_on:
+            self._apply_game_ui(False)
+        if self._karen_on:
+            self._apply_karen_ui(False)
+
+    def _toggle_game(self):
+        self._apply_game_ui(not self._game_on, announce=True)
+
+    def _toggle_karen(self):
+        self._apply_karen_ui(not self._karen_on, announce=True)
+
+    def _apply_game_ui(self, on: bool, announce: bool = False):
+        if on:
+            if self._jarvis_on:
+                self._apply_jarvis_ui(False)
+            if self._ultron_on:
+                self._apply_ultron_ui(False)
+            if self._karen_on:
+                self._apply_karen_ui(False)
+        self._game_on = on
+        from ui.mode_styles import GAME_QSS
+        self._central.setStyleSheet(GAME_QSS if on else "")
+        self.ai_core.set_tint(("#2BFF88", "#5CFFA3") if on else None)
+        self._logo_label.setText("G A M E   M O D E" if on else settings.APP_NAME)
+        self._mode_panel.setVisible(not on)
+        self._game_left.setVisible(on)
+        (self._game_panel.activate if on else self._game_panel.deactivate)()
+        self.game_switch_btn.setText("🎮 LEAVE GAME MODE" if on else "🎮 GAME MODE")
+        if announce:
+            self._deliver_reply("Game mode on. Press F6 to start or stop the auto-clicker." if on else "Game mode off.")
+
+    def _apply_karen_ui(self, on: bool, announce: bool = False):
+        if on:
+            if self._jarvis_on:
+                self._apply_jarvis_ui(False)
+            if self._ultron_on:
+                self._apply_ultron_ui(False)
+            if self._game_on:
+                self._apply_game_ui(False)
+        self._karen_on = on
+        from ui.mode_styles import KAREN_QSS
+        self._central.setStyleSheet(KAREN_QSS if on else "")
+        self.ai_core.set_tint(("#B26BFF", "#D9B3FF") if on else None)
+        self._logo_label.setText("K A R E N   M O D E" if on else settings.APP_NAME)
+        self._mode_panel.setVisible(not on)
+        self._karen_left.setVisible(on)
+        self._karen_panel.refresh()
+        self.karen_switch_btn.setText("🛡 LEAVE KAREN MODE" if on else "🛡 KAREN MODE")
+        if announce:
+            self._deliver_reply("Karen mode screen. Rules need the parent's PIN." if on else "Back to the normal screen. Karen controls keep running if they are on.")
+
+    def _karen_state_changed(self, enabled: bool):
+        self.setWindowTitle(f"{settings.APP_NAME} - Karen mode ON" if enabled else settings.APP_NAME)
+
+    def _karen_push_sites(self, sites: list):
+        from core import browser_bridge
+        b = browser_bridge.get()
+        if b is not None:
+            b.set_blocked_sites(sites)
+
+    def _karen_tick(self):
+        """Every 5 seconds while Karen mode is on: count screen time, close blocked apps, lock at the limit or bedtime."""
+        if not self._karen.enabled:
+            self._karen_last = time.monotonic()
+            return
+        from core import karen as km
+        now = time.monotonic()
+        dt, self._karen_last = min(now - self._karen_last, 30.0), now
+        wanted = set(self._karen.data["blocked_apps"])
+        for act in self._karen.tick(datetime.datetime.now(), km.foreground_process(), km.idle_seconds(), dt, km.running_names(wanted)):
+            if act["do"] == "kill":
+                km.kill_by_name(act["name"])
+            self._deliver_reply(act["text"])
+            if act["do"] == "lock":
+                QTimer.singleShot(3000, km.lock_workstation)
+        self._karen_saves = getattr(self, "_karen_saves", 0) + 1
+        if self._karen_saves % 12 == 0:
+            self._karen.save()
+
+    def _start_karen(self):
+        self._karen_last = time.monotonic()
+        self._karen_timer = QTimer(self)
+        self._karen_timer.timeout.connect(self._karen_tick)
+        self._karen_timer.start(5000)
+        if self._karen.enabled:
+            self._karen_state_changed(True)
+            self._karen_push_sites(self._karen.data["blocked_sites"])
+
     def _hack_terminal_hint(self):
         self.command_input.setText("> ")
         self.command_input.setFocus()
@@ -1335,6 +1460,8 @@ class MainWindow(QMainWindow):
         """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
         if on and self._jarvis_on:
             self._apply_jarvis_ui(False)
+        if on:
+            self._leave_game_karen()
         self._ultron_on = on
         from core import voices
         voices.set_character("ultron" if on else None)
@@ -1377,6 +1504,8 @@ class MainWindow(QMainWindow):
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
         if on and getattr(self, "_ultron_on", False):
             self._apply_ultron_ui(False)
+        if on:
+            self._leave_game_karen()
         self._jarvis_on = on
         from core import voices
         voices.set_character("jarvis" if on else None)
@@ -1520,7 +1649,7 @@ class MainWindow(QMainWindow):
             self._set_mode(Mode.NORMAL)
         else:
             self._sync_corner_ui()
-
+    
     # ------------------------------------------------------------------
     # Image help: explain / read / debug an image the user chooses to share.
     # ------------------------------------------------------------------

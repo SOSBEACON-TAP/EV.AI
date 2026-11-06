@@ -50,6 +50,9 @@ _CHANGELOG_PATH = APP_ROOT / "CHANGELOG.md"
 def _section_title(text: str) -> QLabel:
     label = QLabel(text)
     label.setProperty("role", "section")
+    # never let the layout stretch a heading taller than its text (that left big blank gaps)
+    label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+    label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     return label
 
 
@@ -57,6 +60,8 @@ def _note_label(text: str) -> QLabel:
     label = QLabel(text)
     label.setWordWrap(True)
     label.setProperty("role", "sub")
+    label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+    label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     return label
 
 

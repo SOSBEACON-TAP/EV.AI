@@ -36,6 +36,9 @@ st, d = call("/ask", {"question": "hi", "page": {"title": "T", "text": "x"}}, to
 st, d = call("/count", {"site": "youtube", "n": 2}, tok); assert d == {"today": 1} and counted == [("youtube", 2)], (d, counted)
 assert call("/count", {"site": "youtube", "n": 999}, tok)[0] == 400
 assert call("/count", {"site": "youtube", "n": 1})[0] == 401
+b.set_blocked_sites(["YouTube.com", "bad site", "evil/x", "tiktok.com"])
+st, d = call("/rules", token=tok); assert d == {"blocked_sites": ["youtube.com", "tiktok.com"]}, d
+assert call("/rules")[0] == 401
 # commands + poll
 assert b.send({"action": "scroll", "dir": "down"})
 st, d = call("/poll", token=tok); assert d["command"] == {"action": "scroll", "dir": "down"}, d

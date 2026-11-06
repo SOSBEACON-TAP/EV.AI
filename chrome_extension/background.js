@@ -103,6 +103,21 @@ async function flush() {   // tell EV AI about shorts it has not heard of yet
 
 chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "short") countShort(msg.site); });
 
+async function syncRules() {   // Karen mode: block the websites EV AI lists (rules stay even if EV AI is closed)
+  try {
+    const r = await fetch(BASE + "/rules", { headers: { "X-EV-Token": await token() }, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return;
+    const { blocked_sites } = await r.json();
+    const rules = blocked_sites.slice(0, 100).map((d, i) => ({
+      id: i + 1, priority: 1,
+      action: { type: "redirect", redirect: { extensionPath: "/blocked.html" } },
+      condition: { requestDomains: [d], resourceTypes: ["main_frame"] },
+    }));
+    const old = await chrome.declarativeNetRequest.getDynamicRules();
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: old.map((x) => x.id), addRules: rules });
+  } catch (e) { /* EV AI not running: keep the last rules */ }
+}
+
 async function loop() {
   if (running) return;
   running = true;
@@ -114,6 +129,7 @@ async function loop() {
         const r = await fetch(BASE + "/poll", { headers: { "X-EV-Token": t }, signal: AbortSignal.timeout(30000) });
         if (r.status === 401) { await chrome.storage.local.remove("token"); break; }
         flush();
+        syncRules();
         const { command } = await r.json();
         if (command) { try { await run(command); } catch (e) { console.warn("EV command failed", e); } }
       } catch (e) {
