@@ -71,6 +71,38 @@ async function run(cmd) {
   }
 }
 
+// ---- short-video counter: the totals are kept here and sent to EV AI on this PC
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function countShort(site) {
+  const day = today();
+  const { counts = {}, pending = {} } = await chrome.storage.local.get(["counts", "pending"]);
+  counts[day] = counts[day] || {};
+  counts[day][site] = (counts[day][site] || 0) + 1;
+  pending[site] = (pending[site] || 0) + 1;
+  for (const d of Object.keys(counts).sort().slice(0, -14)) delete counts[d];
+  await chrome.storage.local.set({ counts, pending });
+  flush();
+}
+
+async function flush() {   // tell EV AI about shorts it has not heard of yet
+  const t = await token();
+  if (!t) return;
+  const { pending = {} } = await chrome.storage.local.get("pending");
+  for (const [site, n] of Object.entries(pending)) {
+    if (!n) continue;
+    try {
+      const r = await fetch(BASE + "/count", { method: "POST", headers: { "Content-Type": "application/json", "X-EV-Token": t },
+        body: JSON.stringify({ site, n: Math.min(n, 50) }) });
+      if (!r.ok) return;
+      pending[site] = n - Math.min(n, 50);
+      await chrome.storage.local.set({ pending });
+    } catch (e) { return; }
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "short") countShort(msg.site); });
+
 async function loop() {
   if (running) return;
   running = true;
@@ -81,6 +113,7 @@ async function loop() {
       try {
         const r = await fetch(BASE + "/poll", { headers: { "X-EV-Token": t }, signal: AbortSignal.timeout(30000) });
         if (r.status === 401) { await chrome.storage.local.remove("token"); break; }
+        flush();
         const { command } = await r.json();
         if (command) { try { await run(command); } catch (e) { console.warn("EV command failed", e); } }
       } catch (e) {

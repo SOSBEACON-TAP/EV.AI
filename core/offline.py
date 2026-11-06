@@ -101,7 +101,7 @@ class OfflineAssistant:
         if not low:
             return None
 
-        for step in (self._creator, self._find_phone, self._vpn, self._chrome, self._time, self._volume_media, self._timer, self._clock_reminder,
+        for step in (self._creator, self._find_phone, self._vpn, self._chrome, self._shorts, self._time, self._volume_media, self._timer, self._clock_reminder,
                      self._todo_note, self._math):
             reply = step(low, text)
             if reply:
@@ -125,6 +125,12 @@ class OfflineAssistant:
             return vpn.disconnect()[1]
         if re.fullmatch(r"(is |what'?s |check )?(my |the )?vpn( status| connected| on| working)?\??", low):
             return vpn.status()
+        return None
+
+    def _shorts(self, low: str, _text: str) -> str | None:
+        if re.search(r"how many (shorts|reels)|(shorts|reels) (count|today)|count (of )?(my )?(shorts|reels)", low):
+            from core import shorts
+            return shorts.summary()
         return None
 
     def _chrome(self, low: str, text: str) -> str | None:

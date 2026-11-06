@@ -20,9 +20,10 @@ from datetime import datetime
 
 from PySide6.QtCore import QObject, QPointF, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QTextEdit,
+from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QStackedWidget, QTextEdit,
                                QVBoxLayout, QWidget, QGridLayout, QHBoxLayout)
 
+from core import antivirus, places, shell as shellmod, vpn
 from core import security as sec
 from ui.widgets import HoverButton
 
@@ -154,6 +155,79 @@ class RadarWidget(QWidget):
             p.drawEllipse(QPointF(x, y), 4, 4)
 
 
+class LocationRadarWidget(QWidget):
+    """North-up radar of real places around a point. Centre = you, rings = distance, colour = kind of place."""
+    COLORS = {"hospital": "#FF5C5C", "clinic": "#FF5C5C", "pharmacy": "#FF5C5C", "police": "#5C9DFF", "fire station": "#5C9DFF",
+              "atm": "#FFD24D", "bank": "#FFD24D", "restaurant": "#FF9A3C", "cafe": "#FF9A3C", "fast food": "#FF9A3C",
+              "fuel": "#B388FF", "supermarket": "#69F0AE", "convenience": "#69F0AE"}
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(260, 260)
+        self._places: list[dict] = []
+        self._range = 1000
+        self._angle = 0.0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+
+    def showEvent(self, e):
+        self._timer.start(40)
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        self._timer.stop()
+        super().hideEvent(e)
+
+    def set_data(self, places_list, radius):
+        self._places, self._range = places_list, radius
+        self.update()
+
+    def _tick(self):
+        self._angle = (self._angle + 3.0) % 360
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        c = QPointF(w / 2, h / 2)
+        r = min(w, h) / 2 - 12
+        p.fillRect(self.rect(), QColor(BG))
+        p.setPen(QPen(QColor(255, 42, 42, 70), 1))
+        p.setFont(QFont("Consolas", 7))
+        for i in (1, 2, 3, 4):
+            p.drawEllipse(c, r * i / 4, r * i / 4)
+            p.drawText(QPointF(c.x() + 3, c.y() - r * i / 4 + 10), places.nice(self._range * i / 4))
+        p.drawLine(QPointF(c.x() - r, c.y()), QPointF(c.x() + r, c.y()))
+        p.drawLine(QPointF(c.x(), c.y() - r), QPointF(c.x(), c.y() + r))
+        p.setPen(QColor(RED))
+        p.setFont(QFont("Consolas", 9, QFont.Bold))
+        p.drawText(QPointF(c.x() - 4, c.y() - r + 2), "N")
+        for i in range(40):
+            a = math.radians(self._angle - i * 1.6)
+            p.setPen(QPen(QColor(255, 42, 42, max(0, 110 - i * 3)), 2))
+            p.drawLine(c, QPointF(c.x() + r * math.cos(a), c.y() - r * math.sin(a)))
+        p.setFont(QFont("Consolas", 7))
+        for pl in self._places:
+            frac = min(1.0, pl["meters"] / self._range)
+            ang = math.radians(90 - pl["bearing"])          # 0 deg = north = up
+            x, y = c.x() + r * frac * math.cos(ang), c.y() - r * frac * math.sin(ang)
+            col = QColor(self.COLORS.get(pl["kind"], "#4CC9F0"))
+            flare = ((self._angle - math.degrees(ang)) % 360) < 40
+            col.setAlpha(255 if flare else 150)
+            p.setPen(Qt.NoPen)
+            p.setBrush(col)
+            p.drawEllipse(QPointF(x, y), 4, 4)
+            p.setPen(col)
+            p.drawText(QPointF(x + 7, y - 5), pl["name"][:14])
+        p.setBrush(QColor(RED))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(c, 5, 5)
+        p.setPen(QPen(QColor(RED), 2))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(c, r, r)
+
+
 class HackCore(QObject):
     """The security engine. Output goes out through signals so any screen can show it."""
     line = Signal(str, str)            # text, level (ok/info/warn/bad)
@@ -162,6 +236,7 @@ class HackCore(QObject):
     radar_data = Signal(object, object, str)   # devices, wifi, my_ip
     alerts_changed = Signal(int)
     busy = Signal(str)                 # what is running now, "" when idle
+    location_data = Signal(object, object, int)   # where you are (dict or None), places, radius
 
     def __init__(self, parent_widget: QWidget):
         super().__init__(parent_widget)
@@ -175,6 +250,7 @@ class HackCore(QObject):
         self._typing: list[str] = []
         self._typer = QTimer(self)
         self._typer.timeout.connect(self._type_next)
+        self.shell = shellmod.Shell()
 
     # -------------------------------------------------------------- output
     def _line(self, text: str, level: str = "info"):
@@ -351,6 +427,103 @@ class HackCore(QObject):
         except OSError as e:
             self._line(f"[REPORT] Couldn't save: {e}", "bad")
 
+    # ----- VPN (a VPN you already have; EV AI does not provide one)
+    def vpn_connect(self):
+        self._run("VPN connect", lambda _p: vpn.connect(), lambda r: self._line(f"[VPN] {r[1]}", "ok" if r[0] else "warn"))
+
+    def vpn_disconnect(self):
+        self._run("VPN disconnect", lambda _p: vpn.disconnect(), lambda r: self._line(f"[VPN] {r[1]}", "ok" if r[0] else "warn"))
+
+    def vpn_status(self):
+        self._run("VPN status", lambda _p: vpn.status(), lambda r: self._line(f"[VPN] {r}", "ok" if "is connected" in r or "is running" in r else "info"))
+
+    # ----- antivirus (Microsoft Defender)
+    def _av_done(self, label):
+        def done(res):
+            ok, msg = res
+            self._line(f"[ANTIVIRUS] {label}: {msg}", "ok" if ok else "warn")
+            if ok and "finished" in msg:
+                self.av_threats()
+        return done
+
+    def av_quick(self):
+        self._run("Antivirus quick scan", lambda _p: antivirus.scan("quick"), self._av_done("Quick scan"))
+
+    def av_full(self):
+        if QMessageBox.question(self.w, "Full scan", "A full scan can take an hour or more and slows the PC. Start it?") == QMessageBox.Yes:
+            self._run("Antivirus full scan", lambda _p: antivirus.scan("full"), self._av_done("Full scan"))
+
+    def av_file(self):
+        box = QMessageBox(self.w)
+        box.setWindowTitle("Scan for viruses")
+        box.setText("What do you want to scan?")
+        one = box.addButton("One file", QMessageBox.AcceptRole)
+        folder = box.addButton("A folder", QMessageBox.AcceptRole)
+        box.addButton(QMessageBox.Cancel)
+        box.exec()
+        path = ""
+        if box.clickedButton() is one:
+            path, _ = QFileDialog.getOpenFileName(self.w, "Choose a file to scan")
+        elif box.clickedButton() is folder:
+            path = QFileDialog.getExistingDirectory(self.w, "Choose a folder to scan")
+        if path:
+            self._run("Antivirus custom scan", lambda _p: antivirus.scan("custom", path), self._av_done("Custom scan"))
+
+    def av_update(self):
+        self._run("Updating virus definitions", lambda _p: antivirus.update_definitions(),
+                  lambda r: self._line(f"[ANTIVIRUS] {r[1]}", "ok" if r[0] else "warn"))
+
+    def av_threats(self):
+        def done(found):
+            if not found:
+                self._line("[ANTIVIRUS] No threats on record.", "ok")
+            for t in found:
+                lvl = "bad" if t["status"] == "ACTIVE" else "warn"
+                self._line(f"[THREAT] {t['name']}  severity {t['severity']}  {t['status']}  {t['resources']}", lvl)
+            if any(t["status"] == "ACTIVE" for t in found):
+                self.say.emit("Active threat found. Open Windows Security to remove it.")
+        self._run("Reading threat list", lambda _p: antivirus.threats(), done)
+
+    # ----- location radar
+    def location_scan(self, radius: int = 1000):
+        def work(progress):
+            progress("Finding your approximate position (from your internet connection)")
+            loc = places.approximate_location()
+            if not loc:
+                return None, [], radius
+            progress(f"Looking for places within {places.nice(radius)} (OpenStreetMap)")
+            try:
+                return loc, places.nearby_places(loc["lat"], loc["lon"], radius), radius
+            except Exception:
+                return loc, [], radius
+
+        def done(res):
+            loc, found, rad = res
+            if not loc:
+                self._line("[LOCATION] Couldn't work out your position (no internet?).", "warn")
+            else:
+                self._line(f"[LOCATION] Approximately {loc['city']}, {loc['region']}, {loc['country']} (city level only: a PC has no GPS)", "info")
+                self._line(f"[LOCATION] {len(found)} place(s) within {places.nice(rad)}", "ok" if found else "info")
+            self.location_data.emit(loc, found, rad)
+        self._run("Location radar", work, done)
+
+    # ----- terminal
+    def run_shell(self, cmd: str):
+        if not cmd:
+            self._line(f"[CMD] folder: {self.shell.cwd}   (type > then a command, for example > ipconfig)", "info")
+            return
+        if shellmod.is_dangerous(cmd):
+            if QMessageBox.warning(self.w, "Run this command?", f"This command can delete data or change the system:\n\n{cmd}\n\nRun it?",
+                                   QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:
+                self._line("[CMD] Cancelled.", "warn")
+                return
+        self._line(f"{self.shell.cwd}> {cmd}", "info")
+
+        def done(out):
+            for ln in str(out).splitlines():
+                self._line("  " + ln, "info")
+        self._run(f"Command: {cmd[:40]}", lambda _p: self.shell.run(cmd), done)
+
     # ------------------------------------------------------------ AI defender
     _ROUTES = (
         (r"scan (my )?(computer|pc|system)|dark scan|security problems", "dark_scan"),
@@ -368,6 +541,18 @@ class HackCore(QObject):
         text = text.strip()
         if not text:
             return
+        shell_cmd = shellmod.strip_prefix(text)
+        if shell_cmd is not None:                     # "> dir" or "cmd dir": run it in the terminal
+            self.run_shell(shell_cmd)
+            return
+        low = text.lower()
+        for phrase, fn in (("quick scan", self.av_quick), ("full scan", self.av_full), ("virus", self.av_quick),
+                           ("antivirus", self.av_quick), ("threat", self.av_threats), ("disconnect vpn", self.vpn_disconnect),
+                           ("connect vpn", self.vpn_connect), ("vpn status", self.vpn_status),
+                           ("where am i", self.location_scan), ("location", self.location_scan)):
+            if phrase in low and not re.search(r"teach|explain|what is|how (do|does)|why", low):
+                fn()
+                return
         m = re.search(r"(https?://\S+|\b[\w-]+\.(?:com|org|net|in|io|dev|app|edu)\b\S*)", text, re.I)
         if m and re.search(r"website|site|analy[sz]e|header", text, re.I):
             self._run("Website analysis", lambda _p: sec.analyze_website(m.group(1)), self._show)
@@ -415,7 +600,7 @@ class HackCore(QObject):
 
 
 class HackToolsPanel(QWidget):
-    """Left column of the Ultron screen: security core score and the tool buttons."""
+    """Left column of the Ultron screen: security core score, security tools, VPN, antivirus and terminal."""
 
     def __init__(self, core: HackCore, parent=None):
         super().__init__(parent)
@@ -430,33 +615,46 @@ class HackToolsPanel(QWidget):
         self.sub_lbl.setStyleSheet(f"color: {DIM};")
         lay.addWidget(self.score_lbl)
         lay.addWidget(self.sub_lbl)
-        grid = QGridLayout()
-        grid.setSpacing(6)
-        buttons = [
+        self.buttons: list[HoverButton] = []
+        self.defender_btn = None
+        self.terminal_btn = None
+
+        def group(name, items, columns=2):
+            lab = QLabel(name)
+            lab.setObjectName("SectionTitle")
+            lab.setStyleSheet("margin-top: 6px;")
+            lay.addWidget(lab)
+            grid = QGridLayout()
+            grid.setSpacing(6)
+            for i, (label, fn) in enumerate(items):
+                b = HoverButton(label)
+                if label == "PASSWORD LAB":
+                    menu = QMenu(b)
+                    menu.setStyleSheet(f"QMenu {{ background: {BG}; color: {RED}; border: 1px solid {RED}; }} "
+                                       f"QMenu::item:selected {{ background: rgba(255,42,42,70); }}")
+                    for text, handler in (("Test a password", core.pw_test), ("Generate a strong one", core.pw_generate),
+                                          ("Audit for reuse", core.pw_audit), ("Check if leaked", core.pw_leak)):
+                        menu.addAction(text, handler)
+                    b.setMenu(menu)
+                elif fn is not None:
+                    b.clicked.connect(fn)
+                if label == "AI DEFENDER":
+                    self.defender_btn = b
+                if label == "TERMINAL":
+                    self.terminal_btn = b
+                self.buttons.append(b)
+                grid.addWidget(b, i // columns, i % columns)
+            lay.addLayout(grid)
+
+        group("SECURITY", [
             ("DARK SCAN", core.dark_scan), ("SYSTEM SCAN", core.system_scan), ("GHOST MODE", core.ghost_mode),
             ("FIREWALL", core.firewall), ("WEB ANALYZER", core.web_analyzer), ("FORENSICS", core.forensics),
-            ("PASSWORD LAB", None), ("CYBER LAB", core.cyber_lab), ("AI DEFENDER", None),
-            ("REPORT", core.report),
-        ]
-        self.defender_btn = None
-        self.buttons: list[HoverButton] = []
-        for i, (label, fn) in enumerate(buttons):
-            b = HoverButton(label)
-            if label == "PASSWORD LAB":
-                menu = QMenu(b)
-                menu.setStyleSheet(f"QMenu {{ background: {BG}; color: {RED}; border: 1px solid {RED}; }} "
-                                   f"QMenu::item:selected {{ background: rgba(255,42,42,70); }}")
-                for text, handler in (("Test a password", core.pw_test), ("Generate a strong one", core.pw_generate),
-                                      ("Audit for reuse", core.pw_audit), ("Check if leaked", core.pw_leak)):
-                    menu.addAction(text, handler)
-                b.setMenu(menu)
-            elif label == "AI DEFENDER":
-                self.defender_btn = b
-            else:
-                b.clicked.connect(fn)
-            self.buttons.append(b)
-            grid.addWidget(b, i // 2, i % 2)
-        lay.addLayout(grid)
+            ("PASSWORD LAB", None), ("CYBER LAB", core.cyber_lab), ("AI DEFENDER", None), ("REPORT", core.report)])
+        group("ANTIVIRUS", [
+            ("QUICK SCAN", core.av_quick), ("FULL SCAN", core.av_full), ("SCAN FILE / FOLDER", core.av_file),
+            ("UPDATE DEFINITIONS", core.av_update), ("THREAT LIST", core.av_threats)])
+        group("VPN", [("CONNECT", core.vpn_connect), ("DISCONNECT", core.vpn_disconnect), ("STATUS", core.vpn_status)], columns=3)
+        group("TERMINAL", [("TERMINAL", None)], columns=1)
         lay.addStretch(1)
         core.score_changed.connect(self._score)
 
@@ -468,7 +666,7 @@ class HackToolsPanel(QWidget):
 
 
 class HackRadarPanel(QWidget):
-    """Right column of the Ultron screen: the radar, its controls and what is around you."""
+    """Right column of the Ultron screen: two radars (Wi-Fi and location) with their controls and lists."""
 
     def __init__(self, core: HackCore, parent=None):
         super().__init__(parent)
@@ -478,17 +676,34 @@ class HackRadarPanel(QWidget):
         title = QLabel("ULTRON RADAR")
         title.setObjectName("SectionTitle")
         lay.addWidget(title)
+        tabs = QHBoxLayout()
+        self._tab_btns = {}
+        for key, text in ((0, "WI-FI RADAR"), (1, "LOCATION RADAR")):
+            b = HoverButton(text)
+            b.setCheckable(True)
+            b.setChecked(key == 0)
+            b.clicked.connect(lambda _=False, k=key: self._tab(k))
+            self._tab_btns[key] = b
+            tabs.addWidget(b)
+        lay.addLayout(tabs)
+        self.stack = QStackedWidget()
+        lay.addWidget(self.stack, 1)
+
+        # --- page 0: Wi-Fi radar ---
+        page = QWidget()
+        pl = QVBoxLayout(page)
+        pl.setContentsMargins(0, 0, 0, 0)
         self.radar = RadarWidget()
-        lay.addWidget(self.radar, 3)
+        pl.addWidget(self.radar, 3)
         legend = QLabel("\u25cf your devices   \u25c6 Wi-Fi around you (closer = stronger)\ngreen protected   amber weak   red open / unknown")
         legend.setStyleSheet(f"color: {DIM}; font-size: 10px;")
-        lay.addWidget(legend)
+        pl.addWidget(legend)
         row = QHBoxLayout()
         for text, fn in (("RADAR SCAN", core.radar_scan), ("THREAT RADAR", core.threat_radar)):
             b = HoverButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
-        lay.addLayout(row)
+        pl.addLayout(row)
         view = QHBoxLayout()
         self._view_btns = {}
         for key, text in (("all", "ALL"), ("devices", "DEVICES"), ("wifi", "WI-FI")):
@@ -498,18 +713,63 @@ class HackRadarPanel(QWidget):
             b.clicked.connect(lambda _=False, k=key: self._set_view(k))
             self._view_btns[key] = b
             view.addWidget(b)
-        lay.addLayout(view)
+        pl.addLayout(view)
         self.alerts_lbl = QLabel("ALERTS: 0")
-        lay.addWidget(self.alerts_lbl)
-        self.list = QTextEdit()
-        self.list.setReadOnly(True)
-        self.list.setMinimumHeight(110)
-        self.list.setStyleSheet(f"background: #0B0102; color: #F0B0B0; border: 1px solid {DIM}; font-family: Consolas; font-size: 11px;")
-        lay.addWidget(self.list, 2)
+        pl.addWidget(self.alerts_lbl)
+        self.list = self._list_box()
+        pl.addWidget(self.list, 2)
+        self.stack.addWidget(page)
+
+        # --- page 1: location radar ---
+        page2 = QWidget()
+        ql = QVBoxLayout(page2)
+        ql.setContentsMargins(0, 0, 0, 0)
+        self.loc_radar = LocationRadarWidget()
+        ql.addWidget(self.loc_radar, 3)
+        self.loc_lbl = QLabel("Press LOCATE ME. A PC has no GPS: the position comes from your internet connection (city level).")
+        self.loc_lbl.setWordWrap(True)
+        self.loc_lbl.setStyleSheet(f"color: {DIM}; font-size: 10px;")
+        ql.addWidget(self.loc_lbl)
+        rrow = QHBoxLayout()
+        self._range = 1000
+        b = HoverButton("LOCATE ME")
+        b.clicked.connect(lambda: core.location_scan(self._range))
+        rrow.addWidget(b)
+        self._range_btns = {}
+        for m in (500, 1000, 2000):
+            rb = HoverButton(places.nice(m).replace(" ", ""))
+            rb.setCheckable(True)
+            rb.setChecked(m == 1000)
+            rb.clicked.connect(lambda _=False, v=m: self._set_range(v))
+            self._range_btns[m] = rb
+            rrow.addWidget(rb)
+        ql.addLayout(rrow)
+        self.loc_list = self._list_box()
+        ql.addWidget(self.loc_list, 2)
+        self.stack.addWidget(page2)
+
         self._devices, self._wifi, self._view = [], [], "all"
         core.radar_data.connect(self._data)
+        core.location_data.connect(self._location)
         core.alerts_changed.connect(lambda n: (self.alerts_lbl.setText(f"ALERTS: {n}"),
                                                self.alerts_lbl.setStyleSheet(f"color: {'#FF3B3B' if n else '#43D17A'};")))
+
+    def _list_box(self) -> QTextEdit:
+        box = QTextEdit()
+        box.setReadOnly(True)
+        box.setMinimumHeight(110)
+        box.setStyleSheet(f"background: #0B0102; color: #F0B0B0; border: 1px solid {DIM}; font-family: Consolas; font-size: 11px;")
+        return box
+
+    def _tab(self, k: int):
+        self.stack.setCurrentIndex(k)
+        for key, b in self._tab_btns.items():
+            b.setChecked(key == k)
+
+    def _set_range(self, v: int):
+        self._range = v
+        for m, b in self._range_btns.items():
+            b.setChecked(m == v)
 
     def _set_view(self, key: str):
         self._view = key
@@ -522,6 +782,14 @@ class HackRadarPanel(QWidget):
         self._devices, self._wifi = devices, wifi
         self.radar.set_data(devices, wifi)
         self._render()
+
+    def _location(self, loc, found, radius):
+        self.loc_radar.set_data(found, radius)
+        if loc:
+            self.loc_lbl.setText(f"Approximately {loc['city']}, {loc['region']}, {loc['country']}. {len(found)} place(s) within {places.nice(radius)}.")
+        rows = [f'<span style="color:{LocationRadarWidget.COLORS.get(p["kind"], "#4CC9F0")}">\u25cf {p["name"][:24]} - {p["kind"]} - {places.nice(p["meters"])} {places.compass(p["bearing"])}</span>'
+                for p in found[:40]]
+        self.loc_list.setHtml("<br>".join(rows) or f'<span style="color:{DIM}">No mapped places found.</span>')
 
     def _render(self):
         rows = []
@@ -538,3 +806,4 @@ class HackRadarPanel(QWidget):
 
     def stop(self):
         self.radar._timer.stop()
+        self.loc_radar._timer.stop()

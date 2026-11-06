@@ -4,7 +4,8 @@ from pathlib import Path
 from core.browser_bridge import Bridge, clean_command
 
 got = []
-b = Bridge(lambda q, page: f"ANS[{q}|{page.get('title')}]", got.append, port=47699, store=Path(tempfile.mkdtemp()) / "t.json")
+counted = []
+b = Bridge(lambda q, page: f"ANS[{q}|{page.get('title')}]", got.append, port=47699, store=Path(tempfile.mkdtemp()) / "t.json", count_fn=lambda s_, n: counted.append((s_, n)) or len(counted))
 assert b.start()
 B = "http://127.0.0.1:47699"
 
@@ -32,6 +33,9 @@ for _ in range(5): call("/pair", {"code": "999999" if b.code != "999999" else "8
 assert call("/pair", {"code": b.code})[0] == 403
 # ask from popup
 st, d = call("/ask", {"question": "hi", "page": {"title": "T", "text": "x"}}, tok); assert d["answer"] == "ANS[hi|T]", d
+st, d = call("/count", {"site": "youtube", "n": 2}, tok); assert d == {"today": 1} and counted == [("youtube", 2)], (d, counted)
+assert call("/count", {"site": "youtube", "n": 999}, tok)[0] == 400
+assert call("/count", {"site": "youtube", "n": 1})[0] == 401
 # commands + poll
 assert b.send({"action": "scroll", "dir": "down"})
 st, d = call("/poll", token=tok); assert d["command"] == {"action": "scroll", "dir": "down"}, d

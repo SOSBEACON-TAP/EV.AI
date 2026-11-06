@@ -1,3 +1,18 @@
+EV AI 1.0.23
+
+NEW
+- Ultron has two radars on the right: WI-FI RADAR (devices on your network and Wi-Fi around you) and LOCATION RADAR (real places around you from OpenStreetMap: hospitals, pharmacies, police, ATMs, food, fuel, shops). Press LOCATE ME. A PC has no GPS, so the position comes from your internet connection and is only right to about the city. Your phone's Radar uses real GPS.
+- Ultron VPN: Connect, Disconnect, Status for a VPN you already have (set its name in Settings, VPN). EV AI does not provide a VPN.
+- Ultron antivirus: Quick scan, Full scan, Scan a file or folder, Update definitions and Threat list. It uses Microsoft Defender, the antivirus built into Windows, so it needs Defender to be on.
+- Ultron terminal: type a command after ">" in Ultron's chat box (for example > ipconfig or > dir) and the output appears in the conversation. "cd" is remembered. Risky commands (delete, format, shutdown, registry changes) ask you first, and every command stops after 60 seconds.
+- Save the conversation: when you close EV AI or press Clear Conversation, EV asks "Save this conversation?". Saved chats are text files in data\conversations. There is a "Don't ask me again" box.
+- Short video counter: with the Chrome extension, EV counts the YouTube Shorts, Instagram Reels and TikTok videos you scroll through. Say "how many shorts today" to hear the total, and EV speaks up every 25. Update the extension: Chrome, Extensions, Reload on EV AI for Chrome (it now needs the new files from the chrome_extension folder).
+
+FIXES
+- Updates that were stuck on "The process cannot access the file": if the old EV AI process is stuck closing, the update helper now moves the old files one by one, and EV AI ends itself with a hard stop before updating. These fixes work from the update AFTER you install 1.0.23, so install this version by hand once and restart the PC first.
+
+---
+
 EV AI 1.0.22
 
 FIXES

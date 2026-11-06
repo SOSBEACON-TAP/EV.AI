@@ -20,7 +20,15 @@ $("pair").onclick = async () => {
     if (d.token) { await chrome.storage.local.set({ token: d.token }); $("code").value = ""; }
     else $("status").innerHTML = '<span class="bad">Wrong code (5 wrong tries lock it for a minute).</span>';
   } catch (e) { $("status").innerHTML = '<span class="bad">Cannot reach EV AI. Is it running?</span>'; }
-  refresh();
+  async function showShorts() {
+  const { counts = {} } = await chrome.storage.local.get("counts");
+  const day = counts[new Date().toISOString().slice(0, 10)] || {};
+  const n = Object.values(day).reduce((a, b) => a + b, 0);
+  $("shorts").textContent = "Shorts scrolled today: " + n;
+}
+
+refresh();
+showShorts();
 };
 
 $("unpair").onclick = async () => { await chrome.storage.local.remove("token"); refresh(); };
@@ -40,4 +48,12 @@ $("ask").onclick = async () => {
   } catch (e) { $("answer").textContent = "Couldn't reach EV AI. Is it running?"; }
 };
 
+async function showShorts() {
+  const { counts = {} } = await chrome.storage.local.get("counts");
+  const day = counts[new Date().toISOString().slice(0, 10)] || {};
+  const n = Object.values(day).reduce((a, b) => a + b, 0);
+  $("shorts").textContent = "Shorts scrolled today: " + n;
+}
+
 refresh();
+showShorts();

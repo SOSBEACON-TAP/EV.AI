@@ -15,6 +15,7 @@ everything else here is self-contained.
 """
 
 import datetime
+from pathlib import Path
 import html
 
 import psutil
@@ -230,7 +231,7 @@ class MainWindow(QMainWindow):
         if user_prefs.get("chrome_bridge"):
             try:
                 from core import browser_bridge
-                browser_bridge.create(self._bridge_ask, self.bridge_reply.emit).start()
+                browser_bridge.create(self._bridge_ask, self.bridge_reply.emit, self._bridge_count).start()
             except Exception as e:
                 print(f"[EV AI] Chrome bridge unavailable: {e}")
 
@@ -418,6 +419,14 @@ class MainWindow(QMainWindow):
         except Exception as e:
             return f"Sorry, that failed: {e}"
 
+    def _bridge_count(self, site: str, n: int) -> int:
+        """The extension counted n short videos (worker thread). EV speaks up every 25."""
+        from core import shorts
+        today, milestone = shorts.record(site, n)
+        if milestone:
+            self.bridge_reply.emit(f"That's {today} shorts scrolled today, sir. Perhaps time for a break.")
+        return today
+
     def _bridge_ask(self, question: str, page: dict) -> str:
         """A question about a web page you chose to share from the Chrome extension (worker thread)."""
         if not AI_AVAILABLE:
@@ -559,7 +568,40 @@ class MainWindow(QMainWindow):
 
     def allow_close(self) -> None:
         """Used by restart: really close even if minimize-to-tray is on."""
+        self._skip_save_prompt = True          # never hold up an update or restart with a question
         self._tray.allow_close()
+
+    def _confirm_save_conversation(self) -> bool:
+        """Asks whether to keep the current conversation. Returns False if the user cancelled whatever they were doing."""
+        text = self.conversation_view.toPlainText().strip()
+        if not user_prefs.get("ask_save_conversation") or not any(ln.startswith("You:") for ln in text.splitlines()):
+            return True
+        from PySide6.QtWidgets import QCheckBox, QMessageBox
+        box = QMessageBox(self)
+        box.setWindowTitle("Save this conversation?")
+        box.setText("Do you want to save this conversation before you leave it?")
+        box.setInformativeText("It is saved as a text file on this PC (data\\conversations).")
+        save = box.addButton("Save", QMessageBox.AcceptRole)
+        box.addButton("Don't save", QMessageBox.DestructiveRole)
+        cancel = box.addButton("Cancel", QMessageBox.RejectRole)
+        never = QCheckBox("Don't ask me again")
+        box.setCheckBox(never)
+        box.exec()
+        if box.clickedButton() is cancel:
+            return False
+        if never.isChecked():
+            user_prefs.set_value("ask_save_conversation", False)
+        if box.clickedButton() is save:
+            try:
+                from config import APP_ROOT
+                folder = Path(APP_ROOT) / "data" / "conversations"
+                folder.mkdir(parents=True, exist_ok=True)
+                target = folder / f"{datetime.datetime.now():%Y-%m-%d_%H-%M}.txt"
+                target.write_text(text, encoding="utf-8")
+                self._append_conversation("EV", f"Conversation saved: {target.name}")
+            except OSError as e:
+                self._append_conversation("EV", f"I couldn't save the conversation: {e}")
+        return True
 
     def set_always_on_top(self, enabled: bool) -> None:
         # Changing a window flag hides the window; re-show it so toggling
@@ -761,7 +803,14 @@ class MainWindow(QMainWindow):
         ul_layout = QVBoxLayout(ul_panel)
         self._hack_tools = HackToolsPanel(self._hack)
         self._hack_tools.defender_btn.clicked.connect(self._hack_defender_hint)
-        ul_layout.addWidget(self._hack_tools)
+        self._hack_tools.terminal_btn.clicked.connect(self._hack_terminal_hint)
+        from PySide6.QtWidgets import QScrollArea
+        ul_scroll = QScrollArea()
+        ul_scroll.setWidgetResizable(True)
+        ul_scroll.setFrameShape(QScrollArea.NoFrame)
+        ul_scroll.setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        ul_scroll.setWidget(self._hack_tools)
+        ul_layout.addWidget(ul_scroll)
         ul_panel.setVisible(False)
         self._ultron_left = ul_panel
         layout.addWidget(ul_panel)
@@ -926,7 +975,8 @@ class MainWindow(QMainWindow):
 
     def _run_quick_action(self, command: str):
         if command == "__clear__":
-            self.conversation_view.clear()
+            if self._confirm_save_conversation():
+                self.conversation_view.clear()
             return
         self.handle_user_input(command)
 
@@ -1274,6 +1324,11 @@ class MainWindow(QMainWindow):
     def _hack_defender_hint(self):
         self.command_input.setFocus()
         self._hack_line("[AI] Ask below, for example: Teach me how phishing works. Scan my computer. Check my firewall.", "info")
+
+    def _hack_terminal_hint(self):
+        self.command_input.setText("> ")
+        self.command_input.setFocus()
+        self._hack_line("[CMD] Terminal ready. Type a Windows command after the > and press Enter, for example: > ipconfig   or   > dir", "info")
 
     def _toggle_ultron(self):
         if self._ultron_on:
@@ -1744,6 +1799,9 @@ class MainWindow(QMainWindow):
             self.release_camera()
             self.hide()
             self._tray.notify_hidden()
+            return
+        if not getattr(self, "_skip_save_prompt", False) and not self._confirm_save_conversation():
+            event.ignore()
             return
         self._call_phone_if_working()
         self._hotkey.disable()

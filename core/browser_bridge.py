@@ -80,7 +80,8 @@ def clean_command(cmd: dict) -> dict | None:
 
 
 class Bridge:
-    def __init__(self, ask_fn=None, reply_fn=None, port: int = PORT, store: Path | None = None):
+    def __init__(self, ask_fn=None, reply_fn=None, port: int = PORT, store: Path | None = None, count_fn=None):
+        self.count_fn = count_fn      # count_fn(site, n) -> today's total; called when the extension counts shorts
         self.ask_fn = ask_fn          # ask_fn(question, page) -> str   (runs on a worker thread)
         self.reply_fn = reply_fn      # reply_fn(text): shown/spoken in EV when a voice-started question is answered
         self.port = port
@@ -250,6 +251,11 @@ class Bridge:
                     self._send(200, {"ok": True})
                     threading.Thread(target=bridge._voice_answer, args=(q, page), daemon=True).start()
                     return
+                if self.path == "/count":                         # short videos scrolled (YouTube Shorts, Reels, TikTok)
+                    site, n = str(data.get("site", ""))[:20], data.get("n", 1)
+                    if bridge.count_fn is None or not isinstance(n, int) or not 1 <= n <= 50:
+                        return self._send(400, {"error": "bad request"})
+                    return self._send(200, {"today": bridge.count_fn(site, n)})
                 self._send(404, {"error": "not found"})
 
         try:
@@ -291,8 +297,8 @@ def get() -> Bridge | None:
     return _instance
 
 
-def create(ask_fn=None, reply_fn=None) -> Bridge:
+def create(ask_fn=None, reply_fn=None, count_fn=None) -> Bridge:
     global _instance
     if _instance is None:
-        _instance = Bridge(ask_fn, reply_fn)
+        _instance = Bridge(ask_fn, reply_fn, count_fn=count_fn)
     return _instance
