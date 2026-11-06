@@ -776,6 +776,16 @@ class MainWindow(QMainWindow):
         tool_grid.addWidget(self.finder_btn, 2, 1)
 
         mode_layout.addLayout(tool_grid)
+        sw_row = QHBoxLayout()
+        self.game_switch_btn = HoverButton("🎮 GAME MODE")
+        self.game_switch_btn.clicked.connect(self._toggle_game)
+        self.karen_switch_btn = HoverButton("🛡 KAREN MODE")
+        self.karen_switch_btn.clicked.connect(self._toggle_karen)
+        for b in (self.game_switch_btn, self.karen_switch_btn):
+            b.setMinimumHeight(30)
+            b.setStyleSheet(_COMPACT_BTN)
+            sw_row.addWidget(b)
+        mode_layout.addLayout(sw_row)
         for key, btn in (("observe", self.observe_toggle_btn), ("video", self.video_toggle_btn),
                          ("song", self.song_toggle_btn), ("focus", self.focus_toggle_btn),
                          ("insights", self.insights_btn), ("finder", self.finder_btn)):
@@ -819,14 +829,22 @@ class MainWindow(QMainWindow):
         from ui.karen_panel import KarenPanel
         self._karen = karenmod.Karen()
         gm_panel = glass_panel(accent="gold")
-        QVBoxLayout(gm_panel).addWidget(GamePanel())
+        gm_lay = QVBoxLayout(gm_panel)
+        gm_back = HoverButton("← BACK TO EV")
+        gm_back.clicked.connect(self._toggle_game)
+        gm_lay.addWidget(gm_back)
+        gm_lay.addWidget(GamePanel())
         self._game_panel = gm_panel.findChild(GamePanel)
         self._game_panel.say.connect(lambda t: self._deliver_reply(t))
         gm_panel.setVisible(False)
         self._game_left = gm_panel
         layout.addWidget(gm_panel)
         kp_panel = glass_panel(accent="gold")
-        QVBoxLayout(kp_panel).addWidget(KarenPanel(self._karen))
+        kp_lay = QVBoxLayout(kp_panel)
+        kp_back = HoverButton("← BACK TO EV")
+        kp_back.clicked.connect(self._toggle_karen)
+        kp_lay.addWidget(kp_back)
+        kp_lay.addWidget(KarenPanel(self._karen))
         self._karen_panel = kp_panel.findChild(KarenPanel)
         self._karen_panel.say.connect(lambda t: self._deliver_reply(t))
         self._karen_panel.sites_changed.connect(self._karen_push_sites)
@@ -852,19 +870,10 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.jarvis_switch_btn, alignment=Qt.AlignCenter)
         self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON")
         self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
-        core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
-        mode_row = QHBoxLayout()
-        mode_row.setAlignment(Qt.AlignCenter)
-        self.game_switch_btn = HoverButton("🎮 GAME MODE")
-        self.game_switch_btn.clicked.connect(self._toggle_game)
-        self.karen_switch_btn = HoverButton("🛡 KAREN MODE")
-        self.karen_switch_btn.clicked.connect(self._toggle_karen)
-        mode_row.addWidget(self.game_switch_btn)
-        mode_row.addWidget(self.karen_switch_btn)
-        core_layout.addLayout(mode_row)
 
         self.ai_core = AICoreWidget()
         core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
+        core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
 
         self.core_caption = QLabel(AIState.IDLE.label)
         self.core_caption.setObjectName("StateLabel")
