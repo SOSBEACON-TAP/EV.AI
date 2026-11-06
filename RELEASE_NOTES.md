@@ -1,3 +1,10 @@
+EV AI 1.0.23
+
+CHANGES
+- Ultron: the tools on the left now fit without scrolling. The buttons are smaller and in three columns, and the clock panel is hidden while Ultron is on.
+
+---
+
 EV AI 1.0.22
 
 NEW
