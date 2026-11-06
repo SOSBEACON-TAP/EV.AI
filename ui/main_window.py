@@ -804,13 +804,7 @@ class MainWindow(QMainWindow):
         self._hack_tools = HackToolsPanel(self._hack)
         self._hack_tools.defender_btn.clicked.connect(self._hack_defender_hint)
         self._hack_tools.terminal_btn.clicked.connect(self._hack_terminal_hint)
-        from PySide6.QtWidgets import QScrollArea
-        ul_scroll = QScrollArea()
-        ul_scroll.setWidgetResizable(True)
-        ul_scroll.setFrameShape(QScrollArea.NoFrame)
-        ul_scroll.setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
-        ul_scroll.setWidget(self._hack_tools)
-        ul_layout.addWidget(ul_scroll)
+        ul_layout.addWidget(self._hack_tools)
         ul_panel.setVisible(False)
         self._ultron_left = ul_panel
         layout.addWidget(ul_panel)
@@ -1352,6 +1346,7 @@ class MainWindow(QMainWindow):
         self._mode_panel.setVisible(not on)
         self._quick_panel.setVisible(not on)
         self._ultron_left.setVisible(on)
+        self._metrics_panel.setVisible(not on)          # the clock panel makes way so every tool fits without scrolling
         self._ultron_right.setVisible(on)
         if on and not self._hack.findings:
             QTimer.singleShot(2500, lambda: self._hack.dark_scan() if self._ultron_on and not self._hack.findings else None)

@@ -610,7 +610,7 @@ class HackToolsPanel(QWidget):
         title.setObjectName("SectionTitle")
         lay.addWidget(title)
         self.score_lbl = QLabel("--/100")
-        self.score_lbl.setFont(QFont("Consolas", 20, QFont.Bold))
+        self.score_lbl.setFont(QFont("Consolas", 16, QFont.Bold))
         self.sub_lbl = QLabel("run DARK SCAN")
         self.sub_lbl.setStyleSheet(f"color: {DIM};")
         lay.addWidget(self.score_lbl)
@@ -619,16 +619,20 @@ class HackToolsPanel(QWidget):
         self.defender_btn = None
         self.terminal_btn = None
 
-        def group(name, items, columns=2):
+        compact = "QPushButton { padding: 4px 2px; font-size: 9px; letter-spacing: 1px; }"
+
+        def group(name, items, columns=3):
             lab = QLabel(name)
             lab.setObjectName("SectionTitle")
-            lab.setStyleSheet("margin-top: 6px;")
+            lab.setStyleSheet("margin-top: 2px;")
             lay.addWidget(lab)
             grid = QGridLayout()
-            grid.setSpacing(6)
+            grid.setSpacing(4)
             for i, (label, fn) in enumerate(items):
                 b = HoverButton(label)
-                if label == "PASSWORD LAB":
+                b.setStyleSheet(compact)
+                b.setMinimumHeight(26)
+                if label == "PASSWORDS":
                     menu = QMenu(b)
                     menu.setStyleSheet(f"QMenu {{ background: {BG}; color: {RED}; border: 1px solid {RED}; }} "
                                        f"QMenu::item:selected {{ background: rgba(255,42,42,70); }}")
@@ -640,7 +644,7 @@ class HackToolsPanel(QWidget):
                     b.clicked.connect(fn)
                 if label == "AI DEFENDER":
                     self.defender_btn = b
-                if label == "TERMINAL":
+                if label == "OPEN TERMINAL":
                     self.terminal_btn = b
                 self.buttons.append(b)
                 grid.addWidget(b, i // columns, i % columns)
@@ -649,12 +653,12 @@ class HackToolsPanel(QWidget):
         group("SECURITY", [
             ("DARK SCAN", core.dark_scan), ("SYSTEM SCAN", core.system_scan), ("GHOST MODE", core.ghost_mode),
             ("FIREWALL", core.firewall), ("WEB ANALYZER", core.web_analyzer), ("FORENSICS", core.forensics),
-            ("PASSWORD LAB", None), ("CYBER LAB", core.cyber_lab), ("AI DEFENDER", None), ("REPORT", core.report)])
+            ("PASSWORDS", None), ("CYBER LAB", core.cyber_lab), ("AI DEFENDER", None), ("REPORT", core.report)])
         group("ANTIVIRUS", [
-            ("QUICK SCAN", core.av_quick), ("FULL SCAN", core.av_full), ("SCAN FILE / FOLDER", core.av_file),
-            ("UPDATE DEFINITIONS", core.av_update), ("THREAT LIST", core.av_threats)])
-        group("VPN", [("CONNECT", core.vpn_connect), ("DISCONNECT", core.vpn_disconnect), ("STATUS", core.vpn_status)], columns=3)
-        group("TERMINAL", [("TERMINAL", None)], columns=1)
+            ("QUICK SCAN", core.av_quick), ("FULL SCAN", core.av_full), ("SCAN FILE", core.av_file),
+            ("UPDATE DEFS", core.av_update), ("THREATS", core.av_threats)])
+        group("VPN", [("CONNECT", core.vpn_connect), ("DISCONNECT", core.vpn_disconnect), ("STATUS", core.vpn_status)])
+        group("TERMINAL", [("OPEN TERMINAL", None)], columns=1)
         lay.addStretch(1)
         core.score_changed.connect(self._score)
 
