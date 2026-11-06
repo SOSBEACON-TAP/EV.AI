@@ -9,7 +9,7 @@ NEW
 - Short video counter: with the Chrome extension, EV counts the YouTube Shorts, Instagram Reels and TikTok videos you scroll through. Say "how many shorts today" to hear the total, and EV speaks up every 25. Update the extension: Chrome, Extensions, Reload on EV AI for Chrome (it now needs the new files from the chrome_extension folder).
 
 FIXES
-- Updates that were stuck on "The process cannot access the file": if the old EV AI process is stuck closing, the update helper now moves the old files one by one, and EV AI ends itself with a hard stop before updating. These fixes work from the update AFTER you install 1.0.23, so install this version by hand once and restart the PC first.
+- Updates that were stuck on "The process cannot access the file": if the old EV AI process is stuck closing, the update helper now moves the old files one by one, and EV AI ends itself with a hard stop before updating. These fixes work from the update AFTER you install 1.0.22, so install this version by hand once and restart the PC first.
 
 ---
 
