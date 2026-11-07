@@ -1,0 +1,8 @@
+/* Focus mode: hides the usual distractions on the current page. Nothing is changed or sent anywhere. */
+aside, [role="complementary"], [role="banner"] nav + aside,
+#secondary, #comments, #related, ytd-watch-next-secondary-results-renderer, ytd-comments, ytd-merch-shelf-renderer,
+[id*="sidebar" i], [class*="sidebar" i], [class*="recommend" i], [class*="trending" i], [class*="related" i],
+[class*="newsletter" i], [class*="subscribe-popup" i], [class*="cookie" i], [id*="cookie" i],
+[class*="advert" i], [id*="advert" i], [class*="ad-slot" i], [id^="google_ads" i], ins.adsbygoogle, iframe[src*="doubleclick"],
+[class*="popup" i]:not(html):not(body), [class*="modal-backdrop" i] { display: none !important; }
+body { overflow: auto !important; }

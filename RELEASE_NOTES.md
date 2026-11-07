@@ -1,5 +1,14 @@
 EV AI 1.0.25
 
+NEW
+- Ultron: security history. Every DARK SCAN saves its score and shows whether the PC is getting safer (HISTORY button, or type: score history).
+- Ultron: FIX WARNINGS button. It lists the warnings you have and opens the matching Windows settings page (Firewall, Windows Update, Startup apps, Camera, Microphone, Location, Wi-Fi).
+- Ultron: new device alert. The first radar scan saves the devices on your own Wi-Fi. After that, any new device is flagged and EV AI tells you. Type: forget devices, to start a fresh list.
+- Karen mode: WEEKLY REPORT FILE saves a week of screen time (each day, total, average, busiest day, top apps) as a text file in data\karen_reports and opens it.
+- Karen mode: website allow-list. Tick "Allow ONLY the websites below" in SET RULES and Chrome blocks everything except the sites you list (for younger children). Needs the EV AI Chrome extension.
+- Game mode: profiles. Save the clicker target, speed and break timer under a game's name and load it with one click. MY GAME STATS shows your play time, sessions, breaks and clicks for the last 7 days.
+- Chrome extension 1.4.0: a "Focus this page" button hides sidebars, comments, recommendations, ads and pop-ups on the current page (click again to undo), and the popup shows today's short-video count per site. Reload the extension in Chrome to get it.
+
 CHANGES
 - Removed the VPN feature (the Ultron VPN buttons, the Settings VPN section and the "connect VPN" voice commands). EV AI never provided a VPN, it only controlled one you already had.
 

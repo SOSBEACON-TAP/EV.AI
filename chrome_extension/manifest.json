@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "EV AI for Chrome",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Ask EV AI about the page you are on and control Chrome with your voice. Talks only to EV AI on this computer.",
   "permissions": [
+    "activeTab",
     "alarms",
     "declarativeNetRequest",
     "nativeMessaging",

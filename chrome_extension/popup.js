@@ -20,15 +20,7 @@ $("pair").onclick = async () => {
     if (d.token) { await chrome.storage.local.set({ token: d.token }); $("code").value = ""; }
     else $("status").innerHTML = '<span class="bad">Wrong code (5 wrong tries lock it for a minute).</span>';
   } catch (e) { $("status").innerHTML = '<span class="bad">Cannot reach EV AI. Is it running?</span>'; }
-  async function showShorts() {
-  const { counts = {} } = await chrome.storage.local.get("counts");
-  const day = counts[new Date().toISOString().slice(0, 10)] || {};
-  const n = Object.values(day).reduce((a, b) => a + b, 0);
-  $("shorts").textContent = "Shorts scrolled today: " + n;
-}
-
-refresh();
-showShorts();
+  refresh();
 };
 
 $("unpair").onclick = async () => { await chrome.storage.local.remove("token"); refresh(); };
@@ -52,8 +44,24 @@ async function showShorts() {
   const { counts = {} } = await chrome.storage.local.get("counts");
   const day = counts[new Date().toISOString().slice(0, 10)] || {};
   const n = Object.values(day).reduce((a, b) => a + b, 0);
-  $("shorts").textContent = "Shorts scrolled today: " + n;
+  const names = { youtube: "YouTube", instagram: "Instagram", tiktok: "TikTok" };
+  const parts = Object.entries(day).filter(([, v]) => v > 0).map(([k, v]) => `${names[k] || k} ${v}`);
+  $("shorts").textContent = "Shorts scrolled today: " + n + (parts.length ? " (" + parts.join(", ") + ")" : "");
 }
 
 refresh();
 showShorts();
+
+
+// Focus this page: hide sidebars, comments, recommendations and ads on the current tab. Click again to undo.
+$("focus").addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !/^https?:/.test(tab.url || "")) { $("focus").textContent = "Open a normal web page first"; return; }
+  const key = "focus_" + tab.id;
+  const on = !!(await chrome.storage.session.get(key))[key];
+  const target = { tabId: tab.id };
+  try {
+    if (on) { await chrome.scripting.removeCSS({ target, files: ["focus.css"] }); await chrome.storage.session.remove(key); $("focus").textContent = "Focus this page (hide distractions)"; }
+    else { await chrome.scripting.insertCSS({ target, files: ["focus.css"] }); await chrome.storage.session.set({ [key]: true }); $("focus").textContent = "Focus is ON (click to undo)"; }
+  } catch (e) { $("focus").textContent = "Can't focus this page"; }
+});
