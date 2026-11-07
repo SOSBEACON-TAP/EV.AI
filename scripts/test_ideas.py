@@ -47,4 +47,18 @@ assert k.data["allow_only"]
 b = bb.Bridge(store=tmp / "b.json")
 b.set_allow_list(True, ["Wikipedia.org", "x", "javascript:alert(1)"])
 assert b.allow_only and b.allowed_sites == ["wikipedia.org"]
+
+# Game profiles + stats
+from core import gamestats as gs
+gs._dir = lambda: tmp
+assert gs.save_profile("  Minecraft   farm ", "Left mouse button", 99, True, 5)
+p = gs.profiles()["Minecraft farm"]
+assert p == {"target": "Left mouse button", "cps": 50, "break_on": True, "break_min": 10}, p
+assert not gs.save_profile("   ", "x", 1, True, 45)
+gs.delete_profile("Minecraft farm"); assert gs.profiles() == {}
+gs.record_session(10, 5, 0, today)                  # too short: ignored
+gs.record_session(3600, 100, 1, today); gs.record_session(1800, 0, 0, today)
+sm = gs.summary(7, today)
+assert "Total 1 h 30 min in 2 session(s), 1 break reminder(s), 100 auto-clicks." in sm and "2026-11-07    90 min" in sm, sm
+assert "No sessions yet" in (gs.summary(7, date(2030, 1, 1)))
 print("ideas tests OK")

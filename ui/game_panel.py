@@ -14,7 +14,7 @@ from PySide6.QtCore import QAbstractNativeEventFilter, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QListWidget,
                                QListWidgetItem, QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
-from core import gamemode, user_prefs
+from core import gamemode, gamestats, user_prefs
 from ui.widgets import HoverButton
 
 _HOTKEY_ID, _VK_F6, _WM_HOTKEY, _NOREPEAT = 0x4746, 0x75, 0x0312, 0x4000
@@ -71,6 +71,7 @@ class GamePanel(QWidget):
         self._clicker = gamemode.Clicker()
         self._prev_plan: str | None = None
         self._boosted = False
+        self._breaks = 0
         self._started = time.monotonic()
         self._last_break = time.monotonic()
         self._f6 = _F6(self.toggle_requested.emit)
@@ -122,6 +123,24 @@ class GamePanel(QWidget):
         apps_btn.clicked.connect(self._close_apps)
         lay.addWidget(apps_btn)
 
+        head("PROFILES")
+        prow = QHBoxLayout()
+        self.profile = QComboBox()
+        self.profile.addItem("(choose a saved profile)")
+        self.profile.addItems(sorted(gamestats.profiles()))
+        self.profile.activated.connect(self._load_profile)
+        prow.addWidget(self.profile, 3)
+        save_p = HoverButton("SAVE")
+        save_p.clicked.connect(self._save_profile)
+        del_p = HoverButton("DELETE")
+        del_p.clicked.connect(self._delete_profile)
+        prow.addWidget(save_p, 1)
+        prow.addWidget(del_p, 1)
+        lay.addLayout(prow)
+        stats_btn = HoverButton("MY GAME STATS")
+        stats_btn.clicked.connect(self._show_stats)
+        lay.addWidget(stats_btn)
+
         head("BREAKS")
         row3 = QHBoxLayout()
         self.break_on = QCheckBox("Remind me every")
@@ -141,10 +160,13 @@ class GamePanel(QWidget):
     # ---------------------------------------------------------------- life cycle
     def activate(self):
         self._started = self._last_break = time.monotonic()
+        self._breaks = 0
         self._timer.start(1000)
         self._f6.enable()
 
     def deactivate(self):
+        if self._timer.isActive():
+            gamestats.record_session(int(time.monotonic() - self._started), self._clicker.count, self._breaks)
         self._timer.stop()
         self._f6.disable()
         self._clicker.stop()
@@ -219,6 +241,48 @@ class GamePanel(QWidget):
             if names:
                 self.say.emit(f"Closed {gamemode.close_apps(names)} background processes.")
 
+    # ------------------------------------------------------------------ profiles + stats
+    def _save_profile(self):
+        from PySide6.QtWidgets import QInputDialog
+        current = self.profile.currentText() if self.profile.currentIndex() > 0 else ""
+        name, ok = QInputDialog.getText(self, "Save profile", "Game or profile name:", text=current)
+        if not ok or not name.strip():
+            return
+        if not gamestats.save_profile(name, self.target.currentText(), self.cps.value(), self.break_on.isChecked(), self.break_min.value()):
+            QMessageBox.warning(self, "Profiles", "Couldn't save (empty name, or 30 profiles already).")
+            return
+        name = " ".join(name.split())[:30]
+        if self.profile.findText(name) < 0:
+            self.profile.addItem(name)
+        self.profile.setCurrentIndex(self.profile.findText(name))
+        self.say.emit(f"Saved profile {name}.")
+
+    def _load_profile(self, index: int):
+        if index <= 0:
+            return
+        name = self.profile.itemText(index)
+        p = gamestats.profiles().get(name)
+        if not p:
+            return
+        i = self.target.findText(p["target"])
+        if i >= 0:
+            self.target.setCurrentIndex(i)
+        self.cps.setValue(p["cps"])
+        self.break_on.setChecked(p["break_on"])
+        self.break_min.setValue(p["break_min"])
+        self.say.emit(f"Profile {name} loaded.")
+
+    def _delete_profile(self):
+        if self.profile.currentIndex() <= 0:
+            return
+        name = self.profile.currentText()
+        gamestats.delete_profile(name)
+        self.profile.removeItem(self.profile.currentIndex())
+        self.say.emit(f"Profile {name} deleted.")
+
+    def _show_stats(self):
+        QMessageBox.information(self, "Game stats", gamestats.summary())
+
     def _tick(self):
         s = int(time.monotonic() - self._started)
         self.session.setText(f"Session {s // 3600:02d}:{s % 3600 // 60:02d}:{s % 60:02d}" +
@@ -227,4 +291,5 @@ class GamePanel(QWidget):
             self._update_click_ui()
         if self.break_on.isChecked() and time.monotonic() - self._last_break >= self.break_min.value() * 60:
             self._last_break = time.monotonic()
+            self._breaks += 1
             self.say.emit("You have been gaming for a while, sir. Time to stretch and drink some water.")
