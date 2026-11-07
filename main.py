@@ -14,6 +14,15 @@ import signal
 import sys
 from pathlib import Path
 
+# Started by Chrome's native messaging (the EV AI extension wants EV AI running): start the real app
+# hidden and exit at once, before any heavy import. See core/native_host.py.
+if any(a.startswith("chrome-extension://") for a in sys.argv[1:]):
+    from core import native_host as _nh
+    try:
+        _nh.launch_background()
+    finally:
+        sys.exit(0)
+
 # Auto-delete __pycache__ (Settings toggle, on by default): stop Python
 # from writing new bytecode caches for the rest of this run, and sweep
 # out any that already exist. Must come before the project's other
@@ -75,6 +84,13 @@ def main() -> int:
         pass
     app = QApplication(sys.argv)
     app.setApplicationName(settings.APP_NAME)
+    if getattr(sys, "frozen", False) and _user_prefs.get("chrome_bridge"):
+        try:
+            from config import APP_ROOT as _r
+            from core import native_host as _nh2
+            _nh2.register(_r)                       # lets the Chrome extension start EV AI quietly
+        except Exception:
+            pass
     # If the update helper is still swapping files, don't start a second copy on top of it.
     if getattr(sys, "frozen", False):
         try:
@@ -104,7 +120,10 @@ def main() -> int:
 
     def _launch_main_window() -> None:
         window = MainWindow()
-        hidden_start = bool(_user_prefs.get("start_in_tray") and window._tray.is_active())
+        background = "--background" in sys.argv
+        if background:
+            window._tray.set_enabled(True)          # a hidden start needs the tray icon so you can open the window
+        hidden_start = bool((_user_prefs.get("start_in_tray") or background) and window._tray.is_active())
         window.show()
         if hidden_start:
             window.hide()

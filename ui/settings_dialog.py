@@ -741,6 +741,7 @@ class SettingsDialog(QDialog):
                                    "not your API keys, email or password."))
 
         root.addWidget(_divider())
+        root.addStretch(1)      # spare height (for example while searching) goes here, not between the rows
 
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)

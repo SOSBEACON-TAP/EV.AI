@@ -1,3 +1,14 @@
+EV AI 1.0.24
+
+NEW
+- Chrome starts EV AI quietly: if EV AI is closed, the extension starts it hidden in the system tray, so Chrome voice control and the Shorts counter work without opening the app. Open EV AI once after installing this version so it can register itself (no administrator needed). Reload the extension in Chrome (chrome://extensions, the reload arrow) to pick up version 1.3.0.
+
+CHANGES
+- Switching between EV, Jarvis, Ultron, Game and Karen no longer leaves the window sitting too low: it is moved back onto the screen.
+- Settings: the blank gaps in the VPN section (and when searching) are fixed.
+
+---
+
 EV AI 1.0.23
 
 CHANGES

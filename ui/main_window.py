@@ -1363,6 +1363,30 @@ class MainWindow(QMainWindow):
         self.command_input.setFocus()
         self._hack_line("[AI] Ask below, for example: Teach me how phishing works. Scan my computer. Check my firewall.", "info")
 
+    def _fit_to_screen(self):
+        """Switching modes changes how tall the panels want to be, which can push the window's bottom
+        below the screen. Put it back: shrink what can shrink, then move it up if it still hangs over."""
+        def fit():
+            if self.isMaximized() or self.isFullScreen():
+                return
+            scr = self.screen()
+            if scr is None:
+                return
+            avail = scr.availableGeometry()
+            fg = self.frameGeometry()
+            extra_h, extra_w = fg.height() - self.height(), fg.width() - self.width()
+            w = min(self.width(), avail.width() - extra_w)
+            h = min(self.height(), avail.height() - extra_h)
+            if (w, h) != (self.width(), self.height()):
+                self.resize(w, h)
+            fg = self.frameGeometry()
+            x = min(max(fg.x(), avail.left()), max(avail.left(), avail.right() - fg.width() + 1))
+            y = min(max(fg.y(), avail.top()), max(avail.top(), avail.bottom() - fg.height() + 1))
+            if (x, y) != (fg.x(), fg.y()):
+                self.move(x, y)
+        QTimer.singleShot(0, fit)
+        QTimer.singleShot(250, fit)
+
     # ---- Game mode and Karen mode ------------------------------------------------------------
     def _leave_game_karen(self):
         if self._game_on:
@@ -1385,6 +1409,7 @@ class MainWindow(QMainWindow):
                             "KAREN", lambda: self._apply_karen_ui(True))
 
     def _apply_game_ui(self, on: bool, announce: bool = False):
+        self._fit_to_screen()
         if on:
             if self._jarvis_on:
                 self._apply_jarvis_ui(False)
@@ -1407,6 +1432,7 @@ class MainWindow(QMainWindow):
             self._deliver_reply("Switched back to EV.")
 
     def _apply_karen_ui(self, on: bool, announce: bool = False):
+        self._fit_to_screen()
         if on:
             if self._jarvis_on:
                 self._apply_jarvis_ui(False)
@@ -1478,6 +1504,7 @@ class MainWindow(QMainWindow):
                             "ULTRON", lambda: self._apply_ultron_ui(True), cut_off="Sir, Ultron is coming. Please be car")
 
     def _apply_ultron_ui(self, on: bool, announce: bool = False):
+        self._fit_to_screen()
         """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
         if on and self._jarvis_on:
             self._apply_jarvis_ui(False)
@@ -1523,6 +1550,7 @@ class MainWindow(QMainWindow):
         self._sync_corner_ui()
 
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
+        self._fit_to_screen()
         if on and getattr(self, "_ultron_on", False):
             self._apply_ultron_ui(False)
         if on:

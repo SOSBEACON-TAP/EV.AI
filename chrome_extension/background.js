@@ -118,6 +118,17 @@ async function syncRules() {   // Karen mode: block the websites EV AI lists (ru
   } catch (e) { /* EV AI not running: keep the last rules */ }
 }
 
+// EV AI is not running: ask Chrome to start it quietly (hidden, in the tray). At most once a minute.
+let lastWake = 0;
+function wakeEV() {
+  if (Date.now() - lastWake < 60000) return;
+  lastWake = Date.now();
+  try {
+    const port = chrome.runtime.connectNative("com.sosbeacon.evai");
+    port.onDisconnect.addListener(() => { void chrome.runtime.lastError; });
+  } catch (e) { /* the helper is not registered yet: open EV AI once */ }
+}
+
 async function loop() {
   if (running) return;
   running = true;
@@ -133,6 +144,7 @@ async function loop() {
         const { command } = await r.json();
         if (command) { try { await run(command); } catch (e) { console.warn("EV command failed", e); } }
       } catch (e) {
+        wakeEV();
         await new Promise((ok) => setTimeout(ok, 5000));   // EV AI isn't running: try again soon
       }
     }
