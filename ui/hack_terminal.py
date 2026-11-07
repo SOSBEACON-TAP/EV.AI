@@ -23,7 +23,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QStackedWidget, QTextEdit,
                                QVBoxLayout, QWidget, QGridLayout, QHBoxLayout)
 
-from core import user_prefs
+from core import secstore, user_prefs
 from core import antivirus, places, shell as shellmod
 from core import security as sec
 from ui.widgets import HoverButton
@@ -288,6 +288,8 @@ class HackCore(QObject):
             bad = sum(f["level"] == "bad" for f in findings)
             warn = sum(f["level"] == "warn" for f in findings)
             self._line(f"[DARK SCAN] Complete: {bad} risk(s), {warn} warning(s).", "bad" if bad else "warn" if warn else "ok")
+            secstore.record_score(sec.score(findings), bad, warn)
+            self._line(f"[HISTORY] {secstore.trend_text()}", "info")
             self.say.emit(f"Dark scan complete. {bad} risks, {warn} warnings." if (bad or warn) else "Dark scan complete. Nothing found.")
         self._run("Dark scan (full local assessment)", sec.dark_scan, done)
 
@@ -331,6 +333,15 @@ class HackCore(QObject):
                 for d in devices:
                     if d["unknown"]:
                         self.extra_alerts.append(sec.F("warn", f"Unnamed device on your network: {d['ip']} ({d['mac']})"))
+            fresh, first = secstore.new_devices(devices)
+            if first and devices:
+                self._line("[NETWORK] Saved these devices as your normal ones. From the next scan I will flag any new device.", "info")
+            for d in fresh:
+                msg = f"NEW device on your network: {d['ip']} ({d['mac']}, {d.get('name', '?')}). If it is not yours, change your Wi-Fi password."
+                self._line(f"[ALERT] {msg}", "bad")
+                self.extra_alerts.append(sec.F("bad", msg))
+            if fresh:
+                self.say.emit(f"Alert. {len(fresh)} new device joined your network.")
             wf = sec.wifi_findings(wifi)
             self.extra_alerts += [f for f in wf if f["level"] in ("warn", "bad")]
             self.radar_data.emit(devices, wifi, my_ip)
@@ -493,6 +504,24 @@ class HackCore(QObject):
             self.location_scan()
         self._run("Set location", work, done)
 
+    def history(self):
+        self._line(f"[HISTORY] {secstore.trend_text()}", "info")
+
+    def forget_devices(self):
+        secstore.forget_devices()
+        self._line("[NETWORK] Known devices cleared. The next radar scan saves a fresh list.", "ok")
+
+    def open_fix(self, target: str):
+        """Opens the Windows settings page that fixes a warning (only fixed ms-settings / windowsdefender pages)."""
+        import os
+        if os.name == "nt" and target.startswith(("ms-settings:", "windowsdefender:")):
+            try:
+                os.startfile(target)
+                return
+            except OSError:
+                pass
+        self._line(f"[FIX] Open Windows Settings and search for it ({target}).", "warn")
+
     def forget_location(self):
         for k in ("home_lat", "home_lon", "home_name"):
             user_prefs.set_value(k, user_prefs.DEFAULTS[k])
@@ -582,7 +611,7 @@ class HackCore(QObject):
             return
         for phrase, fn in (("quick scan", self.av_quick), ("full scan", self.av_full), ("virus", self.av_quick),
                            ("antivirus", self.av_quick), ("threat", self.av_threats),
-                           ("forget location", self.forget_location), ("where am i", self.location_scan), ("location", self.location_scan)):
+                           ("forget location", self.forget_location), ("forget devices", self.forget_devices), ("score history", self.history), ("security history", self.history), ("where am i", self.location_scan), ("location", self.location_scan)):
             if phrase in low and not re.search(r"teach|explain|what is|how (do|does)|why", low):
                 fn()
                 return
@@ -673,6 +702,20 @@ class HackToolsPanel(QWidget):
                                           ("Audit for reuse", core.pw_audit), ("Check if leaked", core.pw_leak)):
                         menu.addAction(text, handler)
                     b.setMenu(menu)
+                elif label == "FIX WARNINGS":
+                    fix_menu = QMenu(b)
+                    fix_menu.setStyleSheet(f"QMenu {{ background: {BG}; color: {RED}; border: 1px solid {RED}; }} "
+                                           f"QMenu::item:selected {{ background: rgba(255,42,42,70); }}")
+
+                    def fill(menu=fix_menu):
+                        menu.clear()
+                        fixes = secstore.fixes_for([a["text"] for a in core.alerts()])
+                        if not fixes:
+                            menu.addAction("No warnings to fix (run DARK SCAN first)").setEnabled(False)
+                        for text, target in fixes:
+                            menu.addAction(text, lambda t=target: core.open_fix(t))
+                    fix_menu.aboutToShow.connect(fill)
+                    b.setMenu(fix_menu)
                 elif fn is not None:
                     b.clicked.connect(fn)
                 if label == "AI DEFENDER":
@@ -686,7 +729,8 @@ class HackToolsPanel(QWidget):
         group("SECURITY", [
             ("DARK SCAN", core.dark_scan), ("SYSTEM SCAN", core.system_scan), ("GHOST MODE", core.ghost_mode),
             ("FIREWALL", core.firewall), ("WEB ANALYZER", core.web_analyzer), ("FORENSICS", core.forensics),
-            ("PASSWORDS", None), ("CYBER LAB", core.cyber_lab), ("AI DEFENDER", None), ("REPORT", core.report)])
+            ("PASSWORDS", None), ("CYBER LAB", core.cyber_lab), ("AI DEFENDER", None), ("REPORT", core.report),
+            ("HISTORY", core.history), ("FIX WARNINGS", None)])
         group("ANTIVIRUS", [
             ("QUICK SCAN", core.av_quick), ("FULL SCAN", core.av_full), ("SCAN FILE", core.av_file),
             ("UPDATE DEFS", core.av_update), ("THREATS", core.av_threats)])

@@ -43,7 +43,7 @@ class KarenPanel(QWidget):
         self.rules_lbl.setWordWrap(True)
         lay.addWidget(self.rules_lbl)
         for text, fn in (("TURN ON / OFF  (PIN)", self._toggle), ("SET RULES  (PIN)", self._rules),
-                         ("GIVE EXTRA TIME  (PIN)", self._extra), ("USAGE REPORT", self._report),
+                         ("GIVE EXTRA TIME  (PIN)", self._extra), ("USAGE REPORT", self._report), ("WEEKLY REPORT FILE", self._weekly),
                          ("CHANGE PIN  (PIN)", self._change_pin)):
             b = HoverButton(text)
             b.clicked.connect(fn)
@@ -125,13 +125,24 @@ class KarenPanel(QWidget):
         v.addWidget(box)
         dlg.exec()
 
+    def _weekly(self):
+        out = self.k.write_weekly_report()
+        self.k.save()
+        self.say.emit(f"Weekly report saved: {out.name}")
+        try:
+            import os
+            if os.name == "nt":
+                os.startfile(str(out))
+        except OSError:
+            pass
+
     def _rules(self):
         if not self._ask_pin("Change the rules."):
             return
         d = self.k.data
         dlg = QDialog(self)
         dlg.setWindowTitle("Karen mode rules")
-        dlg.resize(420, 480)
+        dlg.resize(440, 640)
         form = QFormLayout(dlg)
         limit = QSpinBox()
         limit.setRange(0, 1440)
@@ -152,13 +163,20 @@ class KarenPanel(QWidget):
         form.addRow("Bedtime ends", end)
         form.addRow("Blocked programs (closed when opened)", apps)
         form.addRow("Blocked websites (Chrome + EV AI extension)", sites)
+        allow_on = QCheckBox("Allow ONLY the websites below (blocks all others, for younger children)")
+        allow_on.setChecked(d.get("allow_only", False))
+        allowed = QPlainTextEdit("\n".join(d.get("allowed_sites", [])))
+        allowed.setPlaceholderText("one website per line, e.g. wikipedia.org")
+        form.addRow(allow_on)
+        form.addRow("Allowed websites", allowed)
         save = QPushButton("Save rules")
         save.clicked.connect(dlg.accept)
         form.addRow(save)
         if dlg.exec():
             try:
                 self.k.set_rules(limit.value(), bed_on.isChecked(), start.time().toString("HH:mm"), end.time().toString("HH:mm"),
-                                 apps.toPlainText().splitlines(), sites.toPlainText().splitlines())
+                                 apps.toPlainText().splitlines(), sites.toPlainText().splitlines(),
+                                 allow_on.isChecked(), allowed.toPlainText().splitlines())
             except ValueError:
                 QMessageBox.warning(self, "Karen mode", "Those times don't look right.")
                 return

@@ -1461,7 +1461,10 @@ class MainWindow(QMainWindow):
         from core import browser_bridge
         b = browser_bridge.get()
         if b is not None:
-            b.set_blocked_sites(sites)
+            d = self._karen.data
+            on = self._karen.enabled
+            b.set_blocked_sites(d["blocked_sites"] if on else [])
+            b.set_allow_list(on and d.get("allow_only", False), d.get("allowed_sites", []))
 
     def _karen_tick(self):
         """Every 5 seconds while Karen mode is on: count screen time, close blocked apps, lock at the limit or bedtime."""

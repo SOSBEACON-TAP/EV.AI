@@ -107,12 +107,19 @@ async function syncRules() {   // Karen mode: block the websites EV AI lists (ru
   try {
     const r = await fetch(BASE + "/rules", { headers: { "X-EV-Token": await token() }, signal: AbortSignal.timeout(5000) });
     if (!r.ok) return;
-    const { blocked_sites } = await r.json();
-    const rules = blocked_sites.slice(0, 100).map((d, i) => ({
-      id: i + 1, priority: 1,
-      action: { type: "redirect", redirect: { extensionPath: "/blocked.html" } },
+    const { blocked_sites, allow_only, allowed_sites } = await r.json();
+    const redirect = { type: "redirect", redirect: { extensionPath: "/blocked.html" } };
+    let rules = blocked_sites.slice(0, 100).map((d, i) => ({
+      id: i + 1, priority: 1, action: redirect,
       condition: { requestDomains: [d], resourceTypes: ["main_frame"] },
     }));
+    if (allow_only) {   // allow-list: everything is blocked except the listed sites (and EV AI itself)
+      const ok = ["127.0.0.1", "localhost", ...(allowed_sites || []).slice(0, 100)];
+      rules = [
+        { id: 1, priority: 1, action: redirect, condition: { regexFilter: "^https?://", resourceTypes: ["main_frame"] } },
+        { id: 2, priority: 2, action: { type: "allow" }, condition: { requestDomains: ok, resourceTypes: ["main_frame"] } },
+      ];
+    }
     const old = await chrome.declarativeNetRequest.getDynamicRules();
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: old.map((x) => x.id), addRules: rules });
   } catch (e) { /* EV AI not running: keep the last rules */ }

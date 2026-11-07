@@ -82,6 +82,8 @@ def clean_command(cmd: dict) -> dict | None:
 class Bridge:
     def __init__(self, ask_fn=None, reply_fn=None, port: int = PORT, store: Path | None = None, count_fn=None):
         self.blocked_sites: list[str] = []      # Karen mode: sites the extension must block
+        self.allow_only = False                 # Karen mode: block EVERYTHING except allowed_sites
+        self.allowed_sites: list[str] = []
         self.count_fn = count_fn      # count_fn(site, n) -> today's total; called when the extension counts shorts
         self.ask_fn = ask_fn          # ask_fn(question, page) -> str   (runs on a worker thread)
         self.reply_fn = reply_fn      # reply_fn(text): shown/spoken in EV when a voice-started question is answered
@@ -161,6 +163,12 @@ class Bridge:
         self.blocked_sites = [d for d in (str(x).strip().lower() for x in sites)
                               if d and len(d) < 100 and re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", d)][:100]
 
+    def set_allow_list(self, only: bool, sites) -> None:
+        """Karen mode: when `only` is on, the extension blocks every website except these."""
+        self.allow_only = bool(only)
+        self.allowed_sites = [d for d in (str(x).strip().lower() for x in sites)
+                              if d and len(d) < 100 and re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", d)][:100]
+
     def ask_about_page(self, question: str) -> None:
         """Voice: 'what is this page about'. The extension answers with the page text; EV replies via reply_fn."""
         self._pending_question = question
@@ -223,7 +231,8 @@ class Bridge:
                 if self.path.startswith("/rules"):
                     if not self._auth():
                         return self._send(401, {"error": "not paired"})
-                    return self._send(200, {"blocked_sites": list(bridge.blocked_sites)})
+                    return self._send(200, {"blocked_sites": list(bridge.blocked_sites), "allow_only": bridge.allow_only,
+                                            "allowed_sites": list(bridge.allowed_sites)})
                 if self.path.startswith("/poll"):
                     if not self._auth():
                         return self._send(401, {"error": "not paired"})

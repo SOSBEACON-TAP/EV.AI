@@ -59,7 +59,7 @@ class Karen:
     def __init__(self, path: Path | None = None):
         self.path = path or _default_path()
         self.data = {"enabled": False, "pin_hash": "", "salt": "", "daily_limit_min": 120, "bed_on": True,
-                     "bed_start": "21:00", "bed_end": "07:00", "blocked_apps": [], "blocked_sites": [],
+                     "bed_start": "21:00", "bed_end": "07:00", "blocked_apps": [], "blocked_sites": [], "allow_only": False, "allowed_sites": [],
                      "usage": {}, "extra": {}}
         try:
             self.data.update(json.loads(self.path.read_text(encoding="utf-8")))
@@ -116,12 +116,17 @@ class Karen:
         self._warned.clear()
         self.save()
 
-    def set_rules(self, daily_limit_min: int, bed_on: bool, bed_start: str, bed_end: str, apps, sites) -> None:
+    def set_rules(self, daily_limit_min: int, bed_on: bool, bed_start: str, bed_end: str, apps, sites,
+                  allow_only: bool | None = None, allowed_sites=None) -> None:
         parse_hhmm(bed_start), parse_hhmm(bed_end)          # raises on bad input
         self.data.update(daily_limit_min=max(0, int(daily_limit_min)), bed_on=bool(bed_on), bed_start=bed_start,
                          bed_end=bed_end,
                          blocked_apps=[a.strip().lower() for a in apps if a.strip()],
                          blocked_sites=clean_sites(sites))
+        if allow_only is not None:
+            self.data["allow_only"] = bool(allow_only)
+        if allowed_sites is not None:
+            self.data["allowed_sites"] = clean_sites(allowed_sites)
         self.save()
 
     def grant_minutes(self, n: int, today: str | None = None) -> None:
@@ -199,6 +204,38 @@ class Karen:
         if len(lines) == 2:
             lines.append("No usage recorded yet.")
         return "\n".join(lines)
+
+    def weekly_report(self, today: date | None = None) -> str:
+        """A week of screen time: each day, the week's total and average, the busiest day and the top apps."""
+        today = today or date.today()
+        days = [(today - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+        totals = {d: int(self.data["usage"].get(d, {}).get("total", 0) // 60) for d in days}
+        apps: dict[str, float] = {}
+        for d in days:
+            for app, sec in self.data["usage"].get(d, {}).get("apps", {}).items():
+                apps[app] = apps.get(app, 0) + sec
+        week = sum(totals.values())
+        busiest = max(days, key=lambda d: totals[d])
+        lines = [f"KAREN MODE weekly report, {days[0]} to {days[-1]}", ""]
+        for d in days:
+            bar = "#" * min(40, totals[d] // 10)
+            lines.append(f"{d}  {totals[d]:>4} min  {bar}")
+        lines += ["", f"Week total: {week} min ({week / 60:.1f} h)   Daily average: {week // 7} min"]
+        if week:
+            lines.append(f"Busiest day: {busiest} ({totals[busiest]} min)")
+            lines.append("Top apps this week:")
+            for app, sec in sorted(apps.items(), key=lambda kv: -kv[1])[:8]:
+                lines.append(f"   {app:<28} {int(sec // 60)} min")
+        else:
+            lines.append("No usage recorded this week (turn Karen mode on so it can count).")
+        return "\n".join(lines)
+
+    def write_weekly_report(self, folder: Path | None = None, today: date | None = None) -> Path:
+        folder = folder or self.path.parent / "karen_reports"
+        folder.mkdir(parents=True, exist_ok=True)
+        out = folder / f"week-{(today or date.today()).isoformat()}.txt"
+        out.write_text(self.weekly_report(today), encoding="utf-8")
+        return out
 
     def status_line(self, now: datetime | None = None) -> str:
         now = now or datetime.now()
