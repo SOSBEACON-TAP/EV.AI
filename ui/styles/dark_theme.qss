@@ -160,3 +160,14 @@ QScrollBar::handle:vertical {
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
+
+/* 1.0.25 look refresh: cleaner spacing, softer corners, a HUD-style accent bar on panels and wider-spaced titles.
+   Shapes and spacing only, so every colour theme keeps its own colours. */
+QFrame#GlassPanel { border-radius: 14px; }
+QFrame#GlassPanel[accent="red"], QFrame#GlassPanel[accent="blue"], QFrame#GlassPanel[accent="gold"] { border-left-width: 3px; }
+QLabel#SectionTitle { font-size: 11px; letter-spacing: 3px; padding-bottom: 4px; }
+QPushButton { border-radius: 8px; padding: 7px 14px; letter-spacing: 2px; }
+QLineEdit#CommandInput { border-radius: 10px; padding: 9px 12px; }
+QTextEdit#ConversationPanel { border-radius: 10px; padding: 10px; }
+QScrollBar:vertical { width: 10px; }
+QScrollBar::handle:vertical { border-radius: 5px; }
