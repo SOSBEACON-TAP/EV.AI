@@ -23,6 +23,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QStackedWidget, QTextEdit,
                                QVBoxLayout, QWidget, QGridLayout, QHBoxLayout)
 
+from core import user_prefs
 from core import antivirus, places, shell as shellmod, vpn
 from core import security as sec
 from ui.widgets import HoverButton
@@ -485,10 +486,42 @@ class HackCore(QObject):
         self._run("Reading threat list", lambda _p: antivirus.threats(), done)
 
     # ----- location radar
+    def set_my_location(self, text: str):
+        """'set location Anna Nagar, Chennai': remember a place you typed, used instead of the internet guess."""
+        def work(progress):
+            progress("Looking that place up (OpenStreetMap)")
+            return places.geocode(text)
+
+        def done(loc):
+            if not loc:
+                self._line("[LOCATION] Couldn't find that place. Try a fuller name, e.g. set location T Nagar, Chennai.", "warn")
+                return
+            user_prefs.set_value("home_lat", loc["lat"])
+            user_prefs.set_value("home_lon", loc["lon"])
+            user_prefs.set_value("home_name", loc["city"])
+            self._line(f"[LOCATION] Saved: {loc['city']}. The Location radar will use this. Say 'forget location' to remove it.", "ok")
+            self.location_scan()
+        self._run("Set location", work, done)
+
+    def forget_location(self):
+        for k in ("home_lat", "home_lon", "home_name"):
+            user_prefs.set_value(k, user_prefs.DEFAULTS[k])
+        self._line("[LOCATION] Saved location removed.", "ok")
+
     def location_scan(self, radius: int = 1000):
         def work(progress):
-            progress("Finding your approximate position (from your internet connection)")
-            loc = places.approximate_location()
+            loc = None
+            lat, lon = user_prefs.get("home_lat"), user_prefs.get("home_lon")
+            if lat and lon:
+                progress("Using the location you saved")
+                loc = {"lat": float(lat), "lon": float(lon), "city": user_prefs.get("home_name") or "your saved place",
+                       "region": "", "country": "", "source": "saved"}
+            if not loc:
+                progress("Asking Windows for your position (Wi-Fi / GPS)")
+                loc = places.windows_location()
+            if not loc:
+                progress("Finding your approximate position (from your internet connection)")
+                loc = places.approximate_location()
             if not loc:
                 return None, [], radius
             progress(f"Looking for places within {places.nice(radius)} (OpenStreetMap)")
@@ -502,7 +535,14 @@ class HackCore(QObject):
             if not loc:
                 self._line("[LOCATION] Couldn't work out your position (no internet?).", "warn")
             else:
-                self._line(f"[LOCATION] Approximately {loc['city']}, {loc['region']}, {loc['country']} (city level only: a PC has no GPS)", "info")
+                src = loc.get("source")
+                if src == "windows":
+                    self._line(f"[LOCATION] Windows position, accurate to about {int(loc.get('accuracy', 0))} m", "ok")
+                elif src in ("saved", "typed"):
+                    self._line(f"[LOCATION] {loc['city']} (the place you set)", "info")
+                else:
+                    self._line(f"[LOCATION] Approximately {loc['city']}, {loc['region']}, {loc['country']} (from your internet connection, only city level and often off. "
+                               "Turn on Windows location, or type: set location <your area, city>)", "warn")
                 self._line(f"[LOCATION] {len(found)} place(s) within {places.nice(rad)}", "ok" if found else "info")
             self.location_data.emit(loc, found, rad)
         self._run("Location radar", work, done)
@@ -546,10 +586,14 @@ class HackCore(QObject):
             self.run_shell(shell_cmd)
             return
         low = text.lower()
+        ml = re.match(r"\s*(?:set|change)\s+(?:my\s+)?location\s+(?:to\s+)?(.+)", text, re.I)
+        if ml:
+            self.set_my_location(ml.group(1).strip())
+            return
         for phrase, fn in (("quick scan", self.av_quick), ("full scan", self.av_full), ("virus", self.av_quick),
                            ("antivirus", self.av_quick), ("threat", self.av_threats), ("disconnect vpn", self.vpn_disconnect),
                            ("connect vpn", self.vpn_connect), ("vpn status", self.vpn_status),
-                           ("where am i", self.location_scan), ("location", self.location_scan)):
+                           ("forget location", self.forget_location), ("where am i", self.location_scan), ("location", self.location_scan)):
             if phrase in low and not re.search(r"teach|explain|what is|how (do|does)|why", low):
                 fn()
                 return

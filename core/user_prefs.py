@@ -56,6 +56,9 @@ DEFAULTS = {
     "ask_save_conversation": True,   # ask whether to save the chat when leaving it
     "chrome_bridge": True,         # let the EV AI Chrome extension connect (this PC only)
     "ultron_ui": False,                # Ultron mode (red look + colder personality) was on at last exit
+    "home_lat": 0.0,                   # location you typed for the Location radar (0 = not set)
+    "home_lon": 0.0,
+    "home_name": "",
     "game_warned": False,              # the auto-clicker anti-cheat warning was shown
     "usb_alert": True,                 # announce USB drives plugged in to this PC
     "vpn_name": "",                    # name of your existing VPN connection
