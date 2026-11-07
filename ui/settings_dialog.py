@@ -606,29 +606,6 @@ class SettingsDialog(QDialog):
         root.addWidget(home_reset)
         root.addWidget(_divider())
 
-        # -- VPN ------------------------------------------------------------
-        root.addWidget(_section_title("VPN"))
-        root.addWidget(_note_label("Controls a VPN you already have (EV AI is not a VPN service). Type its name "
-                                   "exactly as in Windows Settings, Network, VPN, or as in OpenVPN GUI. "
-                                   "Then say: connect VPN, disconnect VPN, VPN status."))
-        vpn_row = QHBoxLayout()
-        self._vpn_name = QLineEdit(user_prefs.get("vpn_name"))
-        self._vpn_name.setPlaceholderText("VPN name")
-        self._vpn_kind = QComboBox()
-        self._vpn_kind.addItem("Windows VPN", "windows")
-        self._vpn_kind.addItem("OpenVPN GUI", "openvpn")
-        self._vpn_kind.setCurrentIndex(1 if user_prefs.get("vpn_kind") == "openvpn" else 0)
-        vpn_row.addWidget(self._vpn_name, 1)
-        vpn_row.addWidget(self._vpn_kind)
-        root.addLayout(vpn_row)
-        vpn_btns = QHBoxLayout()
-        for text, action in (("Connect", "connect"), ("Disconnect", "disconnect"), ("Status", "status")):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, a=action: self._vpn_action(a))
-            vpn_btns.addWidget(b)
-        root.addLayout(vpn_btns)
-        root.addWidget(_divider())
-
         # -- Chrome ---------------------------------------------------------
         root.addWidget(_section_title("CHROME"))
         root.addWidget(_note_label("Ask EV about the page you are on and control Chrome by voice (scroll, click, tabs, "
@@ -1227,16 +1204,6 @@ class SettingsDialog(QDialog):
             b.forget_all()
             self._chrome_code.setText("")
             QMessageBox.information(self, "Chrome", "All browsers unpaired. Show a new code to pair again.")
-
-    def _vpn_action(self, action: str) -> None:
-        from core import vpn
-        user_prefs.set_value("vpn_name", self._vpn_name.text().strip())
-        user_prefs.set_value("vpn_kind", self._vpn_kind.currentData())
-        self._vpn_worker = _TaskWorker(
-            (lambda: (True, vpn.status())) if action == "status"
-            else (vpn.connect if action == "connect" else vpn.disconnect), self)
-        self._vpn_worker.done.connect(lambda ok, msg: (QMessageBox.information if ok else QMessageBox.warning)(self, "VPN", msg))
-        self._vpn_worker.start()
 
     def _make_portable(self) -> None:
         from core import portable, usb_watch

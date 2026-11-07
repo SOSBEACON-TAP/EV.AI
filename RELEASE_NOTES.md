@@ -1,3 +1,10 @@
+EV AI 1.0.25
+
+CHANGES
+- Removed the VPN feature (the Ultron VPN buttons, the Settings VPN section and the "connect VPN" voice commands). EV AI never provided a VPN, it only controlled one you already had.
+
+---
+
 EV AI 1.0.24
 
 NEW

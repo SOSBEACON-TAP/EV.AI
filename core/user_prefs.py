@@ -61,8 +61,6 @@ DEFAULTS = {
     "home_name": "",
     "game_warned": False,              # the auto-clicker anti-cheat warning was shown
     "usb_alert": True,                 # announce USB drives plugged in to this PC
-    "vpn_name": "",                    # name of your existing VPN connection
-    "vpn_kind": "windows",             # "windows" (Settings > VPN) or "openvpn"
     "home_hidden": "",                 # home-screen buttons you removed (comma-separated keys)
     "home_sizes": "{}",                # per-button size: {"normal": "L", ...} (S, M or L)
     "battery_alerts": True,            # speak a warning when the battery is low and unplugged

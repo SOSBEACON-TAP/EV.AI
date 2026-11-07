@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMe
                                QVBoxLayout, QWidget, QGridLayout, QHBoxLayout)
 
 from core import user_prefs
-from core import antivirus, places, shell as shellmod, vpn
+from core import antivirus, places, shell as shellmod
 from core import security as sec
 from ui.widgets import HoverButton
 
@@ -428,16 +428,6 @@ class HackCore(QObject):
         except OSError as e:
             self._line(f"[REPORT] Couldn't save: {e}", "bad")
 
-    # ----- VPN (a VPN you already have; EV AI does not provide one)
-    def vpn_connect(self):
-        self._run("VPN connect", lambda _p: vpn.connect(), lambda r: self._line(f"[VPN] {r[1]}", "ok" if r[0] else "warn"))
-
-    def vpn_disconnect(self):
-        self._run("VPN disconnect", lambda _p: vpn.disconnect(), lambda r: self._line(f"[VPN] {r[1]}", "ok" if r[0] else "warn"))
-
-    def vpn_status(self):
-        self._run("VPN status", lambda _p: vpn.status(), lambda r: self._line(f"[VPN] {r}", "ok" if "is connected" in r or "is running" in r else "info"))
-
     # ----- antivirus (Microsoft Defender)
     def _av_done(self, label):
         def done(res):
@@ -591,8 +581,7 @@ class HackCore(QObject):
             self.set_my_location(ml.group(1).strip())
             return
         for phrase, fn in (("quick scan", self.av_quick), ("full scan", self.av_full), ("virus", self.av_quick),
-                           ("antivirus", self.av_quick), ("threat", self.av_threats), ("disconnect vpn", self.vpn_disconnect),
-                           ("connect vpn", self.vpn_connect), ("vpn status", self.vpn_status),
+                           ("antivirus", self.av_quick), ("threat", self.av_threats),
                            ("forget location", self.forget_location), ("where am i", self.location_scan), ("location", self.location_scan)):
             if phrase in low and not re.search(r"teach|explain|what is|how (do|does)|why", low):
                 fn()
@@ -644,7 +633,7 @@ class HackCore(QObject):
 
 
 class HackToolsPanel(QWidget):
-    """Left column of the Ultron screen: security core score, security tools, VPN, antivirus and terminal."""
+    """Left column of the Ultron screen: security core score, security tools, antivirus and terminal."""
 
     def __init__(self, core: HackCore, parent=None):
         super().__init__(parent)
@@ -701,7 +690,6 @@ class HackToolsPanel(QWidget):
         group("ANTIVIRUS", [
             ("QUICK SCAN", core.av_quick), ("FULL SCAN", core.av_full), ("SCAN FILE", core.av_file),
             ("UPDATE DEFS", core.av_update), ("THREATS", core.av_threats)])
-        group("VPN", [("CONNECT", core.vpn_connect), ("DISCONNECT", core.vpn_disconnect), ("STATUS", core.vpn_status)])
         group("TERMINAL", [("OPEN TERMINAL", None)], columns=1)
         lay.addStretch(1)
         core.score_changed.connect(self._score)
