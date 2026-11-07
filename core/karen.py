@@ -67,7 +67,7 @@ class Karen:
             pass
         self._wrong, self._locked_until = 0, 0.0
         self._warned: set[str] = set()
-        self._last_lock = 0.0
+        self._last_lock = float("-inf")
 
     # ---------------------------------------------------------- storage
     def save(self) -> None:
