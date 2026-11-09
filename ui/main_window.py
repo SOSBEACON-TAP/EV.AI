@@ -238,6 +238,7 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"[EV AI] Chrome bridge unavailable: {e}")
         self._start_karen()
+        QTimer.singleShot(8000, self._cloud_sync)
 
         # USB drives plugged in to this PC: bring EV forward and announce them.
         self.usb_inserted.connect(self._on_usb_inserted)
@@ -1363,6 +1364,24 @@ class MainWindow(QMainWindow):
         self.command_input.setFocus()
         self._hack_line("[AI] Ask below, for example: Teach me how phishing works. Scan my computer. Check my firewall.", "info")
 
+    def _cloud_sync(self):
+        """Background sync with your EV AI account (only if you signed in). Silent."""
+        import threading
+        from core import cloud
+        c = cloud.get()
+        if c.signed_in:
+            threading.Thread(target=c.sync, daemon=True).start()
+
+    def _cloud_sync_on_exit(self):
+        import threading
+        from core import cloud
+        c = cloud.get()
+        if not c.signed_in:
+            return
+        t = threading.Thread(target=c.sync, daemon=True)
+        t.start()
+        t.join(6)           # never keep the window open for more than a few seconds
+
     def _fit_to_screen(self):
         """Switching modes changes how tall the panels want to be, which can push the window's bottom
         below the screen. Put it back: shrink what can shrink, then move it up if it still hangs over."""
@@ -1980,6 +1999,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self._call_phone_if_working()
+        self._cloud_sync_on_exit()
         self._hotkey.disable()
         self._focus.stop()
         self._usage.stop()

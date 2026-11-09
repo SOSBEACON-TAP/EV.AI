@@ -1,6 +1,7 @@
 EV AI 1.0.25
 
 NEW
+- EV AI account (Settings, Account and sync): sign in with an email and password on any PC and your settings, remembered facts, chat summary and game profiles come back. Everything is encrypted on your PC before upload, so nobody else can read it, and if you forget the password the old data cannot be recovered. API keys, PINs, Karen rules and locations are never uploaded. It is optional: nothing is uploaded unless you sign in. Syncs when you sign in, a few seconds after EV AI starts and when it closes.
 - Ultron: security history. Every DARK SCAN saves its score and shows whether the PC is getting safer (HISTORY button, or type: score history).
 - Ultron: FIX WARNINGS button. It lists the warnings you have and opens the matching Windows settings page (Firewall, Windows Update, Startup apps, Camera, Microphone, Location, Wi-Fi).
 - Ultron: new device alert. The first radar scan saves the devices on your own Wi-Fi. After that, any new device is flagged and EV AI tells you. Type: forget devices, to start a fresh list.

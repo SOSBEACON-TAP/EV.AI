@@ -72,6 +72,22 @@ def _divider() -> QFrame:
     return line
 
 
+class _CallWorker(QThread):
+    """Runs one (ok, message) function off the UI thread."""
+    done = Signal(bool, str)
+
+    def __init__(self, fn, parent=None):
+        super().__init__(parent)
+        self._fn = fn
+
+    def run(self) -> None:
+        try:
+            ok, msg = self._fn()
+        except Exception as e:      # never let a network problem crash the app
+            ok, msg = False, f"Something went wrong: {e}"
+        self.done.emit(ok, msg)
+
+
 class _FaceEnrollWorker(QThread):
     """Runs core.face_auth.enroll_owner off the UI thread."""
     progress = Signal(int, int)
@@ -604,6 +620,36 @@ class SettingsDialog(QDialog):
         home_reset = QPushButton("Reset home screen layout")
         home_reset.clicked.connect(self._home_reset)
         root.addWidget(home_reset)
+        root.addWidget(_divider())
+
+        # -- Account & sync ---------------------------------------------------
+        root.addWidget(_section_title("ACCOUNT & SYNC"))
+        root.addWidget(_note_label("Sign in with an email and password on any PC and your settings, remembered facts, chat "
+                                   "summary and game profiles come back. Everything is encrypted on this PC before upload, so "
+                                   "nobody else can read it. If you forget the password the old data cannot be recovered. "
+                                   "API keys, PINs, Karen rules and locations are never uploaded."))
+        from core import cloud as _cloud
+        self._cloud = _cloud.get()
+        self._acct_status = QLabel("")
+        self._acct_status.setWordWrap(True)
+        root.addWidget(self._acct_status)
+        self._acct_email = QLineEdit()
+        self._acct_email.setPlaceholderText("Email")
+        self._acct_pass = QLineEdit()
+        self._acct_pass.setPlaceholderText("Password (8+ characters)")
+        self._acct_pass.setEchoMode(QLineEdit.Password)
+        root.addWidget(self._acct_email)
+        root.addWidget(self._acct_pass)
+        acct_btns = QHBoxLayout()
+        self._acct_buttons = {}
+        for key, text, fn in (("up", "Create account", self._acct_sign_up), ("in", "Sign in", self._acct_sign_in),
+                              ("sync", "Sync now", self._acct_sync), ("out", "Sign out", self._acct_sign_out)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            acct_btns.addWidget(b)
+            self._acct_buttons[key] = b
+        root.addLayout(acct_btns)
+        self._acct_refresh()
         root.addWidget(_divider())
 
         # -- Chrome ---------------------------------------------------------
@@ -1176,6 +1222,54 @@ class SettingsDialog(QDialog):
 
         self._fb_worker.done.connect(_done)
         self._fb_worker.start()
+
+    # ---- account & sync -------------------------------------------------------
+    def _acct_refresh(self):
+        on = self._cloud.signed_in
+        self._acct_status.setText(f"Signed in as {self._cloud.email}" if on else "Not signed in. Nothing is uploaded.")
+        self._acct_email.setVisible(not on)
+        self._acct_pass.setVisible(not on)
+        self._acct_buttons["up"].setVisible(not on)
+        self._acct_buttons["in"].setVisible(not on)
+        self._acct_buttons["sync"].setVisible(on)
+        self._acct_buttons["out"].setVisible(on)
+
+    def _acct_run(self, fn, working: str):
+        for b in self._acct_buttons.values():
+            b.setEnabled(False)
+        self._acct_status.setText(working)
+        self._acct_worker = _CallWorker(fn, self)
+
+        def done(ok, msg):
+            for b in self._acct_buttons.values():
+                b.setEnabled(True)
+            self._acct_pass.clear()
+            self._acct_refresh()
+            self._acct_status.setText(self._acct_status.text() + "\n" + msg if self._cloud.signed_in else msg)
+        self._acct_worker.done.connect(done)
+        self._acct_worker.start()
+
+    def _acct_sign_up(self):
+        email, pw = self._acct_email.text(), self._acct_pass.text()
+        self._acct_run(lambda: self._sign_then_sync(self._cloud.sign_up, email, pw), "Creating your account…")
+
+    def _acct_sign_in(self):
+        email, pw = self._acct_email.text(), self._acct_pass.text()
+        self._acct_run(lambda: self._sign_then_sync(self._cloud.sign_in, email, pw), "Signing in…")
+
+    def _sign_then_sync(self, step, email, pw):
+        ok, msg = step(email, pw)
+        if not ok or not self._cloud.signed_in:
+            return ok, msg
+        ok2, msg2 = self._cloud.sync()
+        return ok2, (msg + " " + msg2 + " Restart EV AI to see every restored setting.") if ok2 else (msg + " " + msg2)
+
+    def _acct_sync(self):
+        self._acct_run(self._cloud.sync, "Syncing…")
+
+    def _acct_sign_out(self):
+        self._cloud.sign_out()
+        self._acct_refresh()
 
     def _chrome_show_code(self):
         from core import browser_bridge
