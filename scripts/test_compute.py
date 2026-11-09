@@ -47,7 +47,9 @@ n0 = last_n(); r = cmd("lock"); assert not r["ok"] and "No active session" in r[
 answers["session"] = False; r = cmd("hello", {"name": "Pixel"}); assert not r["ok"]
 answers["session"] = True; r = cmd("hello", {"name": "Pixel"}); assert r["ok"] and host.session_active
 r = cmd("nonsense"); assert not r["ok"] and r["msg"] == "Unknown command."
-r = cmd("key", {"name": "f4"}); assert not r["ok"] or True  # blocked or pyautogui missing
+r = cmd("key", {"name": "f4"}); assert not r["ok"] or True
+assert c._key_ok("ctrl") and c._key_ok("f5") and c._key_ok("a") and not c._key_ok("") and not c._key_ok("ctrl+c") and not c._key_ok("format")
+r = cmd("keys", {"keys": ["ctrl", "format"]}); assert not r["ok"]  # blocked or pyautogui missing
 # replay / stale / wrong key are ignored
 before = last_n(); cmd("ping", n="same"); cmd("ping", n="same"); assert last_n() == before + 1
 before = last_n(); cmd("ping", t=time.time() - 500); assert last_n() == before

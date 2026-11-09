@@ -1,3 +1,10 @@
+EV AI 1.0.27
+
+NEW
+- Phone control: the phone can now be your keyboard and touchpad. The Android app sends shortcuts (Ctrl+C, Alt+Tab, Win+D and so on), function keys, and smooth touchpad movement and dragging. Needs the matching EV AI for Android update.
+
+---
+
 EV AI 1.0.26
 
 NEW

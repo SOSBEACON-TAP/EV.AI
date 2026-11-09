@@ -404,7 +404,7 @@ class ComputeHost:
             dev = self._device_id()
             self.tx.post_file(session_topic(dev, self.key), data, f"shot-{secrets.token_hex(4)}.bin")
             return ok("Screenshot sent.")
-        if cmd not in ("move", "click", "scroll", "type", "key"):
+        if cmd not in ("move", "click", "scroll", "type", "key", "keys", "move_rel", "mouse"):
             return {"ok": False, "msg": "Unknown command."}
         pg = _pg()
         w, h = pg.size()
@@ -423,6 +423,21 @@ class ComputeHost:
         if cmd == "type":
             pg.write(str(a.get("text", ""))[:300], interval=0.01)
             return ok()
+        if cmd == "move_rel":                # touchpad: move the pointer by a small amount
+            dx, dy = int(max(-600, min(600, float(a.get("dx", 0))))), int(max(-600, min(600, float(a.get("dy", 0)))))
+            pg.moveRel(dx, dy, _pause=False)
+            return ok()
+        if cmd == "mouse":                   # hold / release a button (for dragging)
+            btn = a.get("button", "left")
+            btn = btn if btn in ("left", "right", "middle") else "left"
+            (pg.mouseDown if a.get("state") == "down" else pg.mouseUp)(button=btn)
+            return ok()
+        if cmd == "keys":                    # a shortcut such as ctrl+c or alt+tab
+            ks = [str(k).lower() for k in (a.get("keys") or [])][:4]
+            if not ks or not all(_key_ok(k) for k in ks):
+                return {"ok": False, "msg": "That key isn't allowed."}
+            pg.hotkey(*ks) if len(ks) > 1 else pg.press(ks[0])
+            return ok()
         if cmd == "key":
             name = str(a.get("name", ""))
             if name in _ALLOWED_KEYS:
@@ -430,6 +445,16 @@ class ComputeHost:
                 return ok()
             return {"ok": False, "msg": "That key isn't allowed."}
         return {"ok": False, "msg": "Unknown command."}
+
+
+_MODIFIERS = {"ctrl", "alt", "shift", "win"}
+_EXTRA_KEYS = {"capslock", "insert", "printscreen", "volumeup", "volumedown", "volumemute", "f1", "f2", "f3", "f4", "f5", "f6",
+               "f7", "f8", "f9", "f10", "f11", "f12"}
+
+
+def _key_ok(k: str) -> bool:
+    """A keyboard key the phone may press: modifiers, named keys, function keys, or one letter / digit / symbol."""
+    return k in _MODIFIERS or k in _ALLOWED_KEYS or k in _EXTRA_KEYS or (len(k) == 1 and k.isprintable() and not k.isspace())
 
 
 _ALLOWED_KEYS = {"enter", "esc", "tab", "backspace", "delete", "up", "down", "left", "right", "space",
