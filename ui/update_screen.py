@@ -70,13 +70,17 @@ class UpdateScreen(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setStyleSheet("background: #000000;")
+        # A small card in the corner, NOT a full-screen cover: you can keep using other apps while EV AI updates.
+        self.setStyleSheet("UpdateScreen { background: #000000; border: 1px solid #35e5e5; border-radius: 12px; }")
+        self._drag = None
+        self.setAttribute(Qt.WA_StyledBackground, True)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(26)
         layout.addWidget(_Gears(), alignment=Qt.AlignCenter)
         self._bar = _SegBar()
-        self._bar.setFixedWidth(460)
+        self._bar.setFixedWidth(400)
         self._bar.set_color("#35e5e5")
         layout.addWidget(self._bar, alignment=Qt.AlignCenter)
         self._label = QLabel("UPDATING...")
@@ -101,11 +105,29 @@ class UpdateScreen(QWidget):
         self.cancel_clicked.emit()
 
     def show_full(self) -> None:
+        """Shows the update card in the bottom-right corner (the name is kept so update_flow needs no change)."""
         screen = QGuiApplication.primaryScreen()
+        w, h = 520, 560
         if screen is not None:
-            self.setGeometry(screen.geometry())
+            area = screen.availableGeometry()
+            w, h = min(w, area.width() - 40), min(h, area.height() - 40)
+            self.setGeometry(area.right() - w - 20, area.bottom() - h - 20, w, h)
+        else:
+            self.resize(w, h)
         self.show()
         self.raise_()
+
+    # drag the card anywhere if it is in the way
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self._drag = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, e):
+        if self._drag is not None and e.buttons() & Qt.LeftButton:
+            self.move(e.globalPosition().toPoint() - self._drag)
+
+    def mouseReleaseEvent(self, e):
+        self._drag = None
 
     def set_progress(self, percent: int) -> None:
         self._bar.setValue(percent)

@@ -11,6 +11,7 @@ NEW
 - Chrome extension 1.4.0: a "Focus this page" button hides sidebars, comments, recommendations, ads and pop-ups on the current page (click again to undo), and the popup shows today's short-video count per site. Reload the extension in Chrome to get it.
 
 CHANGES
+- Updating no longer covers your whole screen. The update progress is now a small card in the bottom-right corner (you can drag it), so you can keep using other apps while EV AI updates.
 - Cleaner look: softer corners, more breathing room, a thin accent bar on the side of each panel and wider-spaced titles. It works with every colour theme. (Shapes only; tell me what still looks off and I will adjust.)
 - Removed the VPN feature (the Ultron VPN buttons, the Settings VPN section and the "connect VPN" voice commands). EV AI never provided a VPN, it only controlled one you already had.
 
