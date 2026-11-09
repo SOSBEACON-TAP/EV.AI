@@ -60,6 +60,23 @@ async function run(cmd) {
       if (hit) { await chrome.tabs.update(hit.id, { active: true }); return chrome.windows.update(hit.windowId, { focused: true }); }
       return;
     }
+    case "mute_tabs": {   // silence every tab that is playing sound
+      for (const t of await chrome.tabs.query({ audible: true })) chrome.tabs.update(t.id, { muted: true });
+      return;
+    }
+    case "unmute_tabs": {
+      for (const t of await chrome.tabs.query({ muted: true })) chrome.tabs.update(t.id, { muted: false });
+      return;
+    }
+    case "close_duplicates": {   // keep one tab per address
+      const seen = new Set(), drop = [];
+      for (const t of await chrome.tabs.query({ lastFocusedWindow: true })) {
+        const k = (t.url || "").split("#")[0];
+        if (!k || t.pinned) continue;
+        if (seen.has(k)) drop.push(t.id); else seen.add(k);
+      }
+      return drop.length && chrome.tabs.remove(drop);
+    }
     case "page_text": {   // EV asked about the page: send it back to EV on this PC
       if (!tab || !/^https?:/.test(tab.url || "")) return;
       const [res] = await inTab(grabPage);
@@ -101,7 +118,19 @@ async function flush() {   // tell EV AI about shorts it has not heard of yet
   }
 }
 
-chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "short") countShort(msg.site); });
+async function countVideo() {   // regular YouTube videos watched today (kept in this browser only)
+  const day = today();
+  const { videos = {} } = await chrome.storage.local.get("videos");
+  videos[day] = (videos[day] || 0) + 1;
+  for (const d of Object.keys(videos).sort().slice(0, -30)) delete videos[d];
+  await chrome.storage.local.set({ videos });
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (!msg) return;
+  if (msg.type === "short") countShort(msg.site);
+  else if (msg.type === "video") countVideo();
+});
 
 async function syncRules() {   // Karen mode: block the websites EV AI lists (rules stay even if EV AI is closed)
   try {

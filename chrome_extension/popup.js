@@ -46,7 +46,9 @@ async function showShorts() {
   const n = Object.values(day).reduce((a, b) => a + b, 0);
   const names = { youtube: "YouTube", instagram: "Instagram", tiktok: "TikTok" };
   const parts = Object.entries(day).filter(([, v]) => v > 0).map(([k, v]) => `${names[k] || k} ${v}`);
-  $("shorts").textContent = "Shorts scrolled today: " + n + (parts.length ? " (" + parts.join(", ") + ")" : "");
+  const { videos = {} } = await chrome.storage.local.get("videos");
+  const v = videos[new Date().toISOString().slice(0, 10)] || 0;
+  $("shorts").innerHTML = "YouTube videos watched today: <b>" + v + "</b><br>Shorts scrolled today: " + n + (parts.length ? " (" + parts.join(", ") + ")" : "");
 }
 
 refresh();
@@ -65,3 +67,31 @@ $("focus").addEventListener("click", async () => {
     else { await chrome.scripting.insertCSS({ target, files: ["focus.css"] }); await chrome.storage.session.set({ [key]: true }); $("focus").textContent = "Focus is ON (click to undo)"; }
   } catch (e) { $("focus").textContent = "Can't focus this page"; }
 });
+
+// Tab tools
+$("mute").onclick = async () => {
+  const tabs = await chrome.tabs.query({ audible: true });
+  const muted = await chrome.tabs.query({ muted: true });
+  if (tabs.length) tabs.forEach((t) => chrome.tabs.update(t.id, { muted: true }));
+  else muted.forEach((t) => chrome.tabs.update(t.id, { muted: false }));
+  $("mute").textContent = tabs.length ? "Tabs muted (click to unmute)" : "Mute all noisy tabs";
+};
+$("dupes").onclick = async () => {
+  const seen = new Set(), drop = [];
+  for (const t of await chrome.tabs.query({ currentWindow: true })) {
+    const k = (t.url || "").split("#")[0];
+    if (!k || t.pinned) continue;
+    if (seen.has(k)) drop.push(t.id); else seen.add(k);
+  }
+  if (drop.length) await chrome.tabs.remove(drop);
+  $("dupes").textContent = drop.length ? "Closed " + drop.length + " duplicate tab(s)" : "No duplicate tabs";
+};
+$("copylink").onclick = async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  try {
+    const u = new URL(tab.url);
+    for (const k of [...u.searchParams.keys()]) if (/^(utm_|fbclid|gclid|igshid|si$|feature$)/.test(k)) u.searchParams.delete(k);
+    await navigator.clipboard.writeText(u.href);
+    $("copylink").textContent = "Clean link copied";
+  } catch (e) { $("copylink").textContent = "Can't copy this page's link"; }
+};

@@ -1,5 +1,14 @@
 EV AI 1.0.26
 
+NEW
+- Save Conversation button in Quick Actions. EV AI no longer asks "save this chat?" when you clear or close; press the button when you want a copy (saved in data\conversations).
+- Game mode and Karen mode buttons now sit on the left and right of the red and blue orb.
+- Chrome extension 1.5.0: counts the YouTube videos you watch (a video counts after 20 seconds of real playback) next to the Shorts counter. New popup tools: mute all noisy tabs, close duplicate tabs, copy a clean link without tracking. New voice commands: "mute tabs", "unmute tabs", "close duplicate tabs". Update the extension from the chrome_extension folder (Reload in chrome://extensions).
+
+FIXES
+- The tray (hidden icons) icon is now the EV AI Windows icon instead of a drawn "EV" circle.
+- Switching modes no longer pushes the bottom of the window off the screen; the window scrolls instead when a screen is tall.
+
 CHANGES
 - Update fix: an update could fail with "the process cannot access the file because it is being used by another process". That happens when your antivirus is still scanning the newly downloaded EV_AI.exe. EV AI now waits (up to 90 seconds) until the new program is free before it swaps anything, and retries the copy for about a minute. If an update still fails, the old version is put back and starts again, as before.
 

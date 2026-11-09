@@ -299,7 +299,15 @@ class MainWindow(QMainWindow):
         body_layout.addWidget(self._build_right_column(), 2)
 
         root.addWidget(body, 1)
-        self.setCentralWidget(central)
+        # The panels of some screens (Ultron, Game, Karen) need more height than a small laptop screen has.
+        # Inside a scroll area the window never grows past the screen; a scroll bar appears only when needed.
+        from PySide6.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(central)
+        self.setCentralWidget(scroll)
 
     def _build_top_bar(self) -> QWidget:
         bar = QFrame()
@@ -573,40 +581,23 @@ class MainWindow(QMainWindow):
 
     def allow_close(self) -> None:
         """Used by restart: really close even if minimize-to-tray is on."""
-        self._skip_save_prompt = True          # never hold up an update or restart with a question
         self._tray.allow_close()
 
-    def _confirm_save_conversation(self) -> bool:
-        """Asks whether to keep the current conversation. Returns False if the user cancelled whatever they were doing."""
+    def _save_conversation(self):
+        """The SAVE CONVERSATION quick action: writes the chat to data\\conversations as a text file."""
         text = self.conversation_view.toPlainText().strip()
-        if not user_prefs.get("ask_save_conversation") or not any(ln.startswith("You:") for ln in text.splitlines()):
-            return True
-        from PySide6.QtWidgets import QCheckBox, QMessageBox
-        box = QMessageBox(self)
-        box.setWindowTitle("Save this conversation?")
-        box.setText("Do you want to save this conversation before you leave it?")
-        box.setInformativeText("It is saved as a text file on this PC (data\\conversations).")
-        save = box.addButton("Save", QMessageBox.AcceptRole)
-        box.addButton("Don't save", QMessageBox.DestructiveRole)
-        cancel = box.addButton("Cancel", QMessageBox.RejectRole)
-        never = QCheckBox("Don't ask me again")
-        box.setCheckBox(never)
-        box.exec()
-        if box.clickedButton() is cancel:
-            return False
-        if never.isChecked():
-            user_prefs.set_value("ask_save_conversation", False)
-        if box.clickedButton() is save:
-            try:
-                from config import APP_ROOT
-                folder = Path(APP_ROOT) / "data" / "conversations"
-                folder.mkdir(parents=True, exist_ok=True)
-                target = folder / f"{datetime.datetime.now():%Y-%m-%d_%H-%M}.txt"
-                target.write_text(text, encoding="utf-8")
-                self._append_conversation("EV", f"Conversation saved: {target.name}")
-            except OSError as e:
-                self._append_conversation("EV", f"I couldn't save the conversation: {e}")
-        return True
+        if not any(ln.startswith("You:") for ln in text.splitlines()):
+            self._append_conversation("EV", "There is no conversation to save yet.")
+            return
+        try:
+            from config import APP_ROOT
+            folder = Path(APP_ROOT) / "data" / "conversations"
+            folder.mkdir(parents=True, exist_ok=True)
+            target = folder / f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}.txt"
+            target.write_text(text, encoding="utf-8")
+            self._append_conversation("EV", f"Conversation saved: data\\conversations\\{target.name}")
+        except OSError as e:
+            self._append_conversation("EV", f"Couldn't save the conversation: {e}")
 
     def set_always_on_top(self, enabled: bool) -> None:
         # Changing a window flag hides the window; re-show it so toggling
@@ -777,16 +768,6 @@ class MainWindow(QMainWindow):
         tool_grid.addWidget(self.finder_btn, 2, 1)
 
         mode_layout.addLayout(tool_grid)
-        sw_row = QHBoxLayout()
-        self.game_switch_btn = HoverButton("🎮 GAME MODE")
-        self.game_switch_btn.clicked.connect(self._toggle_game)
-        self.karen_switch_btn = HoverButton("🛡 KAREN MODE")
-        self.karen_switch_btn.clicked.connect(self._toggle_karen)
-        for b in (self.game_switch_btn, self.karen_switch_btn):
-            b.setMinimumHeight(30)
-            b.setStyleSheet(_COMPACT_BTN)
-            sw_row.addWidget(b)
-        mode_layout.addLayout(sw_row)
         for key, btn in (("observe", self.observe_toggle_btn), ("video", self.video_toggle_btn),
                          ("song", self.song_toggle_btn), ("focus", self.focus_toggle_btn),
                          ("insights", self.insights_btn), ("finder", self.finder_btn)):
@@ -873,7 +854,18 @@ class MainWindow(QMainWindow):
         self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
 
         self.ai_core = AICoreWidget()
-        core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
+        # Game mode on the left of the orb, Karen mode on the right
+        self.game_switch_btn = HoverButton("🎮\nGAME")
+        self.game_switch_btn.clicked.connect(self._toggle_game)
+        self.karen_switch_btn = HoverButton("🛡\nKAREN")
+        self.karen_switch_btn.clicked.connect(self._toggle_karen)
+        for b in (self.game_switch_btn, self.karen_switch_btn):
+            b.setFixedSize(78, 64)
+        orb_row = QHBoxLayout()
+        orb_row.addWidget(self.game_switch_btn, 0, Qt.AlignVCenter)
+        orb_row.addWidget(self.ai_core, 1, Qt.AlignCenter)
+        orb_row.addWidget(self.karen_switch_btn, 0, Qt.AlignVCenter)
+        core_layout.addLayout(orb_row)
         core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
 
         self.core_caption = QLabel(AIState.IDLE.label)
@@ -946,6 +938,7 @@ class MainWindow(QMainWindow):
         quick_actions = [
             ("Open YouTube", "open youtube"),
             ("Search the Web", "search the web for "),
+            ("Save Conversation", "__save__"),
             ("Clear Conversation", "__clear__"),
         ]
         for label, command in quick_actions:
@@ -955,7 +948,7 @@ class MainWindow(QMainWindow):
             # __clear__ doesn't touch the AI brain, so it's fine to use
             # anytime; anything else goes through handle_user_input and
             # must be blocked while a request is already in flight.
-            if command != "__clear__":
+            if command not in ("__clear__", "__save__"):
                 self._busy_disable_widgets.append(btn)
 
         p_layout.addStretch(1)
@@ -979,7 +972,7 @@ class MainWindow(QMainWindow):
             jb = HoverButton(label.upper())
             jb.clicked.connect(lambda _=False, c=command: self._run_quick_action(c))
             jr_layout.addWidget(jb)
-            if command != "__clear__":
+            if command not in ("__clear__", "__save__"):
                 self._busy_disable_widgets.append(jb)
         jr_layout.addStretch(1)
         jr_panel.setVisible(False)
@@ -1014,8 +1007,10 @@ class MainWindow(QMainWindow):
 
     def _run_quick_action(self, command: str):
         if command == "__clear__":
-            if self._confirm_save_conversation():
-                self.conversation_view.clear()
+            self.conversation_view.clear()
+            return
+        if command == "__save__":
+            self._save_conversation()
             return
         self.handle_user_input(command)
 
@@ -1446,7 +1441,7 @@ class MainWindow(QMainWindow):
         self._mode_panel.setVisible(not on)
         self._game_left.setVisible(on)
         (self._game_panel.activate if on else self._game_panel.deactivate)()
-        self.game_switch_btn.setText("🎮 LEAVE GAME MODE" if on else "🎮 GAME MODE")
+        self.game_switch_btn.setText("🎮\nLEAVE" if on else "🎮\nGAME")
         if announce:
             self._deliver_reply("Switched back to EV.")
 
@@ -1469,7 +1464,7 @@ class MainWindow(QMainWindow):
         self._mode_panel.setVisible(not on)
         self._karen_left.setVisible(on)
         self._karen_panel.refresh()
-        self.karen_switch_btn.setText("🛡 LEAVE KAREN MODE" if on else "🛡 KAREN MODE")
+        self.karen_switch_btn.setText("🛡\nLEAVE" if on else "🛡\nKAREN")
         if announce:
             self._deliver_reply("Switched back to EV. Karen's limits keep running if they are on.")
 
@@ -1994,9 +1989,6 @@ class MainWindow(QMainWindow):
             self.release_camera()
             self.hide()
             self._tray.notify_hidden()
-            return
-        if not getattr(self, "_skip_save_prompt", False) and not self._confirm_save_conversation():
-            event.ignore()
             return
         self._call_phone_if_working()
         self._cloud_sync_on_exit()

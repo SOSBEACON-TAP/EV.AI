@@ -141,6 +141,9 @@ class OfflineAssistant:
             (r"(open )?(a )?new tab", {"action": "new_tab"}, "New tab."),
             (r"go back|back a page|previous page", {"action": "back"}, "Going back."),
             (r"go forward|forward a page|next page", {"action": "forward"}, "Going forward."),
+            (r"unmute (all )?(the )?tabs?", {"action": "unmute_tabs"}, "Tabs unmuted."),
+            (r"mute (all )?(the )?(tabs?|browser)", {"action": "mute_tabs"}, "Tabs muted."),
+            (r"close (all )?(the )?duplicate tabs?", {"action": "close_duplicates"}, "Closing duplicate tabs."),
             (r"(reload|refresh)( this| the)?( page)?", {"action": "reload"}, "Reloading."),
         )
         for pattern, cmd, reply in sends:

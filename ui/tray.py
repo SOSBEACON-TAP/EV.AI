@@ -10,6 +10,7 @@ here.
 """
 
 from PySide6.QtCore import QObject, Qt
+from pathlib import Path
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
@@ -17,10 +18,16 @@ from config import settings
 
 
 def _make_icon() -> QIcon:
+    import sys
     from config import APP_ROOT
-    path = APP_ROOT / "assets" / "icons" / "ev.ico"
-    if path.exists():
-        return QIcon(str(path))
+    # In the installed app the assets live in the _internal folder, not next to the exe, so look in all of these.
+    candidates = [Path(__file__).resolve().parent.parent / "assets" / "icons" / "ev.ico",
+                  APP_ROOT / "assets" / "icons" / "ev.ico", APP_ROOT / "_internal" / "assets" / "icons" / "ev.ico"]
+    if getattr(sys, "_MEIPASS", None):
+        candidates.insert(0, Path(sys._MEIPASS) / "assets" / "icons" / "ev.ico")
+    for path in candidates:
+        if path.exists():
+            return QIcon(str(path))
     pixmap = QPixmap(64, 64)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)

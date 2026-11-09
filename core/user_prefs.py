@@ -53,7 +53,6 @@ DEFAULTS = {
     "voice_friendly": "en-US-AriaNeural",
     "voice_humorous": "en-US-DavisNeural",
     # -- Focus Mode ----------------------------------------------------------
-    "ask_save_conversation": True,   # ask whether to save the chat when leaving it
     "chrome_bridge": True,         # let the EV AI Chrome extension connect (this PC only)
     "ultron_ui": False,                # Ultron mode (red look + colder personality) was on at last exit
     "home_lat": 0.0,                   # location you typed for the Location radar (0 = not set)

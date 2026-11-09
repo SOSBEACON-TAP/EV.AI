@@ -34,7 +34,8 @@ MAX_BODY = 600_000            # ~600 KB of page text at most
 CONNECTED_WITHIN_S = 45       # extension counts as connected if it polled this recently
 
 ACTIONS = {"open_url", "search", "scroll", "click", "new_tab", "close_tab", "next_tab", "prev_tab",
-           "back", "forward", "reload", "switch_tab", "page_text"}
+           "back", "forward", "reload", "switch_tab", "page_text",
+           "mute_tabs", "unmute_tabs", "close_duplicates"}
 
 
 def _store() -> Path:
