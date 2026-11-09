@@ -386,8 +386,23 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'echo Old folder moved aside after %t% retries >> "{log}"',
         f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 || goto rollback',
         ":loose",
-        # the few loose files next to it (EV_AI.exe ...): top folder only, _internal excluded
-        f'robocopy "{new_dir}" "{app_root}" /XD _internal /R:30 /W:2 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        # EV_AI.exe first, by RENAMING it into place: antivirus often keeps the freshly downloaded program open
+        # for reading (copy fails with "used by another process") but still allows a rename.
+        "set xf=",
+        "set /a m=0",
+        ":movexe",
+        f'if not exist "{new_dir}\\EV_AI.exe" goto movedxe',
+        f'if exist "{app_root}\\EV_AI.exe.old" del /f /q "{app_root}\\EV_AI.exe.old" >nul 2>&1',
+        f'if exist "{app_root}\\EV_AI.exe" ren "{app_root}\\EV_AI.exe" EV_AI.exe.old >nul 2>&1',
+        f'move /Y "{new_dir}\\EV_AI.exe" "{app_root}\\EV_AI.exe" >nul 2>&1 && set xf=/XF EV_AI.exe && goto movedxe',
+        "set /a m+=1",
+        "if %m% GEQ 60 goto movedxe",
+        "ping -n 3 127.0.0.1 >nul",
+        "goto movexe",
+        ":movedxe",
+        f'echo EV_AI.exe put in place by renaming: %xf% >> "{log}"',
+        # the few loose files next to it: top folder only, _internal excluded
+        f'robocopy "{new_dir}" "{app_root}" /XD _internal %xf% /R:30 /W:2 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
         "set rc=%errorlevel%",
         f'echo robocopy exit code %rc% (0-7 is success, 8 or more is a failure) >> "{log}"',
         "if %rc% GEQ 8 goto rollback",
@@ -404,6 +419,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         'if "%mode%"=="files" goto rollbackfiles',
         f'if exist "{internal}" rd /s /q "{internal}" >> "{log}" 2>&1',
         f'if exist "{internal_old}" move "{internal_old}" "{internal}" >> "{log}" 2>&1',
+        f'if exist "{app_root}\\EV_AI.exe.old" (del /f /q "{app_root}\\EV_AI.exe" >nul 2>&1 & ren "{app_root}\\EV_AI.exe.old" EV_AI.exe)',
         "goto failed",
         ":rollbackfiles",
         f'robocopy "{internal_old}" "{internal}" /E /IS /IT /R:3 /W:1 /MOVE /NFL /NDL /NJH /NJS >> "{log}" 2>&1',

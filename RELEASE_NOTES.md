@@ -1,3 +1,14 @@
+EV AI 1.0.28
+
+NEW
+- One MODE button above the orb. Click it and a ring of glowing segments opens, like an arc reactor. Each lit segment is a mode (EV, Jarvis, Ultron, Game, Karen); the dark segments are free for modes that come later. The separate switch buttons are gone.
+
+FIXES
+- Update fix: "the process cannot access the file" on EV_AI.exe. The new program is now put in place by renaming it (antivirus scans block copying but not renaming), and the old one is restored if anything fails. This applies from the update after you install 1.0.28.
+- The window no longer needs more height than your screen: each side column scrolls by itself, so the window does not get a scroll bar or run off the bottom when you switch modes.
+
+---
+
 EV AI 1.0.27
 
 NEW

@@ -224,6 +224,9 @@ class MainWindow(QMainWindow):
             )
 
         # Live system clock + resource usage, refreshed on a timer.
+        self._mode_sync_timer = QTimer(self)
+        self._mode_sync_timer.timeout.connect(self._sync_mode_button)
+        self._mode_sync_timer.start(400)
         self._clock_timer = QTimer(self)
         self._clock_timer.timeout.connect(self._refresh_metrics)
         self._clock_timer.start(settings.UI_REFRESH_MS)
@@ -294,9 +297,9 @@ class MainWindow(QMainWindow):
         body_layout.setContentsMargins(18, 18, 18, 18)
         body_layout.setSpacing(16)
 
-        body_layout.addWidget(self._build_left_column(), 2)
-        body_layout.addWidget(self._build_center_column(), 3)
-        body_layout.addWidget(self._build_right_column(), 2)
+        body_layout.addWidget(self._scroll_wrap(self._build_left_column()), 2)
+        body_layout.addWidget(self._scroll_wrap(self._build_center_column()), 3)
+        body_layout.addWidget(self._scroll_wrap(self._build_right_column()), 2)
 
         root.addWidget(body, 1)
         # The panels of some screens (Ultron, Game, Karen) need more height than a small laptop screen has.
@@ -308,6 +311,24 @@ class MainWindow(QMainWindow):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setWidget(central)
         self.setCentralWidget(scroll)
+
+    @staticmethod
+    def _scroll_wrap(col: QWidget) -> QWidget:
+        """A column that scrolls by itself when the screen is too short, instead of making the whole window taller."""
+        from PySide6.QtWidgets import QScrollArea
+        sa = QScrollArea()
+        sa.setWidgetResizable(True)
+        sa.setFrameShape(QFrame.NoFrame)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sa.setStyleSheet("QScrollArea { background: transparent; border: 0; } "
+                         "QScrollArea > QWidget > QWidget { background: transparent; } "
+                         "QScrollBar:vertical { width: 6px; background: transparent; } "
+                         "QScrollBar::handle:vertical { background: rgba(120,160,200,90); border-radius: 3px; min-height: 30px; } "
+                         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }")
+        sa.viewport().setAutoFillBackground(False)
+        sa.setWidget(col)
+        sa.setMinimumHeight(120)
+        return sa
 
     def _build_top_bar(self) -> QWidget:
         bar = QFrame()
@@ -847,26 +868,20 @@ class MainWindow(QMainWindow):
         core_layout = QVBoxLayout(core_panel)
         core_layout.setAlignment(Qt.AlignCenter)
 
-        self.jarvis_switch_btn = HoverButton("⚡ SWITCH TO JARVIS")
-        self.jarvis_switch_btn.clicked.connect(self._toggle_jarvis)
-        core_layout.addWidget(self.jarvis_switch_btn, alignment=Qt.AlignCenter)
-        self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON")
-        self.ultron_switch_btn.clicked.connect(self._toggle_ultron)
+        # One MODE button above the orb opens the mode picker (EV, Jarvis, Ultron, Game, Karen, and later ones).
+        self.mode_btn = HoverButton("◉  MODE: EV")
+        self.mode_btn.clicked.connect(self._open_mode_picker)
+        core_layout.addWidget(self.mode_btn, alignment=Qt.AlignCenter)
+        # The old per-mode buttons still exist (hidden) because the mode code updates their text.
+        self.jarvis_switch_btn = HoverButton("⚡ SWITCH TO JARVIS", core_panel)
+        self.ultron_switch_btn = HoverButton("☠ SWITCH TO ULTRON", core_panel)
+        self.game_switch_btn = HoverButton("🎮\nGAME", core_panel)
+        self.karen_switch_btn = HoverButton("🛡\nKAREN", core_panel)
+        for b in (self.jarvis_switch_btn, self.ultron_switch_btn, self.game_switch_btn, self.karen_switch_btn):
+            b.hide()
 
         self.ai_core = AICoreWidget()
-        # Game mode on the left of the orb, Karen mode on the right
-        self.game_switch_btn = HoverButton("🎮\nGAME")
-        self.game_switch_btn.clicked.connect(self._toggle_game)
-        self.karen_switch_btn = HoverButton("🛡\nKAREN")
-        self.karen_switch_btn.clicked.connect(self._toggle_karen)
-        for b in (self.game_switch_btn, self.karen_switch_btn):
-            b.setFixedSize(78, 64)
-        orb_row = QHBoxLayout()
-        orb_row.addWidget(self.game_switch_btn, 0, Qt.AlignVCenter)
-        orb_row.addWidget(self.ai_core, 1, Qt.AlignCenter)
-        orb_row.addWidget(self.karen_switch_btn, 0, Qt.AlignVCenter)
-        core_layout.addLayout(orb_row)
-        core_layout.addWidget(self.ultron_switch_btn, alignment=Qt.AlignCenter)
+        core_layout.addWidget(self.ai_core, alignment=Qt.AlignCenter)
 
         self.core_caption = QLabel(AIState.IDLE.label)
         self.core_caption.setObjectName("StateLabel")
@@ -1286,6 +1301,45 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(fallback_ms, callback)
         else:
             worker.finished_speaking.connect(lambda: QTimer.singleShot(delay_ms, callback))
+
+    # ---- mode picker -----------------------------------------------------------------------------
+    MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN")]
+
+    def _current_mode(self) -> str:
+        if self._ultron_on:
+            return "ultron"
+        if self._jarvis_on:
+            return "jarvis"
+        if self._game_on:
+            return "game"
+        if self._karen_on:
+            return "karen"
+        return "ev"
+
+    def _sync_mode_button(self) -> None:
+        names = dict(self.MODE_LIST)
+        text = f"◉  MODE: {names.get(self._current_mode(), 'EV')}"
+        if self.mode_btn.text() != text:
+            self.mode_btn.setText(text)
+
+    def _open_mode_picker(self) -> None:
+        from ui.mode_picker import ModePicker
+        dlg = ModePicker(self, self.MODE_LIST, self._current_mode())
+        dlg.chosen.connect(self._select_mode)
+        geo = self.geometry()
+        dlg.move(geo.center().x() - dlg.width() // 2, geo.center().y() - dlg.height() // 2)
+        dlg.exec()
+
+    def _select_mode(self, key: str) -> None:
+        cur = self._current_mode()
+        if key == cur:
+            return
+        if key == "ev":                      # back home: switch the current mode off
+            {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
+             "game": self._toggle_game, "karen": self._toggle_karen}.get(cur, lambda: None)()
+            return
+        {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
+         "game": self._toggle_game, "karen": self._toggle_karen}[key]()
 
     def _hand_over(self, intro: str, line: str, speaker: str, apply_ui, cut_off: str | None = None):
         """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice.
