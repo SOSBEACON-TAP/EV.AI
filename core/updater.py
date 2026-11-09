@@ -243,6 +243,23 @@ def _download_big(zip_url: str, expected_sha256: str, progress=None) -> Path:
         _MAX_DOWNLOAD = old
 
 
+def wait_until_unlocked(path: Path, seconds: int = 90) -> bool:
+    """True once `path` can be opened for reading. A freshly unpacked .exe is often held for 10-60 s while the
+    antivirus (Windows Defender's cloud check, for instance) looks at it; copying it then fails with
+    'being used by another process'. Waiting here, before anything is swapped, avoids a failed update."""
+    import time
+    end = time.monotonic() + seconds
+    while True:
+        try:
+            with open(path, "rb") as f:
+                f.read(1)
+            return True
+        except OSError:
+            if time.monotonic() >= end:
+                return False
+            time.sleep(1)
+
+
 def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     """Unpacks the Windows zip next to the app and writes the swap script."""
     global PENDING_SCRIPT
@@ -263,6 +280,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     if not exes:
         raise UpdateError("The update doesn't contain EV_AI.exe. Not installing.")
     new_dir = exes[0].parent
+    wait_until_unlocked(exes[0], 90)       # antivirus may be scanning the new program: let it finish BEFORE we start swapping
     script = app_root / "data" / "apply_update.bat"
     exe = Path(sys.executable).resolve()
     pid = os.getpid()
@@ -288,6 +306,11 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         "Move-Item -LiteralPath $_.FullName -Destination $t -Force }; "
         "$left = @(Get-ChildItem -LiteralPath $src -Recurse -File -Force).Count; "
         "Write-Output ('files left in the old folder: ' + $left); if ($left -gt 0) { exit 1 }")
+    stage_exe = str(new_dir / "EV_AI.exe").replace("'", "''")
+    wait_stage = ("powershell -NoProfile -ExecutionPolicy Bypass -Command \"$f='" + stage_exe + "'; "
+                  "for ($i=0; $i -lt 90; $i++) { try { $s=[IO.File]::Open($f,'Open','ReadWrite','None'); $s.Close(); "
+                  "'new program ready after ' + $i + ' s'; exit 0 } catch { Start-Sleep -Seconds 1 } }; "
+                  "'new program is still locked (antivirus?), trying anyway'; exit 0\"")
     move_files = f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{move_files_ps}"'
     internal, internal_old, new_internal = app_root / "_internal", app_root / "_internal.old", new_dir / "_internal"
     lines = [
@@ -321,6 +344,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         ":go",
         "ver >nul",
         f'echo EV AI closed after %n% checks, swapping in the new version >> "{log}"',
+        f"{wait_stage} >> \"{log}\" 2>&1",
         # The big _internal folder is swapped by renaming (instant, same drive) instead of copying
         # thousands of files, so there is almost nothing that can fail halfway.
         # leftovers of an earlier update (a program that was still shutting down kept them locked)
@@ -363,7 +387,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 || goto rollback',
         ":loose",
         # the few loose files next to it (EV_AI.exe ...): top folder only, _internal excluded
-        f'robocopy "{new_dir}" "{app_root}" /XD _internal /R:10 /W:1 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        f'robocopy "{new_dir}" "{app_root}" /XD _internal /R:30 /W:2 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
         "set rc=%errorlevel%",
         f'echo robocopy exit code %rc% (0-7 is success, 8 or more is a failure) >> "{log}"',
         "if %rc% GEQ 8 goto rollback",

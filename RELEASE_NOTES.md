@@ -1,3 +1,10 @@
+EV AI 1.0.26
+
+CHANGES
+- Update fix: an update could fail with "the process cannot access the file because it is being used by another process". That happens when your antivirus is still scanning the newly downloaded EV_AI.exe. EV AI now waits (up to 90 seconds) until the new program is free before it swaps anything, and retries the copy for about a minute. If an update still fails, the old version is put back and starts again, as before.
+
+---
+
 EV AI 1.0.25
 
 NEW
