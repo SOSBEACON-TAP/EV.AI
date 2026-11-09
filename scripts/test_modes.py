@@ -21,7 +21,8 @@ assert [a["name"] for a in apps] == ["chrome.exe", "slack.exe"] and apps[0]["mb"
 # --- karen mode
 p = Path(tempfile.mkdtemp()) / "k.json"; K = k.Karen(p)
 assert not K.set_pin("12") and K.set_pin("2468") and K.has_pin
-assert "2468" not in p.read_text()
+import json as _j
+assert "2468" not in [str(v) for v in _j.loads(p.read_text()).values()]      # the PIN itself is never stored (a hash may contain those digits by chance)
 assert K.check_pin("2468") and not K.check_pin("0000")
 for _ in range(5): K.check_pin("1111", now=1000.0)
 assert not K.check_pin("2468", now=1001.0) and K.pin_locked_for(now=1001.0) > 200 and K.check_pin("2468", now=1000.0 + 301)
