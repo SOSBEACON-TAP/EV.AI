@@ -91,6 +91,12 @@ def main() -> int:
             _nh2.register(_r)                       # lets the Chrome extension start EV AI quietly
         except Exception:
             pass
+    try:
+        from config import APP_ROOT as _sc_root
+        from core import shortcuts as _sc
+        _sc.ensure_shortcuts(_sc_root)              # Desktop + Start menu icon, once
+    except Exception:
+        pass
     # If the update helper is still swapping files, don't start a second copy on top of it.
     if getattr(sys, "frozen", False):
         try:

@@ -1,6 +1,7 @@
 EV AI 1.0.27
 
 NEW
+- Desktop icon: the first time EV AI runs it adds an "EV AI" icon to your Desktop and Start menu, like Discord does. If you delete the icon it is not added again.
 - Phone control: the phone can now be your keyboard and touchpad. The Android app sends shortcuts (Ctrl+C, Alt+Tab, Win+D and so on), function keys, and smooth touchpad movement and dragging. Needs the matching EV AI for Android update.
 
 ---

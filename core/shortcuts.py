@@ -1,35 +1,45 @@
-"""
-core/shortcuts.py
--------------------
-Standalone (.exe) app only: puts "EV AI" in the Windows Start menu, with the EV logo
-and the same taskbar identity the running window uses, so it can be pinned to the
-taskbar and found like any installed app. Done once per location of EV_AI.exe.
-"""
+"""Puts an "EV AI" icon on the Desktop and in the Start menu the first time the installed app runs,
+like Discord or other apps do. If you delete the icon later it is not made again."""
+from __future__ import annotations
 
-import os
+import subprocess
 import sys
+import threading
 from pathlib import Path
 
 
-def ensure_start_menu_entry() -> None:
-    if os.name != "nt" or not getattr(sys, "frozen", False):
+def _flag(root: Path) -> Path:
+    return root / "data" / "shortcuts_made.flag"
+
+
+def _make(root: Path) -> None:
+    exe = Path(sys.executable)
+    ps = (
+        "$s = New-Object -ComObject WScript.Shell;"
+        f"$exe = '{exe}'; $dir = '{root}';"
+        "foreach ($where in @([Environment]::GetFolderPath('Desktop'), (Join-Path ([Environment]::GetFolderPath('Programs')) ''))) {"
+        "  if (-not $where) { continue };"
+        "  $l = $s.CreateShortcut((Join-Path $where 'EV AI.lnk'));"
+        "  $l.TargetPath = $exe; $l.WorkingDirectory = $dir; $l.IconLocation = $exe + ',0';"
+        "  $l.Description = 'EV AI'; $l.Save() }"
+    )
+    subprocess.run(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                   timeout=40, creationflags=0x08000000, capture_output=True)
+
+
+def ensure_shortcuts(root: Path) -> None:
+    """Runs in the background; does nothing outside the installed Windows app."""
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
         return
-    try:
-        from core import user_prefs
-        exe = Path(sys.executable).resolve()
-        from core.usb_watch import is_on_removable_drive
-        if is_on_removable_drive(exe):
-            return          # running from a USB stick: don't leave a Start menu entry on this PC
-        if user_prefs.get("start_menu_target") == str(exe):
-            return
-        start_menu = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
-        if not start_menu.is_dir():
-            return
-        from scripts.create_shortcut import create_shortcuts
-        code, out = create_shortcuts(exe, "", exe.parent, f"{exe},0", [start_menu / "EV AI.lnk"])
-        if code == 0:
-            user_prefs.set_value("start_menu_target", str(exe))
-        else:
-            print(f"[EV AI] Couldn't create the Start menu entry: {out}")
-    except Exception as e:  # never stop the app over a shortcut
-        print(f"[EV AI] Start menu entry skipped: {e}")
+    flag = _flag(root)
+    if flag.exists():
+        return
+
+    def work() -> None:
+        try:
+            _make(root)
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.write_text("ok", encoding="utf-8")
+        except Exception as e:
+            print(f"[EV AI] Shortcut creation skipped: {e}")
+    threading.Thread(target=work, daemon=True).start()
