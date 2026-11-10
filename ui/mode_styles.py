@@ -26,3 +26,7 @@ GIDEON_QSS = _recolor(("#19E3D0", "#8FFFF3", "#4DF0E0", "#2F8F88", "#D2F7F3", "#
                        "rgba(25, 227, 208,", "rgba(25,227,208,", "rgba(4, 20, 19,", "rgba(3, 22, 20,", "rgba(0, 10, 9,"))
 EDITH_QSS = _recolor(("#4DA3FF", "#BFDDFF", "#7FBFFF", "#3F6A99", "#DCEBFA", "#060E16", "#030A10", "#010406",
                       "rgba(77, 163, 255,", "rgba(77,163,255,", "rgba(6, 14, 20,", "rgba(6, 16, 24,", "rgba(2, 8, 12,"))
+BAYMAX_QSS = _recolor(("#FF6B6B", "#FFD0D0", "#FF9A9A", "#A85A5A", "#FBE9E9", "#140808", "#0E0404", "#080202",
+                       "rgba(255, 107, 107,", "rgba(255,107,107,", "rgba(20, 8, 8,", "rgba(22, 9, 9,", "rgba(10, 3, 3,"))
+OVERDRIVE_QSS = _recolor(("#FF8A00", "#FFD199", "#FFB347", "#A8651A", "#FAE6CC", "#140B04", "#0E0702", "#080401",
+                          "rgba(255, 138, 0,", "rgba(255,138,0,", "rgba(20, 11, 4,", "rgba(22, 12, 4,", "rgba(10, 6, 2,"))

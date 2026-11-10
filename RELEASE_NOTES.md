@@ -1,3 +1,27 @@
+EV AI 1.0.31
+
+NEW
+- Every mode now has its own face in the middle of the orb: Tars, Gideon, a game controller (Game), Friday, Karen, Edith's glasses, Jarvis (gold hologram), Ultron (metal head) and the red and blue orb for EV.
+- Edith is now a full mode like Friday. Choose Edith in the wheel, then click her glasses to start the HUD (click again to stop).
+- Baymax, a new health mode (12th place on the wheel): a calm, caring voice and replies; "How I feel" (it notices words like sad, stressed or tired and logs your mood); health questions; gentle reminders for water, breaks and sleep; a PC check-up that explains problems in plain words; Comfort and Breathe-with-me; a Care dashboard for today; and an EMERGENCY button that shows emergency numbers and opens an email to your trusted people. Baymax is not a doctor and does not diagnose.
+- Overdrive, the glowing centre of the wheel: a combined mode with the most important tools of every mode. It runs for 1 minute 30 seconds, then switches off and cools down for 5 minutes.
+- Jarvis shows the battery as an arc reactor with the charge in the glowing centre.
+- Ultron's terminal now writes code: say or type what you want while the terminal is open (or press WRITE CODE FOR ME). COPY OUTPUT and SAVE CODE added.
+- Opening Minority (video) or Sonar (sound) hides the EV window to the tray and leaves only the player. It comes back when you close the player.
+- Asking EV to open a website that is already open now switches to that tab instead of opening a duplicate (reload the Chrome extension: it is now 1.6.0).
+
+CHANGES
+- The MODE panel is now EV ACTIONS, and COMPUTER sits under it on the left.
+- The sound player is now called SONAR.
+
+FIXES
+- The Ultron radar panel no longer has a scroll bar.
+
+NOTE ON WATCHES
+- Noise, NoiseFit and most watch makers do not allow other apps to read your data, so EV cannot connect to them yet. For now, type heart rate, steps and sleep into the Care dashboard. Connecting through Android Health Connect is possible later.
+
+---
+
 EV AI 1.0.30
 
 NEW

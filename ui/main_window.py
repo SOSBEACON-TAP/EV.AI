@@ -1125,6 +1125,11 @@ class MainWindow(QMainWindow):
                 return
             self._hack.command(text)
             return
+        if self._style_char == "baymax":
+            from core import baymax
+            mood = baymax.detect_mood(text)
+            if mood:
+                baymax.log("mood", mood)
         self._append_conversation("You", text)
         self._recent_commands.append(text)
         self._recent_commands = self._recent_commands[-5:]
@@ -1341,7 +1346,7 @@ class MainWindow(QMainWindow):
     # ---- mode picker -----------------------------------------------------------------------------
     MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN"),
                  ("friday", "FRIDAY"), ("tars", "TARS"), ("gideon", "GIDEON"),
-                 ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY")]
+                 ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY"), ("baymax", "BAYMAX")]
     # the former MODE-panel buttons that now live in the wheel
     _WHEEL_KEYS = {"normal", "automatic", "serious", "deep", "observe", "video", "song"}
     _PERSONAS = ("ev", "jarvis", "ultron", "game", "karen")
@@ -1387,7 +1392,7 @@ class MainWindow(QMainWindow):
     def _sync_mode_button(self) -> None:
         self._refresh_face()
         names = dict(self.MODE_LIST)
-        text = f"◉  MODE: {names.get(self._current_mode_name(), 'EV')}"
+        text = f"◉  MODE: {names.get(self._current_mode_name(), self._current_mode_name().upper())}"
         if self.mode_btn.text() != text:
             self.mode_btn.setText(text)
 
@@ -1427,6 +1432,24 @@ class MainWindow(QMainWindow):
                 ("Explain simply", "prefill:Explain this simply, like I am new to it: "),
                 ("Compare", "prefill:Compare these and tell me which is better and why: "),
                 ("Check my idea", "prefill:Find the weak points in this idea: ")]
+        if key == "baymax":
+            on = "ON" if user_prefs.get("baymax_care") else "OFF"
+            return "BAYMAX CARE", [
+                ("How I feel", "prefill:I feel "), ("Health question", "prefill:I have a health question: "),
+                ("Care dashboard", "__bm_dash__"), ("Log water", "__bm_water__"), ("Took a break", "__bm_break__"),
+                ("PC check-up", "Run a full health check of my computer. Explain any problem in simple words and tell me how to fix it."),
+                ("Comfort me", "prefill:I need some comfort. "),
+                ("Breathe with me", "Guide me through one minute of slow breathing, one short calm line at a time."),
+                (f"Care reminders {on}", "__bm_care__"), ("EMERGENCY", "__bm_sos__")]
+        if key == "overdrive":
+            return "OVERDRIVE TOOLS", [
+                ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
+                ("PC check-up", "Run a full health check of my computer and tell me only what needs attention."),
+                ("My notes", "show my notes"), ("Battery", "check my battery"),
+                ("Think it through", "prefill:Think deeply and step by step about: "),
+                ("Make a plan", "prefill:Make a detailed step-by-step plan to: "),
+                ("Look at screen", "__look__"), ("Care dashboard", "__bm_dash__"),
+                ("Computer control", "__computer__")]
         if key == "edith":
             return "EDITH TOOLS", [
                 ("Look at my screen now", "__look__"),
@@ -1463,6 +1486,23 @@ class MainWindow(QMainWindow):
                 self._observe_timer.start(nxt * 1000)
             self._push_mode_tools()
             self._refresh_char_tools()
+        elif action == "__bm_dash__":
+            from ui.baymax_dialog import BaymaxDialog
+            BaymaxDialog(self).exec()
+        elif action in ("__bm_water__", "__bm_break__"):
+            from core import baymax
+            baymax.log("water" if action == "__bm_water__" else "break")
+            self._deliver_reply("Logged. Well done." if action == "__bm_water__" else "A break is good for you. Logged.", "BAYMAX")
+        elif action == "__bm_care__":
+            user_prefs.set_value("baymax_care", not user_prefs.get("baymax_care"))
+            self._refresh_char_tools()
+        elif action == "__bm_sos__":
+            from ui.baymax_dialog import BaymaxDialog
+            d = BaymaxDialog(self)
+            d._emergency()
+            d.exec()
+        elif action == "__computer__":
+            self._open_computer_control()
         elif action == "__look__":
             self._last_screen_hash = None
             if self._observing:
@@ -1480,6 +1520,10 @@ class MainWindow(QMainWindow):
                        "Sir, Friday is ready to take over.", "Hi boss. Friday here. What do you need?"),
             "tars": (Mode.SERIOUS if AI_AVAILABLE else None, ms.TARS_QSS, ("#C9D1D9", "#E6EDF3"), "T A R S",
                      "Sir, Tars is coming. He will be honest about it.", "Tars online. Humor setting seventy five percent. Honesty, ninety."),
+            "baymax": (Mode.BAYMAX if AI_AVAILABLE else None, ms.BAYMAX_QSS, ("#FF6B6B", "#FFD0D0"), "B A Y M A X",
+                       "Sir, Baymax is coming to look after you.", "Hello. I am Baymax, your personal healthcare companion."),
+            "overdrive": (Mode.OVERDRIVE if AI_AVAILABLE else None, ms.OVERDRIVE_QSS, ("#FF8A00", "#FFD199"), "O V E R D R I V E",
+                          "Sir, Overdrive engaged. You have ninety seconds.", "Overdrive. Everything is online. Go."),
             "edith": (None, ms.EDITH_QSS, ("#4DA3FF", "#BFDDFF"), "E D I T H",
                       "Sir, Edith is coming online.", "Edith here. Tap my glasses and I will watch your screen."),
             "gideon": (Mode.DEEP_THINKING if AI_AVAILABLE else None, ms.GIDEON_QSS, ("#19E3D0", "#4DF0E0"), "G I D E O N",
@@ -1519,12 +1563,78 @@ class MainWindow(QMainWindow):
             self._set_mode(mode)                      # the brain's answer style for this character
         self._refresh_char_tools()
         self._sync_mode_button()
+        self._care_start(key == "baymax")
+        if key == "overdrive":
+            self._od_start()
+
+    # ---- Baymax: gentle care reminders while Baymax is on ----------------------------------------------------------
+    def _care_start(self, on: bool) -> None:
+        t = getattr(self, "_care_timer", None)
+        if t is None:
+            t = self._care_timer = QTimer(self)
+            t.timeout.connect(self._care_tick)
+        self._care_minutes = 0
+        self._care_slept = False
+        (t.start(60_000) if on else t.stop())
+
+    def _care_tick(self) -> None:
+        if self._style_char != "baymax" or not user_prefs.get("baymax_care"):
+            return
+        self._care_minutes += 1
+        if self._care_minutes % 45 == 0:
+            self._deliver_reply("Time for a glass of water. Your body will thank you.", "BAYMAX")
+        elif self._care_minutes % 50 == 25:
+            self._deliver_reply("You have been at the screen a while. Look away for twenty seconds and stretch.", "BAYMAX")
+        if datetime.datetime.now().hour >= 23 and not self._care_slept:
+            self._care_slept = True
+            self._deliver_reply("It is late. Sleep helps your body heal. Shall we rest soon?", "BAYMAX")
+
+    # ---- Overdrive: the combined mode in the middle of the wheel, 90 seconds at a time -------------------------------
+    OVERDRIVE_SECONDS = 90
+    OVERDRIVE_COOLDOWN_S = 300
+
+    def _toggle_overdrive(self) -> None:
+        if self._style_char == "overdrive":
+            self._end_overdrive("Overdrive off.")
+            return
+        wait = int(getattr(self, "_od_ready_at", 0) - time.time())
+        if wait > 0:
+            self._deliver_reply(f"Overdrive is cooling down. {wait // 60} minutes {wait % 60} seconds left.")
+            return
+        self._toggle_char("overdrive")
+
+    def _od_start(self) -> None:                         # called once the Overdrive screen is actually up
+        self._od_left = self.OVERDRIVE_SECONDS
+        t = getattr(self, "_od_timer", None)
+        if t is None:
+            t = self._od_timer = QTimer(self)
+            t.timeout.connect(self._od_tick)
+        t.start(1000)
+
+    def _od_tick(self) -> None:
+        if self._style_char != "overdrive":
+            self._od_timer.stop()
+            return
+        self._od_left -= 1
+        self._logo_label.setText(f"O V E R D R I V E   {self._od_left // 60}:{self._od_left % 60:02d}")
+        if self._od_left <= 0:
+            self._end_overdrive("Overdrive complete. Cooling down for five minutes.")
+
+    def _end_overdrive(self, msg: str) -> None:
+        t = getattr(self, "_od_timer", None)
+        if t is not None:
+            t.stop()
+        self._od_ready_at = time.time() + self.OVERDRIVE_COOLDOWN_S
+        if self._style_char == "overdrive":
+            self._exit_style_char()
+        self._deliver_reply(msg)
 
     def _exit_style_char(self, silent: bool = False) -> None:
         if not self._style_char:
             return
         if self._style_char == "edith" and self._observing:
             self._stop_observation()
+        self._care_start(False)
         self._style_char = None
         from core import voices
         voices.set_character(None)
@@ -1561,6 +1671,14 @@ class MainWindow(QMainWindow):
             if self._observing:
                 self._stop_observation()
             self._toggle_char(key)
+            return
+        if key in ("baymax", "overdrive"):
+            if self._observing:
+                self._stop_observation()
+            if key == "overdrive":
+                self._toggle_overdrive()
+            else:
+                self._toggle_char("baymax")
             return
         if key == "edith":                                # her face comes up; clicking the glasses starts the HUD
             self._toggle_char("edith")

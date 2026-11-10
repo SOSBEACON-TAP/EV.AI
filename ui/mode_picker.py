@@ -23,10 +23,15 @@ class ModePicker(QDialog):
         self._modes = modes[:SLOTS]
         self._active = set(active)
         self._hover = -1
+        self._core_hover = False
 
     # -- geometry -------------------------------------------------------------------------------
     def _center(self) -> QPointF:
         return QPointF(self.width() / 2, self.height() / 2)
+
+    def _in_core(self, pos) -> bool:
+        c = self._center()
+        return math.hypot(pos.x() - c.x(), pos.y() - c.y()) < 70
 
     def _slot_at(self, pos) -> int:
         c = self._center()
@@ -40,14 +45,18 @@ class ModePicker(QDialog):
     # -- input ----------------------------------------------------------------------------------
     def mouseMoveEvent(self, e) -> None:
         i = self._slot_at(e.position())
-        if i != self._hover:
-            self._hover = i
-            self.setCursor(Qt.PointingHandCursor if 0 <= i < len(self._modes) else Qt.ArrowCursor)
+        core = self._in_core(e.position())
+        if i != self._hover or core != self._core_hover:
+            self._hover, self._core_hover = i, core
+            self.setCursor(Qt.PointingHandCursor if (0 <= i < len(self._modes) or core) else Qt.ArrowCursor)
             self.update()
 
     def mousePressEvent(self, e) -> None:
         i = self._slot_at(e.position())
-        if 0 <= i < len(self._modes):
+        if self._in_core(e.position()):                     # the glowing centre: Overdrive (90 seconds)
+            self.chosen.emit("overdrive")
+            self.accept()
+        elif 0 <= i < len(self._modes):
             self.chosen.emit(self._modes[i][0])
             self.accept()
         elif math.hypot(e.position().x() - self._center().x(), e.position().y() - self._center().y()) > 262:
@@ -104,7 +113,9 @@ class ModePicker(QDialog):
         p.drawEllipse(c, 52, 52)
         p.drawEllipse(c, 38, 38)
         name = "SELECT MODE"
-        if 0 <= self._hover < len(self._modes):
+        if self._core_hover or "overdrive" in self._active:
+            name = "OVERDRIVE"
+        elif 0 <= self._hover < len(self._modes):
             name = self._modes[self._hover][1]
         else:
             on = [label for k, label in self._modes if k in self._active]
@@ -118,6 +129,10 @@ class ModePicker(QDialog):
         p.setFont(f2)
         p.setPen(QColor(8, 30, 60))
         p.drawText(QRectF(c.x() - 60, c.y() - 12, 120, 24), Qt.AlignCenter, name)
+        if name == "OVERDRIVE":
+            f3 = QFont("Segoe UI", 7)
+            p.setFont(f3)
+            p.drawText(QRectF(c.x() - 60, c.y() + 8, 120, 16), Qt.AlignCenter, "90 SECONDS")
         p.end()
 
     def _coil(self, p: QPainter, c: QPointF, i: int) -> None:
