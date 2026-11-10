@@ -320,7 +320,7 @@ class MainWindow(QMainWindow):
         sa = QScrollArea()
         sa.setWidgetResizable(True)
         sa.setFrameShape(QFrame.NoFrame)
-        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         sa.setStyleSheet("QScrollArea { background: transparent; border: 0; } "
                          "QScrollArea > QWidget > QWidget { background: transparent; } "
                          "QScrollBar:vertical { width: 6px; background: transparent; } "
@@ -707,7 +707,7 @@ class MainWindow(QMainWindow):
         mode_layout = QVBoxLayout(mode_panel)
         mode_layout.setSpacing(5)
         mode_layout.setContentsMargins(12, 8, 12, 8)
-        mode_title = QLabel("MODE")
+        mode_title = QLabel("EV ACTIONS")
         mode_title.setObjectName("SectionTitle")
         mode_layout.addWidget(mode_title)
 
@@ -795,6 +795,12 @@ class MainWindow(QMainWindow):
         tool_grid.addWidget(self.finder_btn, 2, 1)
 
         mode_layout.addLayout(tool_grid)
+        # EV's own feature: control this computer from the phone
+        computer_btn = HoverButton("💻  COMPUTER  (phone control)")
+        computer_btn.setToolTip("Control this computer from your phone")
+        computer_btn.setMinimumHeight(32)
+        computer_btn.clicked.connect(self._open_computer_control)
+        mode_layout.addWidget(computer_btn)
         for key, btn in (("observe", self.observe_toggle_btn), ("video", self.video_toggle_btn),
                          ("song", self.song_toggle_btn), ("focus", self.focus_toggle_btn),
                          ("insights", self.insights_btn), ("finder", self.finder_btn)):
@@ -972,13 +978,6 @@ class MainWindow(QMainWindow):
             if command not in ("__clear__", "__save__"):
                 self._busy_disable_widgets.append(btn)
 
-        # EV's own feature: controlling this computer from the phone.
-        computer_btn = HoverButton("💻  COMPUTER")
-        computer_btn.setToolTip("Control this computer from your phone")
-        computer_btn.setMinimumHeight(38)
-        computer_btn.clicked.connect(self._open_computer_control)
-        p_layout.addWidget(computer_btn)
-
         p_layout.addStretch(1)
         self._quick_panel = panel
         layout.addWidget(panel, 1)
@@ -1118,6 +1117,10 @@ class MainWindow(QMainWindow):
             return
         if getattr(self, "_ultron_on", False):        # Ultron mode: security commands + AI Defender only
             self._append_conversation("You", text)
+            term = getattr(self, "_ultron_term", None)
+            if term is not None and term.wants(text):       # the terminal is open: Ultron codes whatever you say
+                term.request_code(text)
+                return
             self._hack.command(text)
             return
         self._append_conversation("You", text)
@@ -2138,6 +2141,7 @@ class MainWindow(QMainWindow):
             return
         if self._video_mode_on:
             self._stop_video_mode()
+            self._restore_after_player()
         else:
             self._start_video_mode()
 
@@ -2166,6 +2170,7 @@ class MainWindow(QMainWindow):
         self._gesture_worker.error.connect(self._on_gesture_error)
         self._gesture_worker.frame_ready.connect(self._on_gesture_frame)
         self._gesture_worker.start()
+        self._shrink_for_player()
 
     def release_camera(self) -> bool:
         """Free the webcam for other apps. Returns True if EV AI was using it."""
@@ -2174,11 +2179,27 @@ class MainWindow(QMainWindow):
             self._stop_video_mode()
         return was_on
 
+    def _shrink_for_player(self) -> None:
+        """Minority / Sonar: the dashboard goes to the tray and only the player stays on screen."""
+        self._player_hidden = True
+        if self._tray.is_active():
+            self.hide()
+        else:
+            self.showMinimized()
+
+    def _restore_after_player(self) -> None:
+        if getattr(self, "_player_hidden", False) and not self._video_mode_on and self._song_panel is None:
+            self._player_hidden = False
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+
     def _on_video_view_closed(self):
         # The person closed the camera window: that means "turn Video mode off".
         self._video_view = None
         if self._video_mode_on:
             self._stop_video_mode()
+        self._restore_after_player()
 
     def _stop_video_mode(self):
         self._video_mode_on = False
@@ -2210,11 +2231,13 @@ class MainWindow(QMainWindow):
         self._song_panel.show_at_corner()
         self.song_toggle_btn.setText("🎵 SONAR: ON")
         self.song_toggle_btn.setChecked(True)
+        self._shrink_for_player()
 
     def _on_song_panel_closed(self):
         self._song_panel = None
         self.song_toggle_btn.setText("🎵 SONAR: OFF")
         self.song_toggle_btn.setChecked(False)
+        self._restore_after_player()
 
     def _on_gesture_status(self, text: str):
         print(f"[EV AI] Video mode: {text}")
