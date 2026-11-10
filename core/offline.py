@@ -102,7 +102,7 @@ class OfflineAssistant:
             return None
 
         for step in (self._creator, self._find_phone, self._chrome, self._shorts, self._time, self._volume_media, self._timer, self._clock_reminder,
-                     self._todo_note, self._math):
+                     self._todo_note, self._math, self._fun_tools):
             reply = step(low, text)
             if reply:
                 return reply
@@ -298,6 +298,93 @@ class OfflineAssistant:
         elif isinstance(value, float):
             value = round(value, 6)
         return f"{value}"
+
+    # -- small everyday helpers: dice, coin, converter, stopwatch, countdown to a date, jokes --------------
+    _JOKES = (
+        "Why do programmers prefer dark mode? Because light attracts bugs.",
+        "I would tell you a UDP joke, but you might not get it.",
+        "Why was the computer cold? It left its Windows open.",
+        "There are 10 kinds of people: those who understand binary and those who don't.",
+        "A SQL query walks into a bar, walks up to two tables and asks: can I join you?",
+        "Why did the developer go broke? Because he used up all his cache.",
+        "My password is the last 8 digits of pi. Good luck with that.",
+        "Why do Java developers wear glasses? Because they don't C sharp.",
+    )
+    _UNITS = {  # name -> (group, size in the group's base unit)
+        "km": ("len", 1000), "kilometer": ("len", 1000), "kilometers": ("len", 1000), "kilometre": ("len", 1000), "kilometres": ("len", 1000),
+        "m": ("len", 1), "meter": ("len", 1), "meters": ("len", 1), "metre": ("len", 1), "metres": ("len", 1),
+        "cm": ("len", 0.01), "centimeter": ("len", 0.01), "centimeters": ("len", 0.01),
+        "mile": ("len", 1609.344), "miles": ("len", 1609.344), "ft": ("len", 0.3048), "foot": ("len", 0.3048), "feet": ("len", 0.3048),
+        "inch": ("len", 0.0254), "inches": ("len", 0.0254),
+        "kg": ("mass", 1000), "kilogram": ("mass", 1000), "kilograms": ("mass", 1000), "g": ("mass", 1), "gram": ("mass", 1), "grams": ("mass", 1),
+        "lb": ("mass", 453.592), "lbs": ("mass", 453.592), "pound": ("mass", 453.592), "pounds": ("mass", 453.592),
+        "liter": ("vol", 1), "liters": ("vol", 1), "litre": ("vol", 1), "litres": ("vol", 1), "l": ("vol", 1),
+        "gallon": ("vol", 3.78541), "gallons": ("vol", 3.78541), "ml": ("vol", 0.001),
+    }
+    _MONTHS = {m: i + 1 for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july",
+                                                  "august", "september", "october", "november", "december"))}
+    _stopwatch_start = None
+
+    def _fun_tools(self, low: str, _text: str) -> str | None:
+        import random
+        import time
+        if re.fullmatch(r"(flip|toss) (a |the )?coin|heads or tails", low):
+            return random.choice(("Heads.", "Tails."))
+        m = re.fullmatch(r"roll (a |an |one |(\d+) )?(dice|die)( twice)?", low)
+        if m:
+            n = int(m.group(2)) if m.group(2) else (2 if m.group(4) else 1)
+            n = max(1, min(n, 10))
+            rolls = [random.randint(1, 6) for _ in range(n)]
+            return f"{rolls[0]}." if n == 1 else f"{', '.join(map(str, rolls))}. Total {sum(rolls)}."
+        m = re.fullmatch(r"(pick|give me|choose)( a)? (random )?number (between|from) (-?\d+) (and|to) (-?\d+)", low)
+        if m:
+            a, b = sorted((int(m.group(5)), int(m.group(7))))
+            return str(random.randint(a, b))
+        m = re.fullmatch(r"(choose|pick|decide) (between )?(.+?) or (.+)", low)
+        if m and "tab" not in low:
+            return f"I pick {random.choice((m.group(3), m.group(4)))}."
+        if re.fullmatch(r"(tell me )?(a )?joke|make me laugh|tell me something funny", low):
+            return random.choice(self._JOKES)
+        if re.fullmatch(r"(start|begin) (the |a )?stopwatch", low):
+            self._stopwatch_start = time.monotonic()
+            return "Stopwatch started."
+        if re.fullmatch(r"(stop|end|check|lap)( the)? stopwatch", low):
+            if self._stopwatch_start is None:
+                return "The stopwatch isn't running. Say start stopwatch first."
+            secs = int(time.monotonic() - self._stopwatch_start)
+            if low.startswith("stop") or low.startswith("end"):
+                self._stopwatch_start = None
+            return f"Stopwatch: {_nice(secs) if secs >= 60 else str(secs) + ' second' + ('' if secs == 1 else 's')}."
+        m = re.fullmatch(r"(?:convert )?(-?\d+(?:\.\d+)?) ?(?:degrees? )?(c|celsius|f|fahrenheit) (?:to|in|into) (?:degrees? )?(c|celsius|f|fahrenheit)", low)
+        if m:
+            v, a, b = float(m.group(1)), m.group(2)[0], m.group(3)[0]
+            if a == b:
+                out = v
+            elif a == "c":
+                out = v * 9 / 5 + 32
+            else:
+                out = (v - 32) * 5 / 9
+            return f"{v:g} degrees {'Celsius' if a == 'c' else 'Fahrenheit'} is {out:.1f} degrees {'Celsius' if b == 'c' else 'Fahrenheit'}."
+        m = re.fullmatch(r"(?:convert )?(-?\d+(?:\.\d+)?) ?([a-z]+) (?:to|in|into) ([a-z]+)", low)
+        if m and m.group(2) in self._UNITS and m.group(3) in self._UNITS:
+            (ga, sa), (gb, sb) = self._UNITS[m.group(2)], self._UNITS[m.group(3)]
+            if ga == gb:
+                out = float(m.group(1)) * sa / sb
+                return f"{float(m.group(1)):g} {m.group(2)} is {out:,.4g} {m.group(3)}."
+            return "Those two units can't be converted into each other."
+        m = re.fullmatch(r"(?:how many days|days) (?:until|till|to|left (?:for|until|till)) (\d{1,2})(?:st|nd|rd|th)? (?:of )?([a-z]+)", low)
+        if m and m.group(2) in self._MONTHS:
+            from datetime import date
+            today = date.today()
+            try:
+                target = date(today.year, self._MONTHS[m.group(2)], int(m.group(1)))
+                if target < today:
+                    target = date(today.year + 1, target.month, target.day)
+            except ValueError:
+                return None
+            days = (target - today).days
+            return "That's today." if days == 0 else f"{days} day{'s' if days != 1 else ''} to go."
+        return None
 
     def _open_app(self, low: str, fallback: bool) -> str | None:
         m = re.fullmatch(r"(?:open|launch|start|run)(?: up)?(?: the)?(?: app| application)? (.+)", low)

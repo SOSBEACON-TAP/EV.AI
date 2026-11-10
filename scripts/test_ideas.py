@@ -62,3 +62,16 @@ sm = gs.summary(7, today)
 assert "Total 1 h 30 min in 2 session(s), 1 break reminder(s), 100 auto-clicks." in sm and "2026-11-07    90 min" in sm, sm
 assert "No sessions yet" in (gs.summary(7, date(2030, 1, 1)))
 print("ideas tests OK")
+
+# --- everyday helpers (dice, converter, stopwatch, countdown) ---
+import core.offline as _off
+_o = _off.OfflineAssistant.__new__(_off.OfflineAssistant)
+assert _o._fun_tools("convert 5 km to miles", "") .startswith("5 km is 3.107")
+assert "37.8" in _o._fun_tools("100 f to c", "")
+assert "can't be converted" in _o._fun_tools("5 km to kg", "")
+assert _o._fun_tools("flip a coin", "") in ("Heads.", "Tails.")
+assert _o._fun_tools("roll 3 dice", "").count(",") == 2
+assert 5 <= int(_o._fun_tools("pick a number between 9 and 5", "")) <= 9
+assert "started" in _o._fun_tools("start stopwatch", "") and "Stopwatch:" in _o._fun_tools("stop stopwatch", "")
+assert _o._fun_tools("open youtube", "") is None and _o._fun_tools("2 + 2", "") is None
+print("everyday helpers OK")

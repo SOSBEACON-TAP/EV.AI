@@ -1307,7 +1307,7 @@ class MainWindow(QMainWindow):
                  ("friday", "FRIDAY"), ("tars", "TARS"), ("gideon", "GIDEON"),
                  ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY")]
     # the former MODE-panel buttons that now live in the wheel
-    _WHEEL_KEYS = {"automatic", "serious", "deep", "observe", "video", "song"}
+    _WHEEL_KEYS = {"normal", "automatic", "serious", "deep", "observe", "video", "song"}
     _PERSONAS = ("ev", "jarvis", "ultron", "game", "karen")
 
     def _current_mode_name(self) -> str:
@@ -1368,11 +1368,15 @@ class MainWindow(QMainWindow):
             else:
                 self._append_conversation("EV", "That mode isn't available on this computer right now.")
             return
-        if key == cur:
-            return
-        if key == "ev":                      # back home: switch the current mode off
+        if key == "ev":                      # back home: leave the character and go back to the normal answer style
+            if AI_AVAILABLE and self._current_mode in (Mode.AUTOMATIC, Mode.SERIOUS, Mode.DEEP_THINKING):
+                self._mode_buttons[Mode.NORMAL].click()
+            if key == cur:
+                return
             {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
              "game": self._toggle_game, "karen": self._toggle_karen}.get(cur, lambda: None)()
+            return
+        if key == cur:
             return
         {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
          "game": self._toggle_game, "karen": self._toggle_karen}[key]()

@@ -4,6 +4,10 @@ CHANGES
 - Mode names: Automatic is now Friday, Serious is Tars, Deep Thinking is Gideon, Observe is Edith, Song is Sonar and Video is Minority.
 - All of them moved into the MODE wheel (now twelve segments). Click a segment to turn it on or off; lit segments are the ones that are on. Normal, Focus, App Insights and File Finder stay in the MODE panel.
 
+NEW
+- Normal is gone from the MODE panel. Choosing EV in the wheel now means normal: it leaves the current character and goes back to the normal answer style.
+- Everyday helpers that work without the internet. Say: "flip a coin", "roll a dice" (or "roll 3 dice"), "pick a number between 1 and 100", "choose pizza or burger", "tell me a joke", "convert 5 km to miles" (also kg, pounds, litres, gallons, feet, inches, Celsius and Fahrenheit), "start stopwatch" and "stop stopwatch", "how many days until 25 December".
+
 ---
 
 EV AI 1.0.28
