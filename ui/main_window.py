@@ -302,7 +302,8 @@ class MainWindow(QMainWindow):
 
         body_layout.addWidget(self._scroll_wrap(self._build_left_column()), 2)
         body_layout.addWidget(self._scroll_wrap(self._build_center_column()), 3)
-        body_layout.addWidget(self._scroll_wrap(self._build_right_column()), 2)
+        self._right_scroll = self._scroll_wrap(self._build_right_column())
+        body_layout.addWidget(self._right_scroll, 2)
 
         root.addWidget(body, 1)
         # The panels of some screens (Ultron, Game, Karen) need more height than a small laptop screen has.
@@ -1558,6 +1559,7 @@ class MainWindow(QMainWindow):
         self.ai_core.set_tint(tint)
         self._logo_label.setText(logo)
         self._quick_panel.setVisible(False)
+        self._mode_panel.setVisible(False)             # EV ACTIONS belongs to EV; characters have their own tools
         self._char_panel.setVisible(True)
         if mode is not None:
             self._set_mode(mode)                      # the brain's answer style for this character
@@ -1643,6 +1645,7 @@ class MainWindow(QMainWindow):
         self._logo_label.setText(settings.APP_NAME)
         self._char_panel.setVisible(False)
         self._quick_panel.setVisible(True)
+        self._mode_panel.setVisible(True)
         if AI_AVAILABLE:
             if silent:                                # another mode is taking over: just reset the answer style quietly
                 if self._brain is not None:
@@ -1962,6 +1965,8 @@ class MainWindow(QMainWindow):
         self._mode_panel.setVisible(not on)
         self._quick_panel.setVisible(not on)
         self._ultron_left.setVisible(on)
+        # the radar column must never show a scroll bar: it is built to fit
+        self._right_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff if on else Qt.ScrollBarAsNeeded)
         self._metrics_panel.setVisible(not on)          # the clock panel makes way so every tool fits without scrolling
         self._ultron_right.setVisible(on)
         if on and not self._hack.findings:

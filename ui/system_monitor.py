@@ -6,6 +6,7 @@ refresh every 2 seconds while Jarvis is switched on, plus network and
 uptime. Emits `warning` when something crosses a limit (see core/sysmon.py).
 """
 
+import math
 import os
 import time
 
@@ -42,7 +43,9 @@ class ReactorGauge(QWidget):
 
     def _advance(self) -> None:
         if self.isVisible():
-            self._spin = (self._spin + (3.0 if self._plugged else 1.0)) % 360
+            if self._plugged:                         # charging: the reactor spins
+                self._spin = (self._spin + 4.0) % 360
+            self._breath = (getattr(self, "_breath", 0.0) + 0.08) % (2 * math.pi)
             self.update()
 
     def paintEvent(self, _e):  # noqa: N802
@@ -58,9 +61,13 @@ class ReactorGauge(QWidget):
             pct = self._pct
             low = pct is not None and pct <= 15 and not self._plugged
             col = QColor("#FF5252") if low else QColor("#7FE9FF")
+            # on battery the reactor stands still and glows as bright as the charge left (full = blazing, low = dim)
+            level = 1.0 if pct is None else max(0.12, min(1.0, pct / 100.0))
+            if not self._plugged:
+                level *= 0.94 + 0.06 * math.sin(getattr(self, "_breath", 0.0))
             # outer glow
             g = QRadialGradient(c, r)
-            g.setColorAt(0.55, QColor(col.red(), col.green(), col.blue(), 90))
+            g.setColorAt(0.55, QColor(col.red(), col.green(), col.blue(), int(30 + 150 * level)))
             g.setColorAt(1.0, QColor(col.red(), col.green(), col.blue(), 0))
             p.setPen(Qt.NoPen)
             p.setBrush(QBrush(g))
@@ -73,7 +80,9 @@ class ReactorGauge(QWidget):
             p.setBrush(Qt.NoBrush)
             p.drawEllipse(c, r * 0.78, r * 0.78)
             p.drawEllipse(c, r * 0.46, r * 0.46)
-            p.setPen(QPen(col, 5))
+            coil = QColor(col)
+            coil.setAlpha(int(90 + 165 * level))
+            p.setPen(QPen(coil, 5))
             for i in range(10):
                 a = math.radians(self._spin + i * 36)
                 x1, y1 = c.x() + math.cos(a) * r * 0.5, c.y() + math.sin(a) * r * 0.5
@@ -86,8 +95,8 @@ class ReactorGauge(QWidget):
                 p.drawArc(int(c.x() - r * 0.86), int(c.y() - r * 0.86), int(r * 1.72), int(r * 1.72), 90 * 16, span)
             # glowing core with the number
             cg = QRadialGradient(c, r * 0.42)
-            cg.setColorAt(0.0, QColor(255, 255, 255, 255))
-            cg.setColorAt(0.55, QColor(col.red(), col.green(), col.blue(), 230))
+            cg.setColorAt(0.0, QColor(255, 255, 255, int(70 + 185 * level)))
+            cg.setColorAt(0.55, QColor(col.red(), col.green(), col.blue(), int(40 + 190 * level)))
             cg.setColorAt(1.0, QColor(col.red(), col.green(), col.blue(), 0))
             p.setPen(Qt.NoPen)
             p.setBrush(QBrush(cg))

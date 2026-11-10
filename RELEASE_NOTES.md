@@ -1,3 +1,20 @@
+EV AI 1.0.32
+
+NEW
+- Ultron's terminal has a RUN CODE button. It runs the code Ultron just wrote (or the code you pasted on the left) and shows what it prints in the OUTPUT column. It asks before running, supports Python, Node, PowerShell and batch, and stops anything that takes longer than 30 seconds.
+- The pictures in the orb now float, breathe and glow in the mode colour, with a scan line sliding over them. They ripple while EV listens, send sparks round while it thinks, and pulse while it speaks.
+- Jarvis battery: the arc reactor spins while the laptop is charging. On battery it stands still and glows as bright as the charge left.
+
+CHANGES
+- The orb now shows only the mode picture, on a clear background, instead of the picture on top of the rings.
+- The EV ACTIONS panel (Focus, App Insights, File Finder, Computer) now shows only in EV mode. Friday, Tars, Gideon, Edith, Baymax and Overdrive show their own tools instead.
+
+FIXES
+- Mode names on the wheel no longer overlap the ring or each other (the wheel is bigger).
+- The Ultron radar column no longer has a scroll bar.
+
+---
+
 EV AI 1.0.31
 
 NEW
