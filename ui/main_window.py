@@ -258,6 +258,8 @@ class MainWindow(QMainWindow):
         self._battery_timer = QTimer(self)
         self._battery_timer.timeout.connect(self._check_battery)
         self._battery_timer.start(60_000)
+        self.ai_core.clicked.connect(self._on_orb_clicked)
+        QTimer.singleShot(0, self._refresh_face)
 
         self._append_conversation("EV", "SYSTEM ONLINE. READY.")
 
@@ -1371,7 +1373,19 @@ class MainWindow(QMainWindow):
     def _current_mode_persona(self) -> str:
         return self._current_mode_name()
 
+    def _refresh_face(self) -> None:
+        """The orb shows the face of whichever mode is on (EV: the red and blue orb)."""
+        self.ai_core.set_face(self._current_mode_name())
+
+    def _on_orb_clicked(self) -> None:
+        if self._style_char == "edith":                 # click the glasses: Edith's HUD goes on, or off
+            if not AI_AVAILABLE:
+                self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
+                return
+            self._toggle_observation()
+
     def _sync_mode_button(self) -> None:
+        self._refresh_face()
         names = dict(self.MODE_LIST)
         text = f"◉  MODE: {names.get(self._current_mode_name(), 'EV')}"
         if self.mode_btn.text() != text:
@@ -1451,7 +1465,10 @@ class MainWindow(QMainWindow):
             self._refresh_char_tools()
         elif action == "__look__":
             self._last_screen_hash = None
-            self._maybe_observe()
+            if self._observing:
+                self._maybe_observe()
+            else:
+                self._on_orb_clicked()
         else:
             self._run_quick_action(action)
 
@@ -1463,6 +1480,8 @@ class MainWindow(QMainWindow):
                        "Sir, Friday is ready to take over.", "Hi boss. Friday here. What do you need?"),
             "tars": (Mode.SERIOUS if AI_AVAILABLE else None, ms.TARS_QSS, ("#C9D1D9", "#E6EDF3"), "T A R S",
                      "Sir, Tars is coming. He will be honest about it.", "Tars online. Humor setting seventy five percent. Honesty, ninety."),
+            "edith": (None, ms.EDITH_QSS, ("#4DA3FF", "#BFDDFF"), "E D I T H",
+                      "Sir, Edith is coming online.", "Edith here. Tap my glasses and I will watch your screen."),
             "gideon": (Mode.DEEP_THINKING if AI_AVAILABLE else None, ms.GIDEON_QSS, ("#19E3D0", "#4DF0E0"), "G I D E O N",
                        "Sir, Gideon is coming online.", "Gideon online. Give me something worth thinking about."),
         }[key]
@@ -1504,6 +1523,8 @@ class MainWindow(QMainWindow):
     def _exit_style_char(self, silent: bool = False) -> None:
         if not self._style_char:
             return
+        if self._style_char == "edith" and self._observing:
+            self._stop_observation()
         self._style_char = None
         from core import voices
         voices.set_character(None)
@@ -1541,11 +1562,8 @@ class MainWindow(QMainWindow):
                 self._stop_observation()
             self._toggle_char(key)
             return
-        if key == "edith":
-            if not AI_AVAILABLE:
-                self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
-                return
-            self._toggle_observation()
+        if key == "edith":                                # her face comes up; clicking the glasses starts the HUD
+            self._toggle_char("edith")
             return
         if key == "sonar":
             self._toggle_song_mode()
@@ -1717,6 +1735,7 @@ class MainWindow(QMainWindow):
         self._logo_label.setText("G A M E   M O D E" if on else settings.APP_NAME)
         self._mode_panel.setVisible(not on)
         self._game_left.setVisible(on)
+        self._refresh_face()
         (self._game_panel.activate if on else self._game_panel.deactivate)()
         self.game_switch_btn.setText("🎮\nLEAVE" if on else "🎮\nGAME")
         if announce:
@@ -1742,6 +1761,7 @@ class MainWindow(QMainWindow):
         self._logo_label.setText("K A R E N   M O D E" if on else settings.APP_NAME)
         self._mode_panel.setVisible(not on)
         self._karen_left.setVisible(on)
+        self._refresh_face()
         self._karen_panel.refresh()
         self.karen_switch_btn.setText("🛡\nLEAVE" if on else "🛡\nKAREN")
         if announce:
@@ -1963,6 +1983,7 @@ class MainWindow(QMainWindow):
         return mode_wants_it or self._observing
 
     def _sync_corner_ui(self) -> None:
+        self._refresh_face()
         want_hud = self._should_use_hud()
 
         if want_hud:

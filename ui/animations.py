@@ -17,17 +17,28 @@ Design notes (kept deliberately different from any franchise UI):
 
 import math
 from PySide6.QtCore import Qt, QTimer, Signal, QPointF
-from PySide6.QtGui import QPainter, QColor, QPen
+from pathlib import Path
+from PySide6.QtGui import QPainter, QColor, QPen, QPixmap, QRadialGradient, QBrush
 from PySide6.QtWidgets import QWidget
 
 from core.state import AIState
 from ui import theme as _theme
 
 
+def _face_path(key: str):
+    here = Path(__file__).resolve().parent.parent
+    for base in (here, here / "_internal"):
+        f = base / "assets" / "modes" / f"{key}.png"
+        if f.exists():
+            return f
+    return None
+
+
 class AICoreWidget(QWidget):
     """Custom-painted animated indicator representing EV's current state."""
 
     state_changed = Signal(AIState)
+    clicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,6 +49,8 @@ class AICoreWidget(QWidget):
         self._jarvis = False       # all-yellow look when Jarvis is switched on
         self._ultron = False       # all-red look when Ultron is switched on
         self._tint = None          # (ring1, ring2) hex colours for Game / Karen mode
+        self._face = None          # the picture of the current mode (Tars, Gideon, glasses...)
+        self._face_key = None
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -70,6 +83,48 @@ class AICoreWidget(QWidget):
             if self._state != AIState.ERROR:
                 accent = QColor(self._tint[0])
         return accent, red, blue
+
+    def set_face(self, key) -> None:
+        """Show the face picture of a mode in the middle of the core (None = the plain EV core)."""
+        if key == self._face_key:
+            return
+        self._face_key = key
+        self._face = None
+        if key:
+            f = _face_path(key)
+            if f is not None:
+                pm = QPixmap(str(f))
+                self._face = pm if not pm.isNull() else None
+        self.setCursor(Qt.PointingHandCursor if key == "edith" else Qt.ArrowCursor)
+        self.update()
+
+    def face_key(self):
+        return self._face_key
+
+    def mousePressEvent(self, event):  # noqa: N802
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def _draw_face(self, painter, cx, cy, radius, accent) -> None:
+        pm = self._face
+        box = radius * 1.25
+        scale = min(box * 2 / pm.width(), box * 2 / pm.height())
+        if pm.width() > pm.height() * 1.8:                      # wide pictures (glasses, Jarvis) may use the full width
+            scale = (radius * 1.7) / pm.width()
+        tw, th = pm.width() * scale, pm.height() * scale
+        beat = 0.5 + 0.5 * math.sin(self._pulse_phase * 2 * math.pi)
+        glow = QRadialGradient(cx, cy, max(tw, th) * 0.62)
+        c = QColor(accent)
+        c.setAlpha(int(40 + 50 * beat))
+        glow.setColorAt(0.0, c)
+        c.setAlpha(0)
+        glow.setColorAt(1.0, c)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(glow))
+        painter.drawEllipse(QPointF(cx, cy), max(tw, th) * 0.62, max(tw, th) * 0.62)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.drawPixmap(int(cx - tw / 2), int(cy - th / 2), int(tw), int(th), pm)
 
     def set_tint(self, colours) -> None:
         self._tint = colours
@@ -120,7 +175,10 @@ class AICoreWidget(QWidget):
             self._draw_web(painter, cx, cy, radius, accent)
             self._draw_beams(painter, cx, cy, radius, red, blue)
             self._draw_orbit_rings(painter, cx, cy, radius, red, blue)
-            self._draw_core(painter, cx, cy, radius, accent)
+            if self._face is not None:
+                self._draw_face(painter, cx, cy, radius, accent)
+            else:
+                self._draw_core(painter, cx, cy, radius, accent)
         finally:
             # Guarantees the painter is always closed, even if something
             # above raises (e.g. the process gets interrupted mid-frame) —
