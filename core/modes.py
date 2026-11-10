@@ -40,7 +40,7 @@ class Mode(Enum):
         commands) instead of the normal dashboard. Observation mode also
         triggers this, independently of whatever mode is active (see
         ui/main_window.py)."""
-        return self in (Mode.AUTOMATIC, Mode.SERIOUS, Mode.STUDY)
+        return self == Mode.STUDY          # Friday, Tars and Gideon are full-window characters now; Edith has its own overlay
 
 
 PROMPT_ADDITIONS = {

@@ -49,6 +49,10 @@ CHARACTERS = {
     "jarvis": {"edge": True, "voice": "en-GB-RyanNeural", "rate": "-3%", "pitch": "-2Hz", "gender": "male"},
     "game": {"edge": True, "voice": "en-US-ChristopherNeural", "rate": "+8%", "pitch": "+2Hz", "gender": "male"},
     "karen": {"edge": True, "voice": "en-US-JennyNeural", "rate": "-4%", "pitch": "+0Hz", "gender": "female"},
+    "friday": {"edge": True, "voice": "en-IE-EmilyNeural", "rate": "+2%", "pitch": "+0Hz", "gender": "female"},
+    "tars": {"edge": True, "voice": "en-US-ChristopherNeural", "rate": "-8%", "pitch": "-6Hz", "gender": "male"},
+    "gideon": {"edge": True, "voice": "en-AU-WilliamNeural", "rate": "-4%", "pitch": "-2Hz", "gender": "male"},
+    "edith": {"edge": True, "voice": "en-GB-SoniaNeural", "rate": "+0%", "pitch": "+0Hz", "gender": "female"},
     "ultron": {"edge": True, "voice": "en-US-GuyNeural", "rate": "-14%", "pitch": "-14Hz", "gender": "male"},
 }
 _character: str | None = None

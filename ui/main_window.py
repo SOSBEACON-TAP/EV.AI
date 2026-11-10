@@ -184,6 +184,7 @@ class MainWindow(QMainWindow):
 
         self._jarvis_on = False
         self._game_on = False
+        self._style_char = None           # "friday", "tars" or "gideon" while one of those characters is on
         self._karen_on = False
         self._ultron_on = False
         self._pre_jarvis_mode = None
@@ -319,7 +320,7 @@ class MainWindow(QMainWindow):
         sa = QScrollArea()
         sa.setWidgetResizable(True)
         sa.setFrameShape(QFrame.NoFrame)
-        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         sa.setStyleSheet("QScrollArea { background: transparent; border: 0; } "
                          "QScrollArea > QWidget > QWidget { background: transparent; } "
                          "QScrollBar:vertical { width: 6px; background: transparent; } "
@@ -971,32 +972,12 @@ class MainWindow(QMainWindow):
             if command not in ("__clear__", "__save__"):
                 self._busy_disable_widgets.append(btn)
 
-        # EV's own everyday tools (these work without the internet, except the briefing and PC status)
-        ev_tools_title = QLabel("EV TOOLS")
-        ev_tools_title.setObjectName("SectionTitle")
-        p_layout.addWidget(ev_tools_title)
-        ev_grid = QGridLayout()
-        ev_grid.setSpacing(5)
-        # EV's own feature: controlling this computer from the phone, plus a few everyday helpers.
-        # (Planning tools belong to Friday, thinking tools to Gideon, bluntness to Tars, system checks to Jarvis.)
-        computer_btn = HoverButton("💻  COMPUTER  (control this PC from your phone)")
+        # EV's own feature: controlling this computer from the phone.
+        computer_btn = HoverButton("💻  COMPUTER")
+        computer_btn.setToolTip("Control this computer from your phone")
         computer_btn.setMinimumHeight(38)
         computer_btn.clicked.connect(self._open_computer_control)
         p_layout.addWidget(computer_btn)
-        ev_tools = [
-            ("Flip a coin", "flip a coin"), ("Roll a dice", "roll a dice"), ("Tell a joke", "tell me a joke"),
-            ("Convert units", "prefill:convert 5 km to miles"), ("Start stopwatch", "start stopwatch"), ("Stop stopwatch", "stop stopwatch"),
-            ("Days until...", "prefill:how many days until 25 december"),
-        ]
-        for i, (label, command) in enumerate(ev_tools):
-            b = HoverButton(label)
-            b.setMinimumHeight(28)
-            b.setStyleSheet(_COMPACT_BTN)
-            b.clicked.connect(lambda _, c=command: self._run_quick_action(c))
-            ev_grid.addWidget(b, i // 2, i % 2)
-            if not command.startswith("prefill:"):
-                self._busy_disable_widgets.append(b)
-        p_layout.addLayout(ev_grid)
 
         p_layout.addStretch(1)
         self._quick_panel = panel
@@ -1025,6 +1006,20 @@ class MainWindow(QMainWindow):
         jr_panel.setVisible(False)
         self._jarvis_right = jr_panel
         layout.addWidget(jr_panel, 1)
+
+        # Friday / Tars / Gideon right panel: that character's own tools replace QUICK ACTIONS.
+        ch_panel = glass_panel()
+        ch_outer = QVBoxLayout(ch_panel)
+        self._char_title = QLabel("TOOLS")
+        self._char_title.setObjectName("SectionTitle")
+        ch_outer.addWidget(self._char_title)
+        self._char_grid = QGridLayout()
+        self._char_grid.setSpacing(5)
+        ch_outer.addLayout(self._char_grid)
+        ch_outer.addStretch(1)
+        ch_panel.setVisible(False)
+        self._char_panel = ch_panel
+        layout.addWidget(ch_panel, 1)
 
         # Ultron right panel: the radar and its controls replace QUICK ACTIONS while Ultron is on.
         from ui.hack_terminal import HackRadarPanel
@@ -1355,14 +1350,13 @@ class MainWindow(QMainWindow):
             return "game"
         if self._karen_on:
             return "karen"
+        if self._style_char:
+            return self._style_char
         return "ev"
 
     def _active_modes(self) -> set[str]:
         """Every wheel segment that is on right now: the persona, the answer style, and the switches."""
         on = {self._current_mode_persona()}
-        style = {Mode.AUTOMATIC: "friday", Mode.SERIOUS: "tars", Mode.DEEP_THINKING: "gideon"} if AI_AVAILABLE else {}
-        if self._current_mode in style:
-            on.add(style[self._current_mode])
         if self._observing:
             on.add("edith")
         if self.song_toggle_btn.isChecked():
@@ -1389,25 +1383,26 @@ class MainWindow(QMainWindow):
         dlg.move(geo.center().x() - dlg.width() // 2, geo.center().y() - dlg.height() // 2)
         dlg.exec()
 
-    # ---- the tools of each mode (shown on the overlay that Friday, Tars, Gideon and Edith use) -----------------
+    # ---- the tools of each mode ---------------------------------------------------------------------------------
+    # Friday, Tars and Gideon are full-window characters (like Jarvis and Ultron) with their tools on the right.
+    # Edith keeps its own small overlay, which shows the Edith tools.
     _CYCLES = {"__interval__": ("observe_interval_s", (10, 20, 60)), "__humor__": ("tars_humor", (0, 25, 50, 75, 100)),
                "__honesty__": ("tars_honesty", (50, 70, 90, 100))}
 
-    def _mode_tools(self) -> tuple[str, list]:
-        mode = self._current_mode if AI_AVAILABLE else None
-        if mode == Mode.AUTOMATIC:
+    def _mode_tools(self, key: str) -> tuple[str, list]:
+        if key == "friday":
             return "FRIDAY TOOLS", [
                 ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
                 ("My notes", "show my notes"),
                 ("Add a to-do", "prefill:add to-do: "), ("Set a timer", "prefill:set a timer for "),
                 ("Plan my day", "prefill:Plan my day around these things: "), ("Remind me", "prefill:remind me to ")]
-        if mode == Mode.SERIOUS:
+        if key == "tars":
             return "TARS TOOLS", [
-                (f"Humor {int(user_prefs.get('tars_humor'))}%  (tap to change)", "__humor__"),
-                (f"Honesty {int(user_prefs.get('tars_honesty'))}%  (tap to change)", "__honesty__"),
+                (f"Humor {int(user_prefs.get('tars_humor'))}%", "__humor__"),
+                (f"Honesty {int(user_prefs.get('tars_honesty'))}%", "__honesty__"),
                 ("Straight answer", "prefill:Give me the short, honest answer, no sugar-coating: "),
                 ("Yes or no", "prefill:Answer yes or no, then one line why: ")]
-        if mode == Mode.DEEP_THINKING:
+        if key == "gideon":
             return "GIDEON TOOLS", [
                 ("Think it through", "prefill:Think deeply and step by step about: "),
                 ("Pros and cons", "prefill:Give me the pros and cons of: "),
@@ -1415,17 +1410,31 @@ class MainWindow(QMainWindow):
                 ("Explain simply", "prefill:Explain this simply, like I am new to it: "),
                 ("Compare", "prefill:Compare these and tell me which is better and why: "),
                 ("Check my idea", "prefill:Find the weak points in this idea: ")]
-        if self._observing:
+        if key == "edith":
             return "EDITH TOOLS", [
                 ("Look at my screen now", "__look__"),
-                (f"Looks every {int(user_prefs.get('observe_interval_s'))} s  (tap)", "__interval__"),
+                (f"Looks every {int(user_prefs.get('observe_interval_s'))} s", "__interval__"),
                 ("What am I doing?", "prefill:Based on my screen, what am I doing and what should I do next? ")]
         return "", []
 
-    def _push_mode_tools(self) -> None:
+    def _push_mode_tools(self) -> None:                      # Edith's overlay
         if self._hud_overlay is not None:
-            title, tools = self._mode_tools()
+            title, tools = self._mode_tools("edith") if self._observing else ("", [])
             self._hud_overlay.set_mode_tools(title, tools)
+
+    def _refresh_char_tools(self) -> None:                   # the right-hand panel of Friday / Tars / Gideon
+        while self._char_grid.count():
+            w = self._char_grid.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        title, tools = self._mode_tools(self._style_char or "")
+        self._char_title.setText(title)
+        for i, (label, action) in enumerate(tools):
+            b = HoverButton(label.upper())
+            b.setMinimumHeight(30)
+            b.setStyleSheet(_COMPACT_BTN)
+            b.clicked.connect(lambda _=False, a=action: self._on_mode_tool(a))
+            self._char_grid.addWidget(b, i // 2, i % 2)
 
     def _on_mode_tool(self, action: str) -> None:
         if action in self._CYCLES:
@@ -1436,44 +1445,119 @@ class MainWindow(QMainWindow):
             if key == "observe_interval_s" and getattr(self, "_observe_timer", None) is not None:
                 self._observe_timer.start(nxt * 1000)
             self._push_mode_tools()
+            self._refresh_char_tools()
         elif action == "__look__":
             self._last_screen_hash = None
             self._maybe_observe()
         else:
             self._run_quick_action(action)
 
-    def _select_mode(self, key: str) -> None:
-        cur = self._current_mode_name()
-        wheel = {"friday": self._mode_buttons.get(Mode.AUTOMATIC) if AI_AVAILABLE else None,
-                 "tars": self._mode_buttons.get(Mode.SERIOUS) if AI_AVAILABLE else None,
-                 "gideon": self._mode_buttons.get(Mode.DEEP_THINKING) if AI_AVAILABLE else None,
-                 "edith": self.observe_toggle_btn, "sonar": self.song_toggle_btn, "minority": self.video_toggle_btn}
-        if key in wheel:                     # same as pressing the old button
-            btn = wheel[key]
-            if btn is not None and btn.isEnabled():
-                if key in ("friday", "tars", "gideon") and self._current_mode == {"friday": Mode.AUTOMATIC, "tars": Mode.SERIOUS, "gideon": Mode.DEEP_THINKING}[key]:
-                    self._mode_buttons[Mode.NORMAL].click()        # pressing the lit style again goes back to normal
-                else:
-                    btn.click()
+    # ---- Friday / Tars / Gideon: characters that take over like Jarvis and Ultron ---------------------------------
+    def _char_info(self, key: str):
+        from ui import mode_styles as ms
+        return {
+            "friday": (Mode.AUTOMATIC if AI_AVAILABLE else None, ms.FRIDAY_QSS, ("#FF4FA3", "#FF7FBD"), "F R I D A Y",
+                       "Sir, Friday is ready to take over.", "Hi boss. Friday here. What do you need?"),
+            "tars": (Mode.SERIOUS if AI_AVAILABLE else None, ms.TARS_QSS, ("#C9D1D9", "#E6EDF3"), "T A R S",
+                     "Sir, Tars is coming. He will be honest about it.", "Tars online. Humor setting seventy five percent. Honesty, ninety."),
+            "gideon": (Mode.DEEP_THINKING if AI_AVAILABLE else None, ms.GIDEON_QSS, ("#19E3D0", "#4DF0E0"), "G I D E O N",
+                       "Sir, Gideon is coming online.", "Gideon online. Give me something worth thinking about."),
+        }[key]
+
+    def _toggle_char(self, key: str) -> None:
+        if self._style_char == key:
+            self._exit_style_char()
+            self._deliver_reply("Switched back to EV.")
+            return
+        _mode, _qss, _tint, _logo, intro, line = self._char_info(key)
+        self._hand_over(intro, line, key.upper(), lambda: self._enter_style_char(key))
+
+    def _leave_personas(self) -> None:
+        if self._jarvis_on:
+            self._apply_jarvis_ui(False)
+        if self._ultron_on:
+            self._apply_ultron_ui(False)
+        self._leave_game_karen()
+
+    def _enter_style_char(self, key: str) -> None:
+        self._fit_to_screen()
+        if self._style_char and self._style_char != key:
+            self._exit_style_char(silent=True)
+        self._leave_personas()
+        mode, qss, tint, logo, _i, _l = self._char_info(key)
+        self._style_char = key
+        from core import voices
+        voices.set_character(key)
+        self._central.setStyleSheet(qss)
+        self.ai_core.set_tint(tint)
+        self._logo_label.setText(logo)
+        self._quick_panel.setVisible(False)
+        self._char_panel.setVisible(True)
+        if mode is not None:
+            self._set_mode(mode)                      # the brain's answer style for this character
+        self._refresh_char_tools()
+        self._sync_mode_button()
+
+    def _exit_style_char(self, silent: bool = False) -> None:
+        if not self._style_char:
+            return
+        self._style_char = None
+        from core import voices
+        voices.set_character(None)
+        self._central.setStyleSheet("")
+        self.ai_core.set_tint(None)
+        self._logo_label.setText(settings.APP_NAME)
+        self._char_panel.setVisible(False)
+        self._quick_panel.setVisible(True)
+        if AI_AVAILABLE:
+            if silent:                                # another mode is taking over: just reset the answer style quietly
+                if self._brain is not None:
+                    self._brain.set_mode(Mode.NORMAL)
+                self._current_mode = Mode.NORMAL
+                for m, btn in self._mode_buttons.items():
+                    btn.setChecked(m == Mode.NORMAL)
             else:
-                self._append_conversation("EV", "That mode isn't available on this computer right now.")
+                self._set_mode(Mode.NORMAL)
+        self._sync_mode_button()
+
+    def _select_mode(self, key: str) -> None:
+        """A segment of the mode wheel was clicked."""
+        personas = {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
+                    "game": self._toggle_game, "karen": self._toggle_karen}
+        cur = self._current_mode_name()
+        if key == "ev":                                   # home: everything off
+            if self._observing:
+                self._stop_observation()
+            if self._style_char:
+                self._exit_style_char()
+            if cur in personas:
+                personas[cur]()
             return
-        if key in ("ev", "jarvis", "ultron", "game", "karen") and self._observing:
-            self._stop_observation()         # these screens need the full window, not the small overlay
-        if key in ("jarvis", "ultron", "game", "karen") and AI_AVAILABLE and self._current_mode in (Mode.AUTOMATIC, Mode.SERIOUS, Mode.DEEP_THINKING):
-            self._mode_buttons[Mode.NORMAL].click()
-        if key == "ev":                      # back home: leave the character and go back to the normal answer style
-            if AI_AVAILABLE and self._current_mode in (Mode.AUTOMATIC, Mode.SERIOUS, Mode.DEEP_THINKING):
-                self._mode_buttons[Mode.NORMAL].click()
-            if key == cur:
+        if key in ("friday", "tars", "gideon"):
+            if self._observing:
+                self._stop_observation()
+            self._toggle_char(key)
+            return
+        if key == "edith":
+            if not AI_AVAILABLE:
+                self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
                 return
-            {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
-             "game": self._toggle_game, "karen": self._toggle_karen}.get(cur, lambda: None)()
+            self._toggle_observation()
             return
-        if key == cur:
+        if key == "sonar":
+            self._toggle_song_mode()
             return
-        {"jarvis": self._toggle_jarvis, "ultron": self._toggle_ultron,
-         "game": self._toggle_game, "karen": self._toggle_karen}[key]()
+        if key == "minority":
+            if not GESTURE_AVAILABLE:
+                self._append_conversation("EV", "Minority mode needs the camera packages, which aren't installed.")
+                return
+            self._toggle_video_mode()
+            return
+        if key in personas:
+            if self._observing:
+                self._stop_observation()                   # these screens need the full window, not the overlay
+            if key != cur:
+                personas[key]()
 
     def _hand_over(self, intro: str, line: str, speaker: str, apply_ui, cut_off: str | None = None):
         """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice.
@@ -1611,6 +1695,8 @@ class MainWindow(QMainWindow):
                             "KAREN", lambda: self._apply_karen_ui(True))
 
     def _apply_game_ui(self, on: bool, announce: bool = False):
+        if on:
+            self._exit_style_char(silent=True)
         self._fit_to_screen()
         if on:
             if self._jarvis_on:
@@ -1634,6 +1720,8 @@ class MainWindow(QMainWindow):
             self._deliver_reply("Switched back to EV.")
 
     def _apply_karen_ui(self, on: bool, announce: bool = False):
+        if on:
+            self._exit_style_char(silent=True)
         self._fit_to_screen()
         if on:
             if self._jarvis_on:
@@ -1709,6 +1797,8 @@ class MainWindow(QMainWindow):
                             "ULTRON", lambda: self._apply_ultron_ui(True), cut_off="Sir, Ultron is coming. Please be car")
 
     def _apply_ultron_ui(self, on: bool, announce: bool = False):
+        if on:
+            self._exit_style_char(silent=True)
         self._fit_to_screen()
         """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
         if on and self._jarvis_on:
@@ -1755,6 +1845,8 @@ class MainWindow(QMainWindow):
         self._sync_corner_ui()
 
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
+        if on:
+            self._exit_style_char(silent=True)
         self._fit_to_screen()
         if on and getattr(self, "_ultron_on", False):
             self._apply_ultron_ui(False)
