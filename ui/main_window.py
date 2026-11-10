@@ -966,6 +966,29 @@ class MainWindow(QMainWindow):
             if command not in ("__clear__", "__save__"):
                 self._busy_disable_widgets.append(btn)
 
+        # EV's own everyday tools (these work without the internet, except the briefing and PC status)
+        ev_tools_title = QLabel("EV TOOLS")
+        ev_tools_title.setObjectName("SectionTitle")
+        p_layout.addWidget(ev_tools_title)
+        ev_grid = QGridLayout()
+        ev_grid.setSpacing(5)
+        ev_tools = [
+            ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
+            ("My notes", "show my notes"), ("Add a to-do", "prefill:add to-do: "), ("Set a timer", "prefill:set a timer for "),
+            ("Flip a coin", "flip a coin"), ("Roll a dice", "roll a dice"), ("Tell a joke", "tell me a joke"),
+            ("Convert units", "prefill:convert 5 km to miles"), ("Start stopwatch", "start stopwatch"), ("Stop stopwatch", "stop stopwatch"),
+            ("Days until...", "prefill:how many days until 25 december"), ("PC status", "how is my computer doing right now?"),
+        ]
+        for i, (label, command) in enumerate(ev_tools):
+            b = HoverButton(label)
+            b.setMinimumHeight(28)
+            b.setStyleSheet(_COMPACT_BTN)
+            b.clicked.connect(lambda _, c=command: self._run_quick_action(c))
+            ev_grid.addWidget(b, i // 2, i % 2)
+            if not command.startswith("prefill:"):
+                self._busy_disable_widgets.append(b)
+        p_layout.addLayout(ev_grid)
+
         p_layout.addStretch(1)
         self._quick_panel = panel
         layout.addWidget(panel, 1)
@@ -1026,6 +1049,10 @@ class MainWindow(QMainWindow):
             return
         if command == "__save__":
             self._save_conversation()
+            return
+        if command.startswith("prefill:"):        # fill the box so you can finish the sentence
+            self.command_input.setText(command[len("prefill:"):])
+            self.command_input.setFocus()
             return
         self.handle_user_input(command)
 
