@@ -1785,9 +1785,14 @@ class MainWindow(QMainWindow):
             self._karen_push_sites(self._karen.data["blocked_sites"])
 
     def _hack_terminal_hint(self):
-        self.command_input.setText("> ")
-        self.command_input.setFocus()
-        self._hack_line("[CMD] Terminal ready. Type a Windows command after the > and press Enter, for example: > ipconfig   or   > dir", "info")
+        """OPEN TERMINAL: the green Termlink window. Left: your code or command. Right: what Ultron does with it."""
+        from ui.ultron_terminal import UltronTerminal
+        if getattr(self, "_ultron_term", None) is None:
+            self._ultron_term = UltronTerminal(self._hack, self)
+            self._ultron_term.finished.connect(lambda *_: setattr(self, "_ultron_term", None))
+        self._ultron_term.show()
+        self._ultron_term.raise_()
+        self._ultron_term.activateWindow()
 
     def _toggle_ultron(self):
         if self._ultron_on:

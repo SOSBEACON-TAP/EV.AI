@@ -4,6 +4,8 @@ NEW
 - Friday, Tars and Gideon now switch like Jarvis and Ultron: EV announces the switch, the character takes over and talks in its own voice, the whole window changes colour (Friday pink, Tars steel, Gideon teal), and that character's tools appear on the right in place of Quick Actions. Click the mode again in the wheel, or choose EV, to go back.
 - Edith keeps the small overlay (with its tools) and now starts straight from the wheel.
 
+- Ultron's OPEN TERMINAL now opens a green terminal window like an old Fallout computer (scan lines, hex line addresses). It has two columns: 1. EXPLAIN CODE, where you type or paste code, and 2. OUTPUT, where Ultron explains the code step by step and points out bugs and risks. Start a line with > to run it as a Windows command instead; its output shows in column 2. Ctrl+Enter explains, Esc closes.
+
 FIXES
 - EV TOOLS under Quick Actions is now just the COMPUTER button (control this PC from your phone). The coin, dice, joke and similar buttons are gone from the screen; they still work if you type or say them.
 - The right-hand panel was cut off at the edge. Columns now scroll sideways if the window is too narrow, and the COMPUTER label is shorter.

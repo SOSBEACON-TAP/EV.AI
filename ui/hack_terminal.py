@@ -655,6 +655,45 @@ class HackCore(QObject):
             self.say.emit(str(reply)[:400])
         self._run("AI Defender thinking", lambda _p: brain.ask(self._context() + text), done)
 
+    # ----- used by the Ultron terminal window (it shows the result itself, not in the conversation)
+    def _get_brain(self):
+        if self._brain is None:
+            try:
+                from core.brain import Brain
+                self._brain = Brain(router=None)
+            except Exception:
+                self._brain = False
+        return self._brain if (self._brain and getattr(self._brain, "is_configured", False)) else None
+
+    def _quiet_job(self, fn, on_done, on_fail):
+        job = _Job(fn, self)
+        job.failed.connect(lambda e: on_fail(e))
+        job.finished_ok.connect(lambda r: on_done(r))
+        job.finished.connect(lambda: self._jobs.remove(job) if job in self._jobs else None)
+        self._jobs.append(job)
+        job.start()
+
+    def explain_code(self, code: str, on_done, on_fail):
+        """Ultron explains the code that was typed or pasted. on_done(text) / on_fail(text)."""
+        brain = self._get_brain()
+        if brain is None:
+            on_fail("No AI key is set, so I can't explain code. Add a key in Settings. I can still run commands: start a line with >")
+            return
+        prompt = ("You are ULTRON inside EV AI, explaining code to its owner. Explain the code below in plain text, no markdown: "
+                  "first one line saying what it does overall, then go through it step by step, then list any bugs or security "
+                  "risks you notice. Be concise and a little cold in tone. Only explain; do not write new malware or exploits.\n\nCODE:\n"
+                  + code[:6000])
+        self._quiet_job(lambda _p: brain.ask(prompt), lambda r: on_done(str(r)), on_fail)
+
+    def run_command(self, cmd: str, on_done, on_fail) -> bool:
+        """Runs one Windows command and hands the output to on_done. Asks first if it can delete data or change the system."""
+        if shellmod.is_dangerous(cmd):
+            if QMessageBox.warning(self.w, "Run this command?", f"This command can delete data or change the system:\n\n{cmd}\n\nRun it?",
+                                   QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:
+                return False
+        self._quiet_job(lambda _p: self.shell.run(cmd), lambda r: on_done(str(r)), on_fail)
+        return True
+
     def stop(self):
         self._typer.stop()
         for j in list(self._jobs):

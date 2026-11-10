@@ -1,0 +1,222 @@
+"""ULTRON TERMLINK: a green phosphor terminal window.
+Left column: the code (or command) you type or paste, with hex line addresses.
+Right column: what Ultron does with it: an explanation of the code, or the output of a command."""
+from __future__ import annotations
+
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor
+from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QTextEdit, QVBoxLayout, QWidget)
+
+GREEN = "#3DFF7A"
+DIM = "#1F9A47"
+BG = "#020E06"
+_QSS = f"""
+QDialog {{ background: {BG}; }}
+QLabel {{ color: {GREEN}; font-family: Consolas, 'Courier New', monospace; font-size: 13px; }}
+QLabel#Dim {{ color: {DIM}; font-size: 11px; }}
+QLabel#ColTitle {{ color: {GREEN}; font-size: 13px; letter-spacing: 2px; border-bottom: 1px solid {DIM}; padding-bottom: 3px; }}
+QPlainTextEdit, QTextEdit {{ background: #03160A; color: {GREEN}; border: 1px solid {DIM};
+    font-family: Consolas, 'Courier New', monospace; font-size: 13px; selection-background-color: {GREEN}; selection-color: #021006; }}
+QPushButton {{ background: transparent; color: {GREEN}; border: 1px solid {DIM}; padding: 6px 14px;
+    font-family: Consolas, 'Courier New', monospace; font-size: 12px; letter-spacing: 1px; }}
+QPushButton:hover {{ background: {GREEN}; color: #021006; }}
+QPushButton:disabled {{ color: #145c2c; border-color: #0d3a1c; }}
+"""
+
+
+class _Gutter(QWidget):
+    def __init__(self, editor: "CodeEdit"):
+        super().__init__(editor)
+        self._ed = editor
+
+    def sizeHint(self) -> QSize:
+        return QSize(self._ed.gutter_width(), 0)
+
+    def paintEvent(self, e) -> None:
+        self._ed.paint_gutter(e)
+
+
+class CodeEdit(QPlainTextEdit):
+    """A code box whose line numbers are hex addresses (0x5000, 0x5010, ...), like the terminal in the picture."""
+
+    def __init__(self):
+        super().__init__()
+        self._gutter = _Gutter(self)
+        self.blockCountChanged.connect(self._update_width)
+        self.updateRequest.connect(self._scroll_gutter)
+        self._update_width()
+        f = QFont("Consolas", 11)
+        f.setStyleHint(QFont.Monospace)
+        self.setFont(f)
+        self.setLineWrapMode(QPlainTextEdit.NoWrap)
+
+    def gutter_width(self) -> int:
+        return 12 + self.fontMetrics().horizontalAdvance("0x0000")
+
+    def _update_width(self) -> None:
+        self.setViewportMargins(self.gutter_width(), 0, 0, 0)
+
+    def _scroll_gutter(self, rect, dy) -> None:
+        if dy:
+            self._gutter.scroll(0, dy)
+        else:
+            self._gutter.update(0, rect.y(), self._gutter.width(), rect.height())
+        if rect.contains(self.viewport().rect()):
+            self._update_width()
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        cr = self.contentsRect()
+        self._gutter.setGeometry(QRect(cr.left(), cr.top(), self.gutter_width(), cr.height()))
+
+    def paint_gutter(self, e) -> None:
+        p = QPainter(self._gutter)
+        p.fillRect(e.rect(), QColor("#021208"))
+        p.setPen(QColor(DIM))
+        block = self.firstVisibleBlock()
+        n = block.blockNumber()
+        top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+        bottom = top + round(self.blockBoundingRect(block).height())
+        while block.isValid() and top <= e.rect().bottom():
+            if block.isVisible() and bottom >= e.rect().top():
+                p.drawText(0, top, self._gutter.width() - 6, self.fontMetrics().height(), Qt.AlignRight, f"0x{0x5000 + n * 0x10:04X}")
+            block = block.next()
+            top = bottom
+            bottom = top + round(self.blockBoundingRect(block).height())
+            n += 1
+
+
+class _Scanlines(QWidget):
+    """Faint horizontal lines over everything, like an old monitor. Lets clicks through."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+    def paintEvent(self, _e) -> None:
+        p = QPainter(self)
+        p.setPen(QColor(0, 0, 0, 55))
+        for y in range(0, self.height(), 3):
+            p.drawLine(0, y, self.width(), y)
+
+
+class UltronTerminal(QDialog):
+    def __init__(self, core, parent=None):
+        super().__init__(parent)
+        self._core = core
+        self.setWindowTitle("ULTRON TERMLINK")
+        self.resize(1040, 640)
+        self.setStyleSheet(_QSS)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 14, 18, 12)
+        root.setSpacing(8)
+
+        root.addWidget(QLabel("Welcome to ULTRON Industries (TM) Termlink"))
+        root.addWidget(QLabel("Terminal ready. Attempts remaining: ■ ■ ■"))
+        hint = QLabel("Left: type or paste code and press EXPLAIN. Or start a line with > to run it as a Windows command.")
+        hint.setObjectName("Dim")
+        root.addWidget(hint)
+
+        cols = QHBoxLayout()
+        cols.setSpacing(16)
+        left, right = QVBoxLayout(), QVBoxLayout()
+        lt = QLabel("1.  EXPLAIN CODE   (your input)")
+        lt.setObjectName("ColTitle")
+        rt = QLabel("2.  OUTPUT   (what Ultron does)")
+        rt.setObjectName("ColTitle")
+        self.code = CodeEdit()
+        self.code.setPlaceholderText("Paste code here...\n> ipconfig")
+        self.out = QTextEdit()
+        self.out.setReadOnly(True)
+        left.addWidget(lt)
+        left.addWidget(self.code, 1)
+        right.addWidget(rt)
+        right.addWidget(self.out, 1)
+        cols.addLayout(left, 1)
+        cols.addLayout(right, 1)
+        root.addLayout(cols, 1)
+
+        row = QHBoxLayout()
+        self.explain_btn = QPushButton("EXPLAIN CODE   (Ctrl+Enter)")
+        self.explain_btn.clicked.connect(self.explain)
+        self.run_btn = QPushButton("RUN LINE AS COMMAND")
+        self.run_btn.clicked.connect(self.run_line)
+        clear_btn = QPushButton("CLEAR")
+        clear_btn.clicked.connect(self._clear)
+        exit_btn = QPushButton("[Esc] EXIT")
+        exit_btn.clicked.connect(self.close)
+        for b in (self.explain_btn, self.run_btn, clear_btn):
+            row.addWidget(b)
+        row.addStretch(1)
+        row.addWidget(exit_btn)
+        root.addLayout(row)
+
+        self._scan = _Scanlines(self)
+        self._scan.raise_()
+        self._say("ULTRON", "Give me code and I will tell you what it does, and what is wrong with it.")
+
+    # -- helpers ------------------------------------------------------------------------------
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        self._scan.setGeometry(self.rect())
+        self._scan.raise_()
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() == Qt.Key_Escape:
+            self.close()
+        elif e.key() in (Qt.Key_Return, Qt.Key_Enter) and e.modifiers() & Qt.ControlModifier:
+            self.explain()
+        else:
+            super().keyPressEvent(e)
+
+    def _say(self, who: str, text: str, color: str = GREEN) -> None:
+        import html
+        for ln in str(text).splitlines() or [""]:
+            safe = html.escape(ln).replace("  ", "&nbsp;&nbsp;")
+            self.out.append(f'<span style="color:{color}">&gt;{safe}</span>' if ln.strip() else "")
+        self.out.moveCursor(QTextCursor.End)
+
+    def _clear(self) -> None:
+        self.code.clear()
+        self.out.clear()
+
+    def _busy(self, on: bool) -> None:
+        self.explain_btn.setDisabled(on)
+        self.run_btn.setDisabled(on)
+
+    def _current_line(self) -> str:
+        sel = self.code.textCursor().selectedText().replace(" ", "\n").strip()
+        return sel or self.code.textCursor().block().text().strip()
+
+    # -- actions --------------------------------------------------------------------------------
+    def explain(self) -> None:
+        text = self.code.toPlainText().strip()
+        if not text:
+            self._say("ULTRON", "There is nothing to explain. Paste some code on the left.", "#FFB020")
+            return
+        first = text.splitlines()[0].strip()
+        if first.startswith(">") and len(text.splitlines()) == 1:     # a single ">" line is a command, not code
+            self.run_line()
+            return
+        self._say("ULTRON", "Reading your code...", DIM)
+        self._busy(True)
+        self._core.explain_code(
+            text,
+            lambda r: (self._busy(False), self._say("ULTRON", r)),
+            lambda e: (self._busy(False), self._say("ULTRON", e, "#FF5050")))
+
+    def run_line(self) -> None:
+        line = self._current_line()
+        cmd = line[1:].strip() if line.startswith(">") else line
+        if not cmd:
+            self._say("ULTRON", "Put a command on a line, for example: > ipconfig", "#FFB020")
+            return
+        self._say("ULTRON", f"{self._core.shell.cwd}> {cmd}", DIM)
+        self._busy(True)
+        started = self._core.run_command(
+            cmd,
+            lambda r: (self._busy(False), self._say("ULTRON", r or "(no output)")),
+            lambda e: (self._busy(False), self._say("ULTRON", e, "#FF5050")))
+        if not started:
+            self._busy(False)
+            self._say("ULTRON", "Cancelled.", "#FFB020")
