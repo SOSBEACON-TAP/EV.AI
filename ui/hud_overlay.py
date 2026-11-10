@@ -228,7 +228,7 @@ class _VideoPanel(QWidget):
         root.setContentsMargins(14, 16, 14, 16)
         root.setSpacing(10)
 
-        title = QLabel("VIDEO MODE")
+        title = QLabel("MINORITY MODE")
         title.setStyleSheet("color: #bfe6ff; font-size: 12px; font-weight: 600; letter-spacing: 2px;")
         root.addWidget(title)
 
@@ -241,12 +241,12 @@ class _VideoPanel(QWidget):
         self.preview.setVisible(False)   # the live camera now has its own small window (ui/video_view.py)
         frame_layout.addWidget(self.preview, alignment=Qt.AlignCenter)
 
-        self.status_label = QLabel("Video mode is off")
+        self.status_label = QLabel("Minority mode is off")
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet("color: #8fd0ff; font-size: 10px;")
         frame_layout.addWidget(self.status_label)
 
-        self.toggle_btn = QPushButton("🤚 VIDEO: OFF")
+        self.toggle_btn = QPushButton("🤚 MINORITY: OFF")
         self.toggle_btn.setFixedHeight(30)
         self.toggle_btn.setStyleSheet(
             "QPushButton { background: rgba(100,180,255,25); color: #bfe6ff; "
@@ -260,10 +260,10 @@ class _VideoPanel(QWidget):
 
     # -- public API -----------------------------------------------------
     def set_active(self, active: bool) -> None:
-        self.toggle_btn.setText("🤚 VIDEO: ON" if active else "🤚 VIDEO: OFF")
+        self.toggle_btn.setText("🤚 MINORITY: ON" if active else "🤚 MINORITY: OFF")
         if not active:
             self.preview.clear_frame()
-            self.status_label.setText("Video mode is off")
+            self.status_label.setText("Minority mode is off")
 
     def set_status(self, text: str) -> None:
         self.status_label.setText(text)
@@ -340,7 +340,7 @@ class HUDOverlayWidget(QWidget):
             )
             return b
 
-        video_btn = _header_btn("🎥", "Turn Video mode on / off")
+        video_btn = _header_btn("🎥", "Turn Minority mode on / off")
         video_btn.clicked.connect(self.video_toggle_requested.emit)
         header.addWidget(video_btn)
 

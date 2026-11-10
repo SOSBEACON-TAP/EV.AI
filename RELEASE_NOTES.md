@@ -1,3 +1,11 @@
+EV AI 1.0.29
+
+CHANGES
+- Mode names: Automatic is now Friday, Serious is Tars, Deep Thinking is Vision, Observe is Edith, Song is Sonar and Video is Minority.
+- All of them moved into the MODE wheel (now twelve segments). Click a segment to turn it on or off; lit segments are the ones that are on. Normal, Focus, App Insights and File Finder stay in the MODE panel.
+
+---
+
 EV AI 1.0.28
 
 NEW

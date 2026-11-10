@@ -1,4 +1,4 @@
-"""The mode picker: a ring of ten glowing segments like an arc reactor. Each lit segment is one mode of EV AI;
+"""The mode picker: a ring of twelve glowing segments like an arc reactor. Each lit segment is one mode of EV AI;
 the dark ones are free slots for modes that are coming later. Click a lit segment to switch to that mode."""
 from __future__ import annotations
 
@@ -8,20 +8,20 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import QDialog
 
-SLOTS = 10
+SLOTS = 12
 
 
 class ModePicker(QDialog):
     chosen = Signal(str)
 
-    def __init__(self, parent, modes: list[tuple[str, str]], current: str):
+    def __init__(self, parent, modes: list[tuple[str, str]], active: set[str]):
         super().__init__(parent, Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setModal(True)
         self.setMouseTracking(True)
         self.resize(580, 580)
         self._modes = modes[:SLOTS]
-        self._current = current
+        self._active = set(active)
         self._hover = -1
 
     # -- geometry -------------------------------------------------------------------------------
@@ -88,7 +88,7 @@ class ModePicker(QDialog):
             ang = math.radians(i * 360 / SLOTS)
             r = 238
             x, y = c.x() + r * math.sin(ang), c.y() - r * math.cos(ang)
-            p.setPen(QColor(150, 225, 255) if i == self._hover or self._modes[i][0] == self._current else QColor(120, 150, 175))
+            p.setPen(QColor(150, 225, 255) if i == self._hover or self._modes[i][0] in self._active else QColor(120, 150, 175))
             p.drawText(QRectF(x - 50, y - 10, 100, 20), Qt.AlignCenter, label)
         # the glowing core in the middle
         g = QRadialGradient(c, 92)
@@ -107,9 +107,11 @@ class ModePicker(QDialog):
         if 0 <= self._hover < len(self._modes):
             name = self._modes[self._hover][1]
         else:
-            for k, label in self._modes:
-                if k == self._current:
-                    name = label
+            on = [label for k, label in self._modes if k in self._active]
+            if len(on) == 1:
+                name = on[0]
+            elif on:
+                name = f"{len(on)} ON"
         f2 = QFont("Segoe UI", 10)
         f2.setBold(True)
         f2.setLetterSpacing(QFont.AbsoluteSpacing, 2)
@@ -120,12 +122,12 @@ class ModePicker(QDialog):
 
     def _coil(self, p: QPainter, c: QPointF, i: int) -> None:
         used = i < len(self._modes)
-        active = used and self._modes[i][0] == self._current
+        active = used and self._modes[i][0] in self._active
         hot = used and i == self._hover
         p.save()
         p.translate(c)
         p.rotate(i * 360 / SLOTS)
-        rect = QRectF(-24, -190, 48, 62)
+        rect = QRectF(-20, -190, 40, 62)
         if used:
             base = QColor(90, 210, 255) if (active or hot) else QColor(30, 120, 215)
             edge = QColor(190, 240, 255) if (active or hot) else QColor(90, 170, 235)

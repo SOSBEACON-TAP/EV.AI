@@ -513,7 +513,7 @@ class MainWindow(QMainWindow):
             slot = 0
             for key in keys:
                 btn = self._home_registry[key]
-                if key in hidden:
+                if key in hidden or key in self._WHEEL_KEYS:       # the wheel holds these now
                     btn.setVisible(False)
                     continue
                 size = sizes.get(key, "M")
@@ -719,9 +719,9 @@ class MainWindow(QMainWindow):
         self._home_registry = {}
         mode_defs = [
             (Mode.NORMAL if AI_AVAILABLE else None, "NORMAL"),
-            (Mode.AUTOMATIC if AI_AVAILABLE else None, "AUTOMATIC"),
-            (Mode.SERIOUS if AI_AVAILABLE else None, "SERIOUS"),
-            (Mode.DEEP_THINKING if AI_AVAILABLE else None, "DEEP THINKING"),
+            (Mode.AUTOMATIC if AI_AVAILABLE else None, "FRIDAY"),
+            (Mode.SERIOUS if AI_AVAILABLE else None, "TARS"),
+            (Mode.DEEP_THINKING if AI_AVAILABLE else None, "VISION"),
         ]
         for i, (mode, label) in enumerate(mode_defs):
             btn = HoverButton(label)
@@ -742,7 +742,7 @@ class MainWindow(QMainWindow):
         tool_grid = QGridLayout()
         self._tool_grid = tool_grid
         tool_grid.setSpacing(5)
-        self.observe_toggle_btn = HoverButton("👁 OBSERVE: OFF")
+        self.observe_toggle_btn = HoverButton("👁 EDITH: OFF")
         self.observe_toggle_btn.setCheckable(True)
         self.observe_toggle_btn.clicked.connect(self._toggle_observation)
         self.observe_toggle_btn.setEnabled(AI_AVAILABLE)
@@ -752,7 +752,7 @@ class MainWindow(QMainWindow):
 
         # Video mode: webcam hand-gesture control. Also toggleable from the
         # HUD's left panel while a HUD mode is up.
-        self.video_toggle_btn = HoverButton("🎥 VIDEO: OFF")
+        self.video_toggle_btn = HoverButton("🎥 MINORITY: OFF")
         self.video_toggle_btn.setCheckable(True)
         self.video_toggle_btn.clicked.connect(self._toggle_video_mode)
         self.video_toggle_btn.setEnabled(GESTURE_AVAILABLE)
@@ -761,7 +761,7 @@ class MainWindow(QMainWindow):
         tool_grid.addWidget(self.video_toggle_btn, 0, 1)
 
         # Song mode: small music-remote panel (play a song, media keys, volume).
-        self.song_toggle_btn = HoverButton("🎵 SONG: OFF")
+        self.song_toggle_btn = HoverButton("🎵 SONAR: OFF")
         self.song_toggle_btn.setCheckable(True)
         self.song_toggle_btn.clicked.connect(self._toggle_song_mode)
         self.song_toggle_btn.setMinimumHeight(30)
@@ -1303,9 +1303,14 @@ class MainWindow(QMainWindow):
             worker.finished_speaking.connect(lambda: QTimer.singleShot(delay_ms, callback))
 
     # ---- mode picker -----------------------------------------------------------------------------
-    MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN")]
+    MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN"),
+                 ("friday", "FRIDAY"), ("tars", "TARS"), ("vision", "VISION"),
+                 ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY")]
+    # the former MODE-panel buttons that now live in the wheel
+    _WHEEL_KEYS = {"automatic", "serious", "deep", "observe", "video", "song"}
+    _PERSONAS = ("ev", "jarvis", "ultron", "game", "karen")
 
-    def _current_mode(self) -> str:
+    def _current_mode_name(self) -> str:
         if self._ultron_on:
             return "ultron"
         if self._jarvis_on:
@@ -1316,22 +1321,53 @@ class MainWindow(QMainWindow):
             return "karen"
         return "ev"
 
+    def _active_modes(self) -> set[str]:
+        """Every wheel segment that is on right now: the persona, the answer style, and the switches."""
+        on = {self._current_mode_persona()}
+        style = {Mode.AUTOMATIC: "friday", Mode.SERIOUS: "tars", Mode.DEEP_THINKING: "vision"} if AI_AVAILABLE else {}
+        if self._current_mode in style:
+            on.add(style[self._current_mode])
+        if self._observing:
+            on.add("edith")
+        if self.song_toggle_btn.isChecked():
+            on.add("sonar")
+        if self.video_toggle_btn.isChecked():
+            on.add("minority")
+        return on
+
+    def _current_mode_persona(self) -> str:
+        return self._current_mode_name()
+
     def _sync_mode_button(self) -> None:
         names = dict(self.MODE_LIST)
-        text = f"◉  MODE: {names.get(self._current_mode(), 'EV')}"
+        text = f"◉  MODE: {names.get(self._current_mode_name(), 'EV')}"
         if self.mode_btn.text() != text:
             self.mode_btn.setText(text)
 
     def _open_mode_picker(self) -> None:
         from ui.mode_picker import ModePicker
-        dlg = ModePicker(self, self.MODE_LIST, self._current_mode())
+        dlg = ModePicker(self, self.MODE_LIST, self._active_modes())
         dlg.chosen.connect(self._select_mode)
         geo = self.geometry()
         dlg.move(geo.center().x() - dlg.width() // 2, geo.center().y() - dlg.height() // 2)
         dlg.exec()
 
     def _select_mode(self, key: str) -> None:
-        cur = self._current_mode()
+        cur = self._current_mode_name()
+        wheel = {"friday": self._mode_buttons.get(Mode.AUTOMATIC) if AI_AVAILABLE else None,
+                 "tars": self._mode_buttons.get(Mode.SERIOUS) if AI_AVAILABLE else None,
+                 "vision": self._mode_buttons.get(Mode.DEEP_THINKING) if AI_AVAILABLE else None,
+                 "edith": self.observe_toggle_btn, "sonar": self.song_toggle_btn, "minority": self.video_toggle_btn}
+        if key in wheel:                     # same as pressing the old button
+            btn = wheel[key]
+            if btn is not None and btn.isEnabled():
+                if key in ("friday", "tars", "vision") and self._current_mode == {"friday": Mode.AUTOMATIC, "tars": Mode.SERIOUS, "vision": Mode.DEEP_THINKING}[key]:
+                    self._mode_buttons[Mode.NORMAL].click()        # pressing the lit style again goes back to normal
+                else:
+                    btn.click()
+            else:
+                self._append_conversation("EV", "That mode isn't available on this computer right now.")
+            return
         if key == cur:
             return
         if key == "ev":                      # back home: switch the current mode off
@@ -1695,10 +1731,10 @@ class MainWindow(QMainWindow):
     def _start_observation(self):
         self._observing = True
         self._last_screen_hash = None
-        self.observe_toggle_btn.setText("👁 OBSERVE: ON")
+        self.observe_toggle_btn.setText("👁 EDITH: ON")
         self.observe_toggle_btn.setChecked(True)
         self._append_conversation(
-            "EV", "(Observation mode on — I'll glance at your screen occasionally. "
+            "EV", "(Edith mode on — I'll glance at your screen occasionally. "
                   "Screenshots are sent to the AI service while this is on.)"
         )
         self._observe_timer = QTimer(self)
@@ -1709,7 +1745,7 @@ class MainWindow(QMainWindow):
 
     def _stop_observation(self):
         self._observing = False
-        self.observe_toggle_btn.setText("👁 OBSERVE: OFF")
+        self.observe_toggle_btn.setText("👁 EDITH: OFF")
         self.observe_toggle_btn.setChecked(False)
         if self._observe_timer is not None:
             self._observe_timer.stop()
@@ -1909,7 +1945,7 @@ class MainWindow(QMainWindow):
 
     def _start_video_mode(self):
         self._video_mode_on = True
-        self.video_toggle_btn.setText("🎥 VIDEO: ON")
+        self.video_toggle_btn.setText("🎥 MINORITY: ON")
         self.video_toggle_btn.setChecked(True)
         if self._hud_overlay is not None:
             self._hud_overlay.set_video_active(True)
@@ -1955,7 +1991,7 @@ class MainWindow(QMainWindow):
             except (TypeError, RuntimeError):
                 pass
             view.close()
-        self.video_toggle_btn.setText("🎥 VIDEO: OFF")
+        self.video_toggle_btn.setText("🎥 MINORITY: OFF")
         self.video_toggle_btn.setChecked(False)
         if self._hud_overlay is not None:
             self._hud_overlay.set_video_active(False)
@@ -1974,12 +2010,12 @@ class MainWindow(QMainWindow):
         self._song_panel = SongPanel()
         self._song_panel.closed.connect(self._on_song_panel_closed)
         self._song_panel.show_at_corner()
-        self.song_toggle_btn.setText("🎵 SONG: ON")
+        self.song_toggle_btn.setText("🎵 SONAR: ON")
         self.song_toggle_btn.setChecked(True)
 
     def _on_song_panel_closed(self):
         self._song_panel = None
-        self.song_toggle_btn.setText("🎵 SONG: OFF")
+        self.song_toggle_btn.setText("🎵 SONAR: OFF")
         self.song_toggle_btn.setChecked(False)
 
     def _on_gesture_status(self, text: str):

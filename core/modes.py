@@ -25,9 +25,9 @@ class Mode(Enum):
     def label(self) -> str:
         return {
             Mode.NORMAL: "NORMAL",
-            Mode.AUTOMATIC: "AUTOMATIC",
-            Mode.SERIOUS: "SERIOUS",
-            Mode.DEEP_THINKING: "DEEP THINKING",
+            Mode.AUTOMATIC: "FRIDAY",
+            Mode.SERIOUS: "TARS",
+            Mode.DEEP_THINKING: "VISION",
             Mode.STUDY: "FOCUS",
             Mode.JARVIS: "JARVIS",
             Mode.ULTRON: "ULTRON",
