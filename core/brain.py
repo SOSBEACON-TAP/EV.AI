@@ -196,6 +196,15 @@ class Brain:
                 extra += convo_memory.prompt_block()
             except Exception:
                 pass
+        if self.mode == Mode.SERIOUS:
+            try:
+                from core import user_prefs as _up
+                extra += (f"\n\nYou are TARS. Humor setting: {int(_up.get('tars_humor'))} percent. Honesty setting: "
+                          f"{int(_up.get('tars_honesty'))} percent. Speak in short, dry, matter-of-fact sentences. At high humor add "
+                          "a dry one-line joke now and then; at low humor none. At high honesty be blunt and give the plain truth, "
+                          "including bad news; at lower honesty be more diplomatic.")
+            except Exception:
+                pass
         return SYSTEM_PROMPT + PROMPT_ADDITIONS.get(self.mode, "") + extra
 
     def _effective_max_tokens(self) -> int:

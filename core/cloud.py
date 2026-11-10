@@ -47,7 +47,7 @@ create policy "own row delete" on public.user_data for delete using (auth.uid() 
 # Only these settings travel between devices (looks, voice, behaviour). Nothing secret, nothing device-specific.
 SYNC_PREFS = (
     "theme", "speak_replies", "always_on_top", "minimize_to_tray", "global_hotkey", "briefing_on_start", "offline_first",
-    "hover_sound", "profile", "auto_check_updates", "observe_interval_s", "personality", "voice_per_personality",
+    "hover_sound", "profile", "auto_check_updates", "observe_interval_s", "tars_humor", "tars_honesty", "personality", "voice_per_personality",
     "voice_professional", "voice_friendly", "voice_humorous", "battery_alerts", "long_term_memory",
     "font_scale", "window_opacity", "custom_accent1", "custom_accent2", "custom_bg", "presets_json", "home_hidden",
     "home_sizes", "focus_blocked", "focus_action", "confirm_before_sending", "usb_alert",

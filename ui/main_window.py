@@ -1346,11 +1346,65 @@ class MainWindow(QMainWindow):
 
     def _open_mode_picker(self) -> None:
         from ui.mode_picker import ModePicker
-        dlg = ModePicker(self, self.MODE_LIST, self._active_modes())
+        dlg = ModePicker(self if self.isVisible() else None, self.MODE_LIST, self._active_modes())
+        dlg.setWindowFlag(Qt.WindowStaysOnTopHint, True)       # the overlay is always on top, so the wheel must be too
         dlg.chosen.connect(self._select_mode)
-        geo = self.geometry()
+        geo = self.geometry() if self.isVisible() else QApplication.primaryScreen().availableGeometry()
         dlg.move(geo.center().x() - dlg.width() // 2, geo.center().y() - dlg.height() // 2)
         dlg.exec()
+
+    # ---- the tools of each mode (shown on the overlay that Friday, Tars, Gideon and Edith use) -----------------
+    _CYCLES = {"__interval__": ("observe_interval_s", (10, 20, 60)), "__humor__": ("tars_humor", (0, 25, 50, 75, 100)),
+               "__honesty__": ("tars_honesty", (50, 70, 90, 100))}
+
+    def _mode_tools(self) -> tuple[str, list]:
+        mode = self._current_mode if AI_AVAILABLE else None
+        if mode == Mode.AUTOMATIC:
+            return "FRIDAY TOOLS", [
+                ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
+                ("My notes", "show my notes"),
+                ("Add a to-do", "prefill:add to-do: "), ("Set a timer", "prefill:set a timer for "),
+                ("PC status", "how is my computer doing right now?"), ("Open Chrome", "open chrome")]
+        if mode == Mode.SERIOUS:
+            return "TARS TOOLS", [
+                (f"Humor {int(user_prefs.get('tars_humor'))}%  (tap to change)", "__humor__"),
+                (f"Honesty {int(user_prefs.get('tars_honesty'))}%  (tap to change)", "__honesty__"),
+                ("Status report", "Give me a short, blunt status report on my computer."),
+                ("Be blunt", "prefill:Tell me honestly, no sugar-coating: ")]
+        if mode == Mode.DEEP_THINKING:
+            return "GIDEON TOOLS", [
+                ("Think it through", "prefill:Think deeply and step by step about: "),
+                ("Pros and cons", "prefill:Give me the pros and cons of: "),
+                ("Make a plan", "prefill:Make a detailed step-by-step plan to: "),
+                ("Explain simply", "prefill:Explain this simply, like I am new to it: "),
+                ("Compare", "prefill:Compare these and tell me which is better and why: "),
+                ("Check my idea", "prefill:Find the weak points in this idea: ")]
+        if self._observing:
+            return "EDITH TOOLS", [
+                ("Look at my screen now", "__look__"),
+                (f"Looks every {int(user_prefs.get('observe_interval_s'))} s  (tap)", "__interval__"),
+                ("What am I doing?", "prefill:Based on my screen, what am I doing and what should I do next? ")]
+        return "", []
+
+    def _push_mode_tools(self) -> None:
+        if self._hud_overlay is not None:
+            title, tools = self._mode_tools()
+            self._hud_overlay.set_mode_tools(title, tools)
+
+    def _on_mode_tool(self, action: str) -> None:
+        if action in self._CYCLES:
+            key, steps = self._CYCLES[action]
+            cur = int(user_prefs.get(key))
+            nxt = steps[(steps.index(cur) + 1) % len(steps)] if cur in steps else steps[0]
+            user_prefs.set_value(key, nxt)
+            if key == "observe_interval_s" and getattr(self, "_observe_timer", None) is not None:
+                self._observe_timer.start(nxt * 1000)
+            self._push_mode_tools()
+        elif action == "__look__":
+            self._last_screen_hash = None
+            self._maybe_observe()
+        else:
+            self._run_quick_action(action)
 
     def _select_mode(self, key: str) -> None:
         cur = self._current_mode_name()
@@ -1368,6 +1422,10 @@ class MainWindow(QMainWindow):
             else:
                 self._append_conversation("EV", "That mode isn't available on this computer right now.")
             return
+        if key in ("ev", "jarvis", "ultron", "game", "karen") and self._observing:
+            self._stop_observation()         # these screens need the full window, not the small overlay
+        if key in ("jarvis", "ultron", "game", "karen") and AI_AVAILABLE and self._current_mode in (Mode.AUTOMATIC, Mode.SERIOUS, Mode.DEEP_THINKING):
+            self._mode_buttons[Mode.NORMAL].click()
         if key == "ev":                      # back home: leave the character and go back to the normal answer style
             if AI_AVAILABLE and self._current_mode in (Mode.AUTOMATIC, Mode.SERIOUS, Mode.DEEP_THINKING):
                 self._mode_buttons[Mode.NORMAL].click()
@@ -1780,6 +1838,8 @@ class MainWindow(QMainWindow):
                 self._hud_overlay.mic_toggle_requested.connect(self._toggle_voice)
                 self._hud_overlay.stop_requested.connect(self._on_stop_clicked)
                 self._hud_overlay.video_toggle_requested.connect(self._toggle_video_mode)
+                self._hud_overlay.mode_picker_requested.connect(self._open_mode_picker)
+                self._hud_overlay.tool_requested.connect(self._on_mode_tool)
             self._hud_overlay.set_state(self._state)
             mode_is_hud_mode = self._current_mode and self._current_mode.uses_hud_overlay
             self._hud_overlay.set_mode_label(
@@ -1789,6 +1849,7 @@ class MainWindow(QMainWindow):
                 self._listener_thread is not None and self._listener_thread.isRunning()
             )
             self._hud_overlay.set_video_active(self._video_mode_on)
+            self._push_mode_tools()
             self._hud_overlay.show_overlay()
             self.hide()
         else:

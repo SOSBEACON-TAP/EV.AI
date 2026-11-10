@@ -258,6 +258,34 @@ class _VideoPanel(QWidget):
 
         root.addWidget(frame)
 
+    def set_mode_tools(self, title: str, tools: list) -> None:
+        """tools: (label, action). An action starting with "prefill:" fills the input box; anything else is sent on."""
+        while self.tools_grid.count():
+            w = self.tools_grid.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        if not tools:
+            self.tools_frame.hide()
+            return
+        self.tools_title.setText(title)
+        for i, (label, action) in enumerate(tools):
+            b = QPushButton(label)
+            b.setFixedHeight(26)
+            b.setStyleSheet("QPushButton { background: rgba(100,180,255,25); color: #bfe6ff; "
+                            "border: 1px solid rgba(120,190,255,70); border-radius: 5px; font-size: 10px; padding: 0 4px; }"
+                            "QPushButton:hover { background: rgba(100,180,255,55); }")
+            b.clicked.connect(lambda _, a=action: self._tool_clicked(a))
+            self.tools_grid.addWidget(b, i // 2, i % 2)
+        self.tools_frame.show()
+        self.adjustSize()
+
+    def _tool_clicked(self, action: str) -> None:
+        if action.startswith("prefill:"):
+            self.input_box.setText(action[len("prefill:"):])
+            self.input_box.setFocus()
+        else:
+            self.tool_requested.emit(action)
+
     # -- public API -----------------------------------------------------
     def set_active(self, active: bool) -> None:
         self.toggle_btn.setText("🤚 MINORITY: ON" if active else "🤚 MINORITY: OFF")
@@ -279,6 +307,8 @@ class HUDOverlayWidget(QWidget):
     mic_toggle_requested = Signal()
     stop_requested = Signal()
     video_toggle_requested = Signal()
+    mode_picker_requested = Signal()
+    tool_requested = Signal(str)
 
     CONTENT_WIDTH = 330
 
@@ -339,6 +369,10 @@ class HUDOverlayWidget(QWidget):
                 "QPushButton:hover { background: rgba(255,255,255,55); }"
             )
             return b
+
+        wheel_btn = _header_btn("◉", "Open the mode wheel")
+        wheel_btn.clicked.connect(self.mode_picker_requested.emit)
+        header.addWidget(wheel_btn)
 
         video_btn = _header_btn("🎥", "Turn Minority mode on / off")
         video_btn.clicked.connect(self.video_toggle_requested.emit)
@@ -425,6 +459,20 @@ class HUDOverlayWidget(QWidget):
             btn.clicked.connect(lambda _, c=command: self.quick_action_requested.emit(c))
             quick_layout.addWidget(btn)
         root.addWidget(quick_frame)
+
+        # Tools of the mode that is on (Friday, Tars, Gideon, Edith)
+        from PySide6.QtWidgets import QGridLayout
+        self.tools_frame = QFrame()
+        self.tools_frame.setStyleSheet(_glass())
+        tl = QVBoxLayout(self.tools_frame)
+        self.tools_title = QLabel("")
+        self.tools_title.setStyleSheet("color: #6fb8e8; font-size: 9px; letter-spacing: 1px;")
+        tl.addWidget(self.tools_title)
+        self.tools_grid = QGridLayout()
+        self.tools_grid.setSpacing(5)
+        tl.addLayout(self.tools_grid)
+        self.tools_frame.hide()
+        root.addWidget(self.tools_frame)
 
         # Recent commands
         recent_frame = QFrame()
