@@ -721,7 +721,7 @@ class MainWindow(QMainWindow):
             (Mode.NORMAL if AI_AVAILABLE else None, "NORMAL"),
             (Mode.AUTOMATIC if AI_AVAILABLE else None, "FRIDAY"),
             (Mode.SERIOUS if AI_AVAILABLE else None, "TARS"),
-            (Mode.DEEP_THINKING if AI_AVAILABLE else None, "VISION"),
+            (Mode.DEEP_THINKING if AI_AVAILABLE else None, "GIDEON"),
         ]
         for i, (mode, label) in enumerate(mode_defs):
             btn = HoverButton(label)
@@ -1304,7 +1304,7 @@ class MainWindow(QMainWindow):
 
     # ---- mode picker -----------------------------------------------------------------------------
     MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN"),
-                 ("friday", "FRIDAY"), ("tars", "TARS"), ("vision", "VISION"),
+                 ("friday", "FRIDAY"), ("tars", "TARS"), ("gideon", "GIDEON"),
                  ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY")]
     # the former MODE-panel buttons that now live in the wheel
     _WHEEL_KEYS = {"automatic", "serious", "deep", "observe", "video", "song"}
@@ -1324,7 +1324,7 @@ class MainWindow(QMainWindow):
     def _active_modes(self) -> set[str]:
         """Every wheel segment that is on right now: the persona, the answer style, and the switches."""
         on = {self._current_mode_persona()}
-        style = {Mode.AUTOMATIC: "friday", Mode.SERIOUS: "tars", Mode.DEEP_THINKING: "vision"} if AI_AVAILABLE else {}
+        style = {Mode.AUTOMATIC: "friday", Mode.SERIOUS: "tars", Mode.DEEP_THINKING: "gideon"} if AI_AVAILABLE else {}
         if self._current_mode in style:
             on.add(style[self._current_mode])
         if self._observing:
@@ -1356,12 +1356,12 @@ class MainWindow(QMainWindow):
         cur = self._current_mode_name()
         wheel = {"friday": self._mode_buttons.get(Mode.AUTOMATIC) if AI_AVAILABLE else None,
                  "tars": self._mode_buttons.get(Mode.SERIOUS) if AI_AVAILABLE else None,
-                 "vision": self._mode_buttons.get(Mode.DEEP_THINKING) if AI_AVAILABLE else None,
+                 "gideon": self._mode_buttons.get(Mode.DEEP_THINKING) if AI_AVAILABLE else None,
                  "edith": self.observe_toggle_btn, "sonar": self.song_toggle_btn, "minority": self.video_toggle_btn}
         if key in wheel:                     # same as pressing the old button
             btn = wheel[key]
             if btn is not None and btn.isEnabled():
-                if key in ("friday", "tars", "vision") and self._current_mode == {"friday": Mode.AUTOMATIC, "tars": Mode.SERIOUS, "vision": Mode.DEEP_THINKING}[key]:
+                if key in ("friday", "tars", "gideon") and self._current_mode == {"friday": Mode.AUTOMATIC, "tars": Mode.SERIOUS, "gideon": Mode.DEEP_THINKING}[key]:
                     self._mode_buttons[Mode.NORMAL].click()        # pressing the lit style again goes back to normal
                 else:
                     btn.click()

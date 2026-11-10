@@ -27,7 +27,7 @@ class Mode(Enum):
             Mode.NORMAL: "NORMAL",
             Mode.AUTOMATIC: "FRIDAY",
             Mode.SERIOUS: "TARS",
-            Mode.DEEP_THINKING: "VISION",
+            Mode.DEEP_THINKING: "GIDEON",
             Mode.STUDY: "FOCUS",
             Mode.JARVIS: "JARVIS",
             Mode.ULTRON: "ULTRON",

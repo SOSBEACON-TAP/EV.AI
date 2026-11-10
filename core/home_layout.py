@@ -12,7 +12,7 @@ from core import user_prefs
 # key, label shown in Settings
 BUTTONS = (
     ("normal", "Normal mode"), ("automatic", "Friday (in the MODE wheel)"), ("serious", "Tars (in the MODE wheel)"),
-    ("deep", "Vision (in the MODE wheel)"), ("observe", "Edith (in the MODE wheel)"), ("video", "Minority (in the MODE wheel)"),
+    ("deep", "Gideon (in the MODE wheel)"), ("observe", "Edith (in the MODE wheel)"), ("video", "Minority (in the MODE wheel)"),
     ("song", "Sonar (in the MODE wheel)"), ("focus", "Focus"), ("insights", "App Insights"), ("finder", "File Finder"),
 )
 SIZES = {"S": 24, "M": 30, "L": 48}
