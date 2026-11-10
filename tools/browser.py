@@ -56,6 +56,19 @@ def _normalize_url(target: str) -> str:
     return f"https://{target}.com"
 
 
+def _open(url: str) -> None:
+    """Open a page. With the EV AI Chrome extension connected, a site that is already open in Chrome is brought to the front
+    (and a search is shown in that same tab) instead of opening another copy."""
+    try:
+        from core import browser_bridge
+        b = browser_bridge.get()
+        if b is not None and b.connected and b.send({"action": "open_url", "url": url}):
+            return
+    except Exception:
+        pass
+    webbrowser.open(url)
+
+
 def open_website(target: str) -> dict:
     """Open a website. Accepts a full URL, a bare domain (e.g.
     'github.com'), a known site name (e.g. 'youtube', 'gmail'), or a
@@ -70,14 +83,14 @@ def open_website(target: str) -> dict:
     else:
         url = _normalize_url(target)
 
-    webbrowser.open(url)
+    _open(url)
     return {"status": "opened", "url": url}
 
 
 def search_web(query: str) -> dict:
     """Open a web search for `query` in the default browser."""
     url = f"https://www.google.com/search?q={quote_plus(query)}"
-    webbrowser.open(url)
+    _open(url)
     return {"status": "opened", "url": url, "query": query}
 
 
@@ -88,7 +101,7 @@ def open_youtube() -> dict:
 def search_youtube(query: str) -> dict:
     """Open YouTube search results for `query`."""
     url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
-    webbrowser.open(url)
+    _open(url)
     return {"status": "opened", "url": url, "query": query}
 
 

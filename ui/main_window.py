@@ -258,6 +258,8 @@ class MainWindow(QMainWindow):
         self._battery_timer = QTimer(self)
         self._battery_timer.timeout.connect(self._check_battery)
         self._battery_timer.start(60_000)
+        self.ai_core.clicked.connect(self._on_orb_clicked)
+        QTimer.singleShot(0, self._refresh_face)
 
         self._append_conversation("EV", "SYSTEM ONLINE. READY.")
 
@@ -320,7 +322,7 @@ class MainWindow(QMainWindow):
         sa = QScrollArea()
         sa.setWidgetResizable(True)
         sa.setFrameShape(QFrame.NoFrame)
-        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         sa.setStyleSheet("QScrollArea { background: transparent; border: 0; } "
                          "QScrollArea > QWidget > QWidget { background: transparent; } "
                          "QScrollBar:vertical { width: 6px; background: transparent; } "
@@ -707,7 +709,7 @@ class MainWindow(QMainWindow):
         mode_layout = QVBoxLayout(mode_panel)
         mode_layout.setSpacing(5)
         mode_layout.setContentsMargins(12, 8, 12, 8)
-        mode_title = QLabel("MODE")
+        mode_title = QLabel("EV ACTIONS")
         mode_title.setObjectName("SectionTitle")
         mode_layout.addWidget(mode_title)
 
@@ -795,6 +797,12 @@ class MainWindow(QMainWindow):
         tool_grid.addWidget(self.finder_btn, 2, 1)
 
         mode_layout.addLayout(tool_grid)
+        # EV's own feature: control this computer from the phone
+        computer_btn = HoverButton("💻  COMPUTER  (phone control)")
+        computer_btn.setToolTip("Control this computer from your phone")
+        computer_btn.setMinimumHeight(32)
+        computer_btn.clicked.connect(self._open_computer_control)
+        mode_layout.addWidget(computer_btn)
         for key, btn in (("observe", self.observe_toggle_btn), ("video", self.video_toggle_btn),
                          ("song", self.song_toggle_btn), ("focus", self.focus_toggle_btn),
                          ("insights", self.insights_btn), ("finder", self.finder_btn)):
@@ -972,13 +980,6 @@ class MainWindow(QMainWindow):
             if command not in ("__clear__", "__save__"):
                 self._busy_disable_widgets.append(btn)
 
-        # EV's own feature: controlling this computer from the phone.
-        computer_btn = HoverButton("💻  COMPUTER")
-        computer_btn.setToolTip("Control this computer from your phone")
-        computer_btn.setMinimumHeight(38)
-        computer_btn.clicked.connect(self._open_computer_control)
-        p_layout.addWidget(computer_btn)
-
         p_layout.addStretch(1)
         self._quick_panel = panel
         layout.addWidget(panel, 1)
@@ -1118,8 +1119,17 @@ class MainWindow(QMainWindow):
             return
         if getattr(self, "_ultron_on", False):        # Ultron mode: security commands + AI Defender only
             self._append_conversation("You", text)
+            term = getattr(self, "_ultron_term", None)
+            if term is not None and term.wants(text):       # the terminal is open: Ultron codes whatever you say
+                term.request_code(text)
+                return
             self._hack.command(text)
             return
+        if self._style_char == "baymax":
+            from core import baymax
+            mood = baymax.detect_mood(text)
+            if mood:
+                baymax.log("mood", mood)
         self._append_conversation("You", text)
         self._recent_commands.append(text)
         self._recent_commands = self._recent_commands[-5:]
@@ -1336,7 +1346,7 @@ class MainWindow(QMainWindow):
     # ---- mode picker -----------------------------------------------------------------------------
     MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN"),
                  ("friday", "FRIDAY"), ("tars", "TARS"), ("gideon", "GIDEON"),
-                 ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY")]
+                 ("edith", "EDITH"), ("sonar", "SONAR"), ("minority", "MINORITY"), ("baymax", "BAYMAX")]
     # the former MODE-panel buttons that now live in the wheel
     _WHEEL_KEYS = {"normal", "automatic", "serious", "deep", "observe", "video", "song"}
     _PERSONAS = ("ev", "jarvis", "ultron", "game", "karen")
@@ -1368,9 +1378,21 @@ class MainWindow(QMainWindow):
     def _current_mode_persona(self) -> str:
         return self._current_mode_name()
 
+    def _refresh_face(self) -> None:
+        """The orb shows the face of whichever mode is on (EV: the red and blue orb)."""
+        self.ai_core.set_face(self._current_mode_name())
+
+    def _on_orb_clicked(self) -> None:
+        if self._style_char == "edith":                 # click the glasses: Edith's HUD goes on, or off
+            if not AI_AVAILABLE:
+                self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
+                return
+            self._toggle_observation()
+
     def _sync_mode_button(self) -> None:
+        self._refresh_face()
         names = dict(self.MODE_LIST)
-        text = f"◉  MODE: {names.get(self._current_mode_name(), 'EV')}"
+        text = f"◉  MODE: {names.get(self._current_mode_name(), self._current_mode_name().upper())}"
         if self.mode_btn.text() != text:
             self.mode_btn.setText(text)
 
@@ -1410,6 +1432,24 @@ class MainWindow(QMainWindow):
                 ("Explain simply", "prefill:Explain this simply, like I am new to it: "),
                 ("Compare", "prefill:Compare these and tell me which is better and why: "),
                 ("Check my idea", "prefill:Find the weak points in this idea: ")]
+        if key == "baymax":
+            on = "ON" if user_prefs.get("baymax_care") else "OFF"
+            return "BAYMAX CARE", [
+                ("How I feel", "prefill:I feel "), ("Health question", "prefill:I have a health question: "),
+                ("Care dashboard", "__bm_dash__"), ("Log water", "__bm_water__"), ("Took a break", "__bm_break__"),
+                ("PC check-up", "Run a full health check of my computer. Explain any problem in simple words and tell me how to fix it."),
+                ("Comfort me", "prefill:I need some comfort. "),
+                ("Breathe with me", "Guide me through one minute of slow breathing, one short calm line at a time."),
+                (f"Care reminders {on}", "__bm_care__"), ("EMERGENCY", "__bm_sos__")]
+        if key == "overdrive":
+            return "OVERDRIVE TOOLS", [
+                ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
+                ("PC check-up", "Run a full health check of my computer and tell me only what needs attention."),
+                ("My notes", "show my notes"), ("Battery", "check my battery"),
+                ("Think it through", "prefill:Think deeply and step by step about: "),
+                ("Make a plan", "prefill:Make a detailed step-by-step plan to: "),
+                ("Look at screen", "__look__"), ("Care dashboard", "__bm_dash__"),
+                ("Computer control", "__computer__")]
         if key == "edith":
             return "EDITH TOOLS", [
                 ("Look at my screen now", "__look__"),
@@ -1446,9 +1486,29 @@ class MainWindow(QMainWindow):
                 self._observe_timer.start(nxt * 1000)
             self._push_mode_tools()
             self._refresh_char_tools()
+        elif action == "__bm_dash__":
+            from ui.baymax_dialog import BaymaxDialog
+            BaymaxDialog(self).exec()
+        elif action in ("__bm_water__", "__bm_break__"):
+            from core import baymax
+            baymax.log("water" if action == "__bm_water__" else "break")
+            self._deliver_reply("Logged. Well done." if action == "__bm_water__" else "A break is good for you. Logged.", "BAYMAX")
+        elif action == "__bm_care__":
+            user_prefs.set_value("baymax_care", not user_prefs.get("baymax_care"))
+            self._refresh_char_tools()
+        elif action == "__bm_sos__":
+            from ui.baymax_dialog import BaymaxDialog
+            d = BaymaxDialog(self)
+            d._emergency()
+            d.exec()
+        elif action == "__computer__":
+            self._open_computer_control()
         elif action == "__look__":
             self._last_screen_hash = None
-            self._maybe_observe()
+            if self._observing:
+                self._maybe_observe()
+            else:
+                self._on_orb_clicked()
         else:
             self._run_quick_action(action)
 
@@ -1460,6 +1520,12 @@ class MainWindow(QMainWindow):
                        "Sir, Friday is ready to take over.", "Hi boss. Friday here. What do you need?"),
             "tars": (Mode.SERIOUS if AI_AVAILABLE else None, ms.TARS_QSS, ("#C9D1D9", "#E6EDF3"), "T A R S",
                      "Sir, Tars is coming. He will be honest about it.", "Tars online. Humor setting seventy five percent. Honesty, ninety."),
+            "baymax": (Mode.BAYMAX if AI_AVAILABLE else None, ms.BAYMAX_QSS, ("#FF6B6B", "#FFD0D0"), "B A Y M A X",
+                       "Sir, Baymax is coming to look after you.", "Hello. I am Baymax, your personal healthcare companion."),
+            "overdrive": (Mode.OVERDRIVE if AI_AVAILABLE else None, ms.OVERDRIVE_QSS, ("#FF8A00", "#FFD199"), "O V E R D R I V E",
+                          "Sir, Overdrive engaged. You have ninety seconds.", "Overdrive. Everything is online. Go."),
+            "edith": (None, ms.EDITH_QSS, ("#4DA3FF", "#BFDDFF"), "E D I T H",
+                      "Sir, Edith is coming online.", "Edith here. Tap my glasses and I will watch your screen."),
             "gideon": (Mode.DEEP_THINKING if AI_AVAILABLE else None, ms.GIDEON_QSS, ("#19E3D0", "#4DF0E0"), "G I D E O N",
                        "Sir, Gideon is coming online.", "Gideon online. Give me something worth thinking about."),
         }[key]
@@ -1497,10 +1563,78 @@ class MainWindow(QMainWindow):
             self._set_mode(mode)                      # the brain's answer style for this character
         self._refresh_char_tools()
         self._sync_mode_button()
+        self._care_start(key == "baymax")
+        if key == "overdrive":
+            self._od_start()
+
+    # ---- Baymax: gentle care reminders while Baymax is on ----------------------------------------------------------
+    def _care_start(self, on: bool) -> None:
+        t = getattr(self, "_care_timer", None)
+        if t is None:
+            t = self._care_timer = QTimer(self)
+            t.timeout.connect(self._care_tick)
+        self._care_minutes = 0
+        self._care_slept = False
+        (t.start(60_000) if on else t.stop())
+
+    def _care_tick(self) -> None:
+        if self._style_char != "baymax" or not user_prefs.get("baymax_care"):
+            return
+        self._care_minutes += 1
+        if self._care_minutes % 45 == 0:
+            self._deliver_reply("Time for a glass of water. Your body will thank you.", "BAYMAX")
+        elif self._care_minutes % 50 == 25:
+            self._deliver_reply("You have been at the screen a while. Look away for twenty seconds and stretch.", "BAYMAX")
+        if datetime.datetime.now().hour >= 23 and not self._care_slept:
+            self._care_slept = True
+            self._deliver_reply("It is late. Sleep helps your body heal. Shall we rest soon?", "BAYMAX")
+
+    # ---- Overdrive: the combined mode in the middle of the wheel, 90 seconds at a time -------------------------------
+    OVERDRIVE_SECONDS = 90
+    OVERDRIVE_COOLDOWN_S = 300
+
+    def _toggle_overdrive(self) -> None:
+        if self._style_char == "overdrive":
+            self._end_overdrive("Overdrive off.")
+            return
+        wait = int(getattr(self, "_od_ready_at", 0) - time.time())
+        if wait > 0:
+            self._deliver_reply(f"Overdrive is cooling down. {wait // 60} minutes {wait % 60} seconds left.")
+            return
+        self._toggle_char("overdrive")
+
+    def _od_start(self) -> None:                         # called once the Overdrive screen is actually up
+        self._od_left = self.OVERDRIVE_SECONDS
+        t = getattr(self, "_od_timer", None)
+        if t is None:
+            t = self._od_timer = QTimer(self)
+            t.timeout.connect(self._od_tick)
+        t.start(1000)
+
+    def _od_tick(self) -> None:
+        if self._style_char != "overdrive":
+            self._od_timer.stop()
+            return
+        self._od_left -= 1
+        self._logo_label.setText(f"O V E R D R I V E   {self._od_left // 60}:{self._od_left % 60:02d}")
+        if self._od_left <= 0:
+            self._end_overdrive("Overdrive complete. Cooling down for five minutes.")
+
+    def _end_overdrive(self, msg: str) -> None:
+        t = getattr(self, "_od_timer", None)
+        if t is not None:
+            t.stop()
+        self._od_ready_at = time.time() + self.OVERDRIVE_COOLDOWN_S
+        if self._style_char == "overdrive":
+            self._exit_style_char()
+        self._deliver_reply(msg)
 
     def _exit_style_char(self, silent: bool = False) -> None:
         if not self._style_char:
             return
+        if self._style_char == "edith" and self._observing:
+            self._stop_observation()
+        self._care_start(False)
         self._style_char = None
         from core import voices
         voices.set_character(None)
@@ -1538,11 +1672,16 @@ class MainWindow(QMainWindow):
                 self._stop_observation()
             self._toggle_char(key)
             return
-        if key == "edith":
-            if not AI_AVAILABLE:
-                self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
-                return
-            self._toggle_observation()
+        if key in ("baymax", "overdrive"):
+            if self._observing:
+                self._stop_observation()
+            if key == "overdrive":
+                self._toggle_overdrive()
+            else:
+                self._toggle_char("baymax")
+            return
+        if key == "edith":                                # her face comes up; clicking the glasses starts the HUD
+            self._toggle_char("edith")
             return
         if key == "sonar":
             self._toggle_song_mode()
@@ -1714,6 +1853,7 @@ class MainWindow(QMainWindow):
         self._logo_label.setText("G A M E   M O D E" if on else settings.APP_NAME)
         self._mode_panel.setVisible(not on)
         self._game_left.setVisible(on)
+        self._refresh_face()
         (self._game_panel.activate if on else self._game_panel.deactivate)()
         self.game_switch_btn.setText("🎮\nLEAVE" if on else "🎮\nGAME")
         if announce:
@@ -1739,6 +1879,7 @@ class MainWindow(QMainWindow):
         self._logo_label.setText("K A R E N   M O D E" if on else settings.APP_NAME)
         self._mode_panel.setVisible(not on)
         self._karen_left.setVisible(on)
+        self._refresh_face()
         self._karen_panel.refresh()
         self.karen_switch_btn.setText("🛡\nLEAVE" if on else "🛡\nKAREN")
         if announce:
@@ -1960,6 +2101,7 @@ class MainWindow(QMainWindow):
         return mode_wants_it or self._observing
 
     def _sync_corner_ui(self) -> None:
+        self._refresh_face()
         want_hud = self._should_use_hud()
 
         if want_hud:
@@ -2138,6 +2280,7 @@ class MainWindow(QMainWindow):
             return
         if self._video_mode_on:
             self._stop_video_mode()
+            self._restore_after_player()
         else:
             self._start_video_mode()
 
@@ -2166,6 +2309,7 @@ class MainWindow(QMainWindow):
         self._gesture_worker.error.connect(self._on_gesture_error)
         self._gesture_worker.frame_ready.connect(self._on_gesture_frame)
         self._gesture_worker.start()
+        self._shrink_for_player()
 
     def release_camera(self) -> bool:
         """Free the webcam for other apps. Returns True if EV AI was using it."""
@@ -2174,11 +2318,27 @@ class MainWindow(QMainWindow):
             self._stop_video_mode()
         return was_on
 
+    def _shrink_for_player(self) -> None:
+        """Minority / Sonar: the dashboard goes to the tray and only the player stays on screen."""
+        self._player_hidden = True
+        if self._tray.is_active():
+            self.hide()
+        else:
+            self.showMinimized()
+
+    def _restore_after_player(self) -> None:
+        if getattr(self, "_player_hidden", False) and not self._video_mode_on and self._song_panel is None:
+            self._player_hidden = False
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+
     def _on_video_view_closed(self):
         # The person closed the camera window: that means "turn Video mode off".
         self._video_view = None
         if self._video_mode_on:
             self._stop_video_mode()
+        self._restore_after_player()
 
     def _stop_video_mode(self):
         self._video_mode_on = False
@@ -2210,11 +2370,13 @@ class MainWindow(QMainWindow):
         self._song_panel.show_at_corner()
         self.song_toggle_btn.setText("🎵 SONAR: ON")
         self.song_toggle_btn.setChecked(True)
+        self._shrink_for_player()
 
     def _on_song_panel_closed(self):
         self._song_panel = None
         self.song_toggle_btn.setText("🎵 SONAR: OFF")
         self.song_toggle_btn.setChecked(False)
+        self._restore_after_player()
 
     def _on_gesture_status(self, text: str):
         print(f"[EV AI] Video mode: {text}")

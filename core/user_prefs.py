@@ -56,6 +56,7 @@ DEFAULTS = {
     "voice_humorous": "en-US-DavisNeural",
     # -- Focus Mode ----------------------------------------------------------
     "chrome_bridge": True,         # let the EV AI Chrome extension connect (this PC only)
+    "baymax_care": True,               # Baymax mode: gentle water / break / sleep reminders
     "ultron_ui": False,                # Ultron mode (red look + colder personality) was on at last exit
     "home_lat": 0.0,                   # location you typed for the Location radar (0 = not set)
     "home_lon": 0.0,

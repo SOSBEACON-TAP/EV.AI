@@ -39,7 +39,16 @@ async function run(cmd) {
   const tab = await activeTab();
   const inTab = (func, args = []) => chrome.scripting.executeScript({ target: { tabId: tab.id }, func, args });
   switch (cmd.action) {
-    case "open_url": return chrome.tabs.create({ url: cmd.url });
+    case "open_url": {   // a site that is already open is brought to the front instead of opening a duplicate tab
+      const norm = (h) => h.replace(/^(www|m)\./, "");
+      let u;
+      try { u = new URL(cmd.url); } catch (e) { return chrome.tabs.create({ url: cmd.url }); }
+      const hit = (await chrome.tabs.query({})).find((t) => { try { return norm(new URL(t.url).hostname) === norm(u.hostname); } catch (e) { return false; } });
+      if (!hit) return chrome.tabs.create({ url: cmd.url });
+      const bare = (u.pathname === "/" || u.pathname === "") && !u.search;
+      await chrome.tabs.update(hit.id, bare ? { active: true } : { active: true, url: cmd.url });
+      return chrome.windows.update(hit.windowId, { focused: true });
+    }
     case "new_tab": return chrome.tabs.create({});
     case "close_tab": return tab && chrome.tabs.remove(tab.id);
     case "back": return tab && chrome.tabs.goBack(tab.id);

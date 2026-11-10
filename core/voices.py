@@ -53,6 +53,8 @@ CHARACTERS = {
     "tars": {"edge": True, "voice": "en-US-ChristopherNeural", "rate": "-8%", "pitch": "-6Hz", "gender": "male"},
     "gideon": {"edge": True, "voice": "en-AU-WilliamNeural", "rate": "-4%", "pitch": "-2Hz", "gender": "male"},
     "edith": {"edge": True, "voice": "en-GB-SoniaNeural", "rate": "+0%", "pitch": "+0Hz", "gender": "female"},
+    "baymax": {"edge": True, "voice": "en-US-DavisNeural", "rate": "-10%", "pitch": "-3Hz", "gender": "male"},
+    "overdrive": {"edge": True, "voice": "en-US-GuyNeural", "rate": "+12%", "pitch": "+0Hz", "gender": "male"},
     "ultron": {"edge": True, "voice": "en-US-GuyNeural", "rate": "-14%", "pitch": "-14Hz", "gender": "male"},
 }
 _character: str | None = None

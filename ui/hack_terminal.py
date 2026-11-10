@@ -56,7 +56,7 @@ class RadarWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(260, 260)
+        self.setMinimumSize(170, 170)
         self._angle = 0.0
         self._devices: list[dict] = []
         self._wifi: list[dict] = []
@@ -164,7 +164,7 @@ class LocationRadarWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(260, 260)
+        self.setMinimumSize(170, 170)
         self._places: list[dict] = []
         self._range = 1000
         self._angle = 0.0
@@ -684,6 +684,26 @@ class HackCore(QObject):
                   "risks you notice. Be concise and a little cold in tone. Only explain; do not write new malware or exploits.\n\nCODE:\n"
                   + code[:6000])
         self._quiet_job(lambda _p: brain.ask(prompt), lambda r: on_done(str(r)), on_fail)
+
+    def write_code(self, request: str, on_done, on_fail):
+        """Ultron writes the code that was asked for. on_done(code_text) / on_fail(text)."""
+        brain = self._get_brain()
+        if brain is None:
+            on_fail("No AI key is set, so I can't write code. Add a key in Settings.")
+            return
+        prompt = ("You are ULTRON inside EV AI, writing code for its owner. Write exactly the code that was asked for. "
+                  "Use the language they name (Python if they don't say). Reply with the complete, working code first, as plain "
+                  "text with NO markdown fences, then a blank line and at most three short plain lines on how to run it. "
+                  "Refuse to write malware, ransomware, credential stealers, exploits or anything meant to attack systems the "
+                  "owner doesn't control; say so in one line instead.\n\nREQUEST:\n" + request[:3000])
+
+        def clean(r):
+            t = str(r).strip()
+            if t.startswith("```"):
+                t = t.split("\n", 1)[1] if "\n" in t else t
+                t = t.rsplit("```", 1)[0] if t.count("```") else t
+            return t.replace("```", "")
+        self._quiet_job(lambda _p: brain.ask(prompt), lambda r: on_done(clean(r)), on_fail)
 
     def run_command(self, cmd: str, on_done, on_fail) -> bool:
         """Runs one Windows command and hands the output to on_done. Asks first if it can delete data or change the system."""

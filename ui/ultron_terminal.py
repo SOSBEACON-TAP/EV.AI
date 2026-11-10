@@ -113,7 +113,8 @@ class UltronTerminal(QDialog):
 
         root.addWidget(QLabel("Welcome to ULTRON Industries (TM) Termlink"))
         root.addWidget(QLabel("Terminal ready. Attempts remaining: ■ ■ ■"))
-        hint = QLabel("Left: type or paste code and press EXPLAIN. Or start a line with > to run it as a Windows command.")
+        hint = QLabel("Left: paste code to EXPLAIN it, or say or type what you want and press WRITE CODE FOR ME. "
+                      "A line starting with > runs as a Windows command.")
         hint.setObjectName("Dim")
         root.addWidget(hint)
 
@@ -125,7 +126,7 @@ class UltronTerminal(QDialog):
         rt = QLabel("2.  OUTPUT   (what Ultron does)")
         rt.setObjectName("ColTitle")
         self.code = CodeEdit()
-        self.code.setPlaceholderText("Paste code here...\n> ipconfig")
+        self.code.setPlaceholderText("Paste code to explain...\nor say: write a python program that ...\nor run: > ipconfig")
         self.out = QTextEdit()
         self.out.setReadOnly(True)
         left.addWidget(lt)
@@ -139,13 +140,19 @@ class UltronTerminal(QDialog):
         row = QHBoxLayout()
         self.explain_btn = QPushButton("EXPLAIN CODE   (Ctrl+Enter)")
         self.explain_btn.clicked.connect(self.explain)
+        self.write_btn = QPushButton("WRITE CODE FOR ME")
+        self.write_btn.clicked.connect(self.write)
         self.run_btn = QPushButton("RUN LINE AS COMMAND")
         self.run_btn.clicked.connect(self.run_line)
+        copy_btn = QPushButton("COPY OUTPUT")
+        copy_btn.clicked.connect(self._copy)
+        save_btn = QPushButton("SAVE CODE")
+        save_btn.clicked.connect(self._save)
         clear_btn = QPushButton("CLEAR")
         clear_btn.clicked.connect(self._clear)
         exit_btn = QPushButton("[Esc] EXIT")
         exit_btn.clicked.connect(self.close)
-        for b in (self.explain_btn, self.run_btn, clear_btn):
+        for b in (self.explain_btn, self.write_btn, self.run_btn, copy_btn, save_btn, clear_btn):
             row.addWidget(b)
         row.addStretch(1)
         row.addWidget(exit_btn)
@@ -182,11 +189,57 @@ class UltronTerminal(QDialog):
 
     def _busy(self, on: bool) -> None:
         self.explain_btn.setDisabled(on)
+        self.write_btn.setDisabled(on)
         self.run_btn.setDisabled(on)
 
     def _current_line(self) -> str:
         sel = self.code.textCursor().selectedText().replace(" ", "\n").strip()
         return sel or self.code.textCursor().block().text().strip()
+
+    # -- code writing ---------------------------------------------------------------------------
+    def wants(self, text: str) -> bool:
+        """While this window is open, whatever you type or say in the main box is a coding request (unless it is a > command)."""
+        return self.isVisible() and not text.strip().startswith(">")
+
+    def request_code(self, text: str) -> None:
+        self.code.setPlainText(text.strip())
+        self.write()
+
+    def write(self) -> None:
+        text = self.code.toPlainText().strip()
+        if not text or text.startswith(">"):
+            self._say("ULTRON", "Tell me what to write. For example: a python program that renames all files in a folder.", "#FFB020")
+            return
+        self._say("ULTRON", "Writing...", DIM)
+        self._busy(True)
+        self._core.write_code(text, self._show_code, lambda e: (self._busy(False), self._say("ULTRON", e, "#FF5050")))
+
+    def _show_code(self, code: str) -> None:
+        import html
+        self._busy(False)
+        self._last_output = code
+        self.out.append('<pre style="color:%s; margin:0">%s</pre>' % (GREEN, html.escape(code)))
+        self.out.moveCursor(QTextCursor.End)
+
+    _last_output = ""
+
+    def _copy(self) -> None:
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setText(self._last_output or self.out.toPlainText())
+
+    def _save(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        text = self._last_output or self.out.toPlainText()
+        if not text.strip():
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Save the code", "ultron_code.py", "All files (*)")
+        if path:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                self._say("ULTRON", f"Saved: {path}")
+            except OSError as e:
+                self._say("ULTRON", f"Couldn't save: {e}", "#FF5050")
 
     # -- actions --------------------------------------------------------------------------------
     def explain(self) -> None:

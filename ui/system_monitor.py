@@ -23,6 +23,88 @@ _BAR_QSS = (
 _BAR_WARN_QSS = _BAR_QSS.replace("#FFC400; border-radius", "#FF5252; border-radius")
 
 
+class ReactorGauge(QWidget):
+    """The battery as an arc reactor: glowing rings and a bright core that shows the charge, like the film prop."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(150)
+        self._pct = None
+        self._plugged = False
+        self._spin = 0.0
+        self._t = QTimer(self)
+        self._t.timeout.connect(self._advance)
+        self._t.start(60)
+
+    def set_value(self, pct, plugged: bool) -> None:
+        self._pct, self._plugged = pct, plugged
+        self.update()
+
+    def _advance(self) -> None:
+        if self.isVisible():
+            self._spin = (self._spin + (3.0 if self._plugged else 1.0)) % 360
+            self.update()
+
+    def paintEvent(self, _e):  # noqa: N802
+        import math
+        from PySide6.QtCore import QPointF, Qt
+        from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
+        p = QPainter(self)
+        try:
+            p.setRenderHint(QPainter.Antialiasing)
+            w, h = self.width(), self.height()
+            r = min(w, h) / 2 - 6
+            c = QPointF(w / 2, h / 2)
+            pct = self._pct
+            low = pct is not None and pct <= 15 and not self._plugged
+            col = QColor("#FF5252") if low else QColor("#7FE9FF")
+            # outer glow
+            g = QRadialGradient(c, r)
+            g.setColorAt(0.55, QColor(col.red(), col.green(), col.blue(), 90))
+            g.setColorAt(1.0, QColor(col.red(), col.green(), col.blue(), 0))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(g))
+            p.drawEllipse(c, r, r)
+            # housing ring + the ten coil segments that spin slowly
+            p.setBrush(QColor(10, 24, 30))
+            p.setPen(QPen(QColor(150, 170, 180), 3))
+            p.drawEllipse(c, r * 0.92, r * 0.92)
+            p.setPen(QPen(col, 2))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(c, r * 0.78, r * 0.78)
+            p.drawEllipse(c, r * 0.46, r * 0.46)
+            p.setPen(QPen(col, 5))
+            for i in range(10):
+                a = math.radians(self._spin + i * 36)
+                x1, y1 = c.x() + math.cos(a) * r * 0.5, c.y() + math.sin(a) * r * 0.5
+                x2, y2 = c.x() + math.cos(a) * r * 0.74, c.y() + math.sin(a) * r * 0.74
+                p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+            # charge sweep around the outside
+            if pct is not None:
+                p.setPen(QPen(QColor(255, 255, 255, 230), 4))
+                span = int(-360 * 16 * max(0, min(100, pct)) / 100)
+                p.drawArc(int(c.x() - r * 0.86), int(c.y() - r * 0.86), int(r * 1.72), int(r * 1.72), 90 * 16, span)
+            # glowing core with the number
+            cg = QRadialGradient(c, r * 0.42)
+            cg.setColorAt(0.0, QColor(255, 255, 255, 255))
+            cg.setColorAt(0.55, QColor(col.red(), col.green(), col.blue(), 230))
+            cg.setColorAt(1.0, QColor(col.red(), col.green(), col.blue(), 0))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(cg))
+            p.drawEllipse(c, r * 0.42, r * 0.42)
+            text = "--" if pct is None else f"{pct:.0f}%"
+            f = QFont("Segoe UI", max(8, int(r * 0.26)), QFont.Bold)
+            p.setFont(f)
+            p.setPen(QColor(6, 30, 40))
+            p.drawText(self.rect(), Qt.AlignCenter, text)
+            if self._plugged and pct is not None:
+                p.setFont(QFont("Segoe UI", max(6, int(r * 0.1)), QFont.Bold))
+                p.setPen(col)
+                p.drawText(int(c.x() - r), int(c.y() + r * 0.5), int(r * 2), int(r * 0.3), Qt.AlignCenter, "CHARGING")
+        finally:
+            p.end()
+
+
 class SystemMonitorPanel(QWidget):
     warning = Signal(str)
 
@@ -33,6 +115,8 @@ class SystemMonitorPanel(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(6)
+        self.reactor = ReactorGauge()
+        lay.addWidget(self.reactor)
         for key, title in (("cpu", "CPU"), ("ram", "MEMORY"), ("disk", "DISK"), ("battery", "BATTERY")):
             head = QHBoxLayout()
             name = QLabel(title)
@@ -94,10 +178,12 @@ class SystemMonitorPanel(QWidget):
             self._set("disk", 0, "n/a", False)
         if bat is not None:
             plugged = bool(bat.power_plugged)
+            self.reactor.set_value(bat.percent, plugged)
             self._set("battery", bat.percent, f"{bat.percent:.0f}%{' (charging)' if plugged else ''}",
                       (not plugged) and bat.percent <= 15)
         else:
             plugged = True
+            self.reactor.set_value(None, True)
             self._set("battery", 0, "no battery", False)
         try:
             up = [n for n, s in psutil.net_if_stats().items() if s.isup and not n.lower().startswith(("lo", "loopback"))]

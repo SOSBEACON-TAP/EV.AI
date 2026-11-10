@@ -1,11 +1,11 @@
 """
 ui/song_panel.py
 ------------------
-Song mode: a small always-on-top music remote. Type a song or artist and
+Sonar: a small always-on-top music remote. Type a song or artist and
 press Play to open it on YouTube; the buttons send the system media keys
 (previous / play-pause / next, volume, mute), which work with whatever
 player is active — YouTube in a browser, Spotify, Windows media player.
-Closing the panel turns Song mode off.
+Closing the panel turns Sonar off.
 """
 
 from PySide6.QtCore import Qt, Signal
@@ -47,7 +47,7 @@ class SongPanel(QWidget):
         root.setSpacing(8)
 
         top = QHBoxLayout()
-        title = QLabel("🎵 SONG MODE")
+        title = QLabel("🎵 SONAR")
         title.setObjectName("SongTitle")
         close = QPushButton("✕")
         close.setObjectName("SongClose")
