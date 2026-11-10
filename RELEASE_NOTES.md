@@ -5,8 +5,8 @@ CHANGES
 - All of them moved into the MODE wheel (now twelve segments). Click a segment to turn it on or off; lit segments are the ones that are on. Normal, Focus, App Insights and File Finder stay in the MODE panel.
 
 NEW
-- Each mode now has its own tools. Friday: daily briefing, notes, to-do, timer, PC status. Tars: Humor and Honesty settings that change how EV talks, plus a blunt status report. Gideon: think it through, pros and cons, plan, explain simply, compare, check my idea. Edith: look at my screen now, how often it looks, "what am I doing?".
-- EV mode has its own EV TOOLS under Quick Actions: daily briefing, my notes, add a to-do, set a timer, flip a coin, roll a dice, tell a joke, convert units, start and stop stopwatch, days until a date, PC status.
+- Each mode now has its own tools. Friday (planning): daily briefing, notes, to-do, timer, plan my day, remind me. Tars: Humor and Honesty settings that change how EV talks, plus Straight answer and Yes or no. Gideon: think it through, pros and cons, plan, explain simply, compare, check my idea. Edith: look at my screen now, how often it looks, "what am I doing?".
+- EV's main feature is a COMPUTER button (under EV TOOLS in Quick Actions): it opens the phone-control window directly, so you no longer have to go through Settings to control this computer from your phone. EV TOOLS also has flip a coin, roll a dice, tell a joke, convert units, stopwatch and days until a date.
 - The small overlay that Friday, Tars, Gideon and Edith use now has a wheel button (the round one in its top bar), so you can switch to any other mode from there. Before, those modes hid the wheel.
 - Normal is gone from the MODE panel. Choosing EV in the wheel now means normal: it leaves the current character and goes back to the normal answer style.
 - Everyday helpers that work without the internet. Say: "flip a coin", "roll a dice" (or "roll 3 dice"), "pick a number between 1 and 100", "choose pizza or burger", "tell me a joke", "convert 5 km to miles" (also kg, pounds, litres, gallons, feet, inches, Celsius and Fahrenheit), "start stopwatch" and "stop stopwatch", "how many days until 25 December".

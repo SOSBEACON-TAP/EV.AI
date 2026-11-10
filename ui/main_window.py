@@ -371,6 +371,11 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Quick Actions, Focus Mode, personalization, clipboard helpers
     # ------------------------------------------------------------------
+    def _open_computer_control(self) -> None:
+        """EV's main feature: pair a phone and control this computer from it (same window as Settings > Phone control)."""
+        from ui.compute_ui import ComputeDialog
+        ComputeDialog(self).exec()
+
     def _open_quick_actions(self) -> None:
         from ui.quick_actions import QuickActionsDialog
         QuickActionsDialog(self._tool_router, self).exec()
@@ -972,12 +977,16 @@ class MainWindow(QMainWindow):
         p_layout.addWidget(ev_tools_title)
         ev_grid = QGridLayout()
         ev_grid.setSpacing(5)
+        # EV's own feature: controlling this computer from the phone, plus a few everyday helpers.
+        # (Planning tools belong to Friday, thinking tools to Gideon, bluntness to Tars, system checks to Jarvis.)
+        computer_btn = HoverButton("💻  COMPUTER  (control this PC from your phone)")
+        computer_btn.setMinimumHeight(38)
+        computer_btn.clicked.connect(self._open_computer_control)
+        p_layout.addWidget(computer_btn)
         ev_tools = [
-            ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
-            ("My notes", "show my notes"), ("Add a to-do", "prefill:add to-do: "), ("Set a timer", "prefill:set a timer for "),
             ("Flip a coin", "flip a coin"), ("Roll a dice", "roll a dice"), ("Tell a joke", "tell me a joke"),
             ("Convert units", "prefill:convert 5 km to miles"), ("Start stopwatch", "start stopwatch"), ("Stop stopwatch", "stop stopwatch"),
-            ("Days until...", "prefill:how many days until 25 december"), ("PC status", "how is my computer doing right now?"),
+            ("Days until...", "prefill:how many days until 25 december"),
         ]
         for i, (label, command) in enumerate(ev_tools):
             b = HoverButton(label)
@@ -1391,13 +1400,13 @@ class MainWindow(QMainWindow):
                 ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
                 ("My notes", "show my notes"),
                 ("Add a to-do", "prefill:add to-do: "), ("Set a timer", "prefill:set a timer for "),
-                ("PC status", "how is my computer doing right now?"), ("Open Chrome", "open chrome")]
+                ("Plan my day", "prefill:Plan my day around these things: "), ("Remind me", "prefill:remind me to ")]
         if mode == Mode.SERIOUS:
             return "TARS TOOLS", [
                 (f"Humor {int(user_prefs.get('tars_humor'))}%  (tap to change)", "__humor__"),
                 (f"Honesty {int(user_prefs.get('tars_honesty'))}%  (tap to change)", "__honesty__"),
-                ("Status report", "Give me a short, blunt status report on my computer."),
-                ("Be blunt", "prefill:Tell me honestly, no sugar-coating: ")]
+                ("Straight answer", "prefill:Give me the short, honest answer, no sugar-coating: "),
+                ("Yes or no", "prefill:Answer yes or no, then one line why: ")]
         if mode == Mode.DEEP_THINKING:
             return "GIDEON TOOLS", [
                 ("Think it through", "prefill:Think deeply and step by step about: "),
