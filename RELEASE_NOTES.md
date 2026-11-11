@@ -1,34 +1,21 @@
-EV AI 1.0.33
-
-NEW
-- The faces are livelier: they sway, nod while speaking, and the mouth follows a speech rhythm (opens fast, closes slower). Tars and Baymax blink. Hologram faces shimmer and glitch for a moment now and then. Thinking sparks leave trails.
-- Baymax is now just his head, so you can see him move: he blinks, sways, nods and the line between his eyes thickens when he talks.
-- RUN CODE now also runs JavaScript without Node, using the script engine built into Windows. It must be old-style JavaScript (var, function, no arrow functions); Ultron now writes it that way.
-- Phone control: from the phone you can open a link on the computer, and shut down or restart it with a 60 second delay that the phone can cancel.
-- Faces with a mouth now talk: while EV speaks, the mouth of Tars, Gideon, Friday and Ultron opens and closes.
-- The mode wheel now shows each mode as a small card like the FRIDAY card: a blue circuit board with the mode's name written on a white label on top.
-- Ultron's RUN CODE no longer needs Python (or anything else) installed: EV AI runs Python code with its own built-in Python. PowerShell and batch code run too. Ultron now writes Python that uses only what is built in.
-
-FIXES
-- Phone control: starting a session from the phone now always asks on the computer. Before, it could stay silent when EV AI was started before the phone was connected, or when an earlier session was left open. A session left idle for 90 seconds now asks again.
-- Phone control: if the phone's and the computer's clocks differ, the phone now says so instead of nothing happening.
-
----
-
 EV AI 1.0.32
 
 NEW
-- Ultron's terminal has a RUN CODE button. It runs the code Ultron just wrote (or the code you pasted on the left) and shows what it prints in the OUTPUT column. It asks before running, supports Python, Node, PowerShell and batch, and stops anything that takes longer than 30 seconds.
-- The pictures in the orb now float, breathe and glow in the mode colour, with a scan line sliding over them. They ripple while EV listens, send sparks round while it thinks, and pulse while it speaks.
+- Every mode's face in the orb is now alive: it floats, sways and glows in the mode colour, with a scan line sliding over it. Mouths (Tars, Gideon, Friday, Ultron) move with a speech rhythm and the head nods while speaking. Tars and Baymax blink. Hologram faces shimmer and glitch now and then. It ripples while EV listens, sends sparks with trails while it thinks, and pulses while it speaks.
+- Baymax is now just his head, so you can see him move: he blinks, sways, nods and the line between his eyes thickens when he talks.
+- The mode wheel now shows each mode as a small card like the FRIDAY card: a blue circuit board with the mode's name written on a white label on top.
+- Ultron's terminal has a RUN CODE button. It runs the code Ultron just wrote (or the code you pasted on the left) and shows what it prints in the OUTPUT column. It asks before running and stops anything that takes longer than 30 seconds. Nothing has to be installed: Python runs on EV AI's own built-in Python, JavaScript on the script engine built into Windows (old-style JavaScript only: var, function, no arrow functions), and PowerShell and batch run too. Ultron now writes code that way.
 - Jarvis battery: the arc reactor spins while the laptop is charging. On battery it stands still and glows as bright as the charge left.
+- Phone control: from the phone you can switch EV's modes, open a link on the computer, and shut down or restart it with a 60 second delay that the phone can cancel.
 
 CHANGES
 - The orb now shows only the mode picture, on a clear background, instead of the picture on top of the rings.
 - The EV ACTIONS panel (Focus, App Insights, File Finder, Computer) now shows only in EV mode. Friday, Tars, Gideon, Edith, Baymax and Overdrive show their own tools instead.
 
 FIXES
-- Mode names on the wheel no longer overlap the ring or each other (the wheel is bigger).
-- The Ultron radar column no longer has a scroll bar.
+- Phone control: starting a session from the phone now always asks on the computer. Before, it could stay silent when EV AI was started before the phone was connected, or when an earlier session was left open. A session left idle for 90 seconds now asks again.
+- Phone control: if the phone's and the computer's clocks differ, the phone now says so instead of nothing happening.
+- Mode names on the wheel no longer overlap, and the Ultron radar column no longer has a scroll bar.
 
 ---
 
