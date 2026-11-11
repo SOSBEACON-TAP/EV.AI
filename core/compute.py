@@ -426,6 +426,29 @@ class ComputeHost:
             return ok(_sleep())
         if cmd in _VOLUME_KEYS:
             return ok(_vk(cmd))
+        if cmd == "power":                   # shut down / restart with a 60 second delay that can be cancelled
+            what = str(a.get("what", ""))
+            import subprocess
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if what == "shutdown":
+                subprocess.Popen(["shutdown", "/s", "/t", "60"], creationflags=flags)
+                return ok("Shutting down in 60 seconds. You can cancel from the phone.")
+            if what == "restart":
+                subprocess.Popen(["shutdown", "/r", "/t", "60"], creationflags=flags)
+                return ok("Restarting in 60 seconds. You can cancel from the phone.")
+            if what == "cancel":
+                subprocess.Popen(["shutdown", "/a"], creationflags=flags)
+                return ok("Cancelled.")
+            return {"ok": False, "msg": "Unknown power action."}
+        if cmd == "url":                     # open a web address on the computer
+            u = str(a.get("url", "")).strip()[:500]
+            if not u.lower().startswith(("http://", "https://")):
+                u = "https://" + u
+            if " " in u or "." not in u:
+                return {"ok": False, "msg": "That doesn't look like a web address."}
+            from tools import browser as _b
+            _b._open(u)
+            return ok("Opened.")
         if cmd == "open_app":
             from tools.applications import open_application
             r = open_application(str(a.get("name", ""))[:60])

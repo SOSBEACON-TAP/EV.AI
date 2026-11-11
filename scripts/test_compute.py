@@ -49,6 +49,8 @@ answers["session"] = True; r = cmd("hello", {"name": "Pixel"}); assert r["ok"] a
 host._last_activity -= 200; asked_before = answers.get("count", 0)   # an idle session asks again on the next hello
 r = cmd("hello", {"name": "Pixel"}); assert r["ok"] and "started" in r["msg"].lower()
 r = cmd("nonsense"); assert not r["ok"] and r["msg"] == "Unknown command."
+r = cmd("power", {"what": "nothing"}); assert not r["ok"]                      # only shutdown / restart / cancel exist
+r = cmd("url", {"url": "not an address"}); assert not r["ok"]
 r = cmd("key", {"name": "f4"}); assert not r["ok"] or True
 assert c._key_ok("ctrl") and c._key_ok("f5") and c._key_ok("a") and not c._key_ok("") and not c._key_ok("ctrl+c") and not c._key_ok("format")
 r = cmd("keys", {"keys": ["ctrl", "format"]}); assert not r["ok"]  # blocked or pyautogui missing

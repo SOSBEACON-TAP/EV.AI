@@ -229,6 +229,10 @@ class LocationRadarWidget(QWidget):
         p.drawEllipse(c, r, r)
 
 
+_JSCRIPT_SHIM = ("var console = { log: function () { var a = []; for (var i = 0; i < arguments.length; i++) { a.push(String(arguments[i])); } "
+                 "WScript.Echo(a.join(' ')); } }; console.info = console.warn = console.error = console.log;\n")
+
+
 class HackCore(QObject):
     """The security engine. Output goes out through signals so any screen can show it."""
     line = Signal(str, str)            # text, level (ok/info/warn/bad)
@@ -692,7 +696,7 @@ class HackCore(QObject):
             on_fail("No AI key is set, so I can't write code. Add a key in Settings.")
             return
         prompt = ("You are ULTRON inside EV AI, writing code for its owner. Write exactly the code that was asked for. "
-                  "Use the language they name (Python if they don't say). Python code must use only the standard library: no pip installs, no third-party modules, no input() prompts. Reply with the complete, working code first, as plain "
+                  "Use the language they name (Python if they don't say). Python code must use only the standard library: no pip installs, no third-party modules, no input() prompts. JavaScript must be written in old ES5 style (var, function expressions, no arrow functions, no template literals, no require) and print with console.log: it runs in the script engine built into Windows. Reply with the complete, working code first, as plain "
                   "text with NO markdown fences, then a blank line and at most three short plain lines on how to run it. "
                   "Refuse to write malware, ransomware, credential stealers, exploits or anything meant to attack systems the "
                   "owner doesn't control; say so in one line instead.\n\nREQUEST:\n" + request[:3000])
@@ -737,14 +741,20 @@ class HackCore(QObject):
             ext = ".py"
         elif lang == "node":
             exe = shutil.which("node")
-            cmd, ext = ([exe] if exe else None), ".js"
+            if exe:
+                cmd = [exe]
+            else:                          # no Node: use the JScript engine that is part of Windows (cscript)
+                wsh = shutil.which("cscript")
+                cmd = [wsh, "//Nologo", "//E:jscript"] if wsh else None
+                code = _JSCRIPT_SHIM + re.sub(r"\b(const|let)\s+", "var ", code)
+            ext = ".js"
         elif lang == "powershell":
             exe = shutil.which("powershell") or shutil.which("pwsh")
             cmd, ext = ([exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"] if exe else None), ".ps1"
         else:
             cmd, ext = (["cmd", "/c"] if os.name == "nt" else None), ".bat"
         if cmd is None or cmd[0] is None:
-            on_fail(f"I can't run {lang} code here: it needs {lang} on this PC, which isn't installed. Python, PowerShell and batch code run without installing anything.")
+            on_fail(f"I can't run {lang} code here: it needs {lang} on this PC, which isn't installed. Python, JavaScript (old style), PowerShell and batch code run without installing anything.")
             return False
         preview = "\n".join(code.strip().splitlines()[:12])
         if QMessageBox.question(self.w, "Run this code?", f"This will run as {lang} on your PC:\n\n{preview}\n\nRun it?",
