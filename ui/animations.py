@@ -16,13 +16,23 @@ Design notes (kept deliberately different from any franchise UI):
 """
 
 import math
-from PySide6.QtCore import Qt, QTimer, Signal, QPointF
+from PySide6.QtCore import Qt, QTimer, Signal, QPointF, QRectF
 from pathlib import Path
 from PySide6.QtGui import QPainter, QColor, QPen, QPixmap, QRadialGradient, QBrush
 from PySide6.QtWidgets import QWidget
 
 from core.state import AIState
 from ui import theme as _theme
+
+
+# where the mouth is on each picture: (left, top, right, bottom) as fractions of the picture, and how far it opens
+_MOUTHS = {
+    "tars": (0.28, 0.72, 0.70, 0.80, 3.0),       # the blue bar becomes a thick bar
+    "gideon": (0.42, 0.50, 0.58, 0.57, 1.4),
+    "friday": (0.36, 0.62, 0.64, 0.74, 1.0),
+    "baymax": (0.43, 0.050, 0.59, 0.090, 2.5),
+    "ultron": (0.30, 0.66, 0.70, 0.80, 0.5),
+}
 
 
 def _face_path(key: str):
@@ -159,6 +169,18 @@ class AICoreWidget(QWidget):
         lp = QPainter(layer)
         lp.setRenderHint(QPainter.SmoothPixmapTransform)
         lp.drawPixmap(0, 0, w, h, pm)
+        mouth = _MOUTHS.get(self._face_key)
+        if mouth and speaking:                                   # the mouth opens and closes with the speech
+            import time as _t
+            tt = _t.monotonic()
+            openness = min(1.0, 0.12 + 0.88 * abs(math.sin(tt * 7.3) * math.sin(tt * 2.9 + 1.0)))
+            x0, y0, x1, y1, gain = mouth
+            sx0, sy0, sx1, sy1 = int(x0 * pm.width()), int(y0 * pm.height()), int(x1 * pm.width()), int(y1 * pm.height())
+            dw, dh = (x1 - x0) * w, (y1 - y0) * h
+            grow = 1.0 + gain * openness
+            cxm, cym = (x0 + x1) / 2 * w, (y0 + y1) / 2 * h
+            lp.drawPixmap(QRectF(cxm - dw / 2, cym - dh * grow / 2, dw, dh * grow), pm,
+                          QRectF(sx0, sy0, sx1 - sx0, sy1 - sy0))
         lp.setCompositionMode(QPainter.CompositionMode_SourceAtop)
         y = int(((self._angle / 360.0 * 1.6) % 1.0) * (h + 40)) - 20
         band = QColor(255, 255, 255, 70)
