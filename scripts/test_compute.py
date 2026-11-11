@@ -46,13 +46,16 @@ assert cmd("ping")["ok"]
 n0 = last_n(); r = cmd("lock"); assert not r["ok"] and "No active session" in r["msg"]
 answers["session"] = False; r = cmd("hello", {"name": "Pixel"}); assert not r["ok"]
 answers["session"] = True; r = cmd("hello", {"name": "Pixel"}); assert r["ok"] and host.session_active
+host._last_activity -= 200; asked_before = answers.get("count", 0)   # an idle session asks again on the next hello
+r = cmd("hello", {"name": "Pixel"}); assert r["ok"] and "started" in r["msg"].lower()
 r = cmd("nonsense"); assert not r["ok"] and r["msg"] == "Unknown command."
 r = cmd("key", {"name": "f4"}); assert not r["ok"] or True
 assert c._key_ok("ctrl") and c._key_ok("f5") and c._key_ok("a") and not c._key_ok("") and not c._key_ok("ctrl+c") and not c._key_ok("format")
 r = cmd("keys", {"keys": ["ctrl", "format"]}); assert not r["ok"]  # blocked or pyautogui missing
 # replay / stale / wrong key are ignored
 before = last_n(); cmd("ping", n="same"); cmd("ping", n="same"); assert last_n() == before + 1
-before = last_n(); cmd("ping", t=time.time() - 500); assert last_n() == before
+before = last_n(); r = cmd("ping", t=time.time() - 500); assert not r["ok"] and "clocks" in r["msg"]   # stale: refused, with the reason
+before = last_n(); r = cmd("ping", t=time.time() - 200000); assert last_n() == before                  # very old replay: ignored
 before = last_n(); cmd("ping", k=os.urandom(32)); assert last_n() == before
 host.ask_fn = lambda t: "Reply to " + t + " नमस्ते"
 r = cmd("ask", {"text": "what time is it"}); assert r["ok"] and r["kind"] == "ask" and r["msg"].startswith("Reply to what time") and "नमस्ते" in r["msg"]

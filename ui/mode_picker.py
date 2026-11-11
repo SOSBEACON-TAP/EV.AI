@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
+from PySide6.QtGui import QBrush, QColor, QFont, QFontInfo, QFontMetricsF, QLinearGradient, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import QDialog
 
 SLOTS = 12
@@ -19,7 +19,7 @@ class ModePicker(QDialog):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setModal(True)
         self.setMouseTracking(True)
-        self.resize(720, 720)
+        self.resize(500, 500)
         self._modes = modes[:SLOTS]
         self._active = set(active)
         self._hover = -1
@@ -59,7 +59,7 @@ class ModePicker(QDialog):
         elif 0 <= i < len(self._modes):
             self.chosen.emit(self._modes[i][0])
             self.accept()
-        elif math.hypot(e.position().x() - self._center().x(), e.position().y() - self._center().y()) > 340:
+        elif math.hypot(e.position().x() - self._center().x(), e.position().y() - self._center().y()) > 244:
             self.reject()
 
     def keyPressEvent(self, e) -> None:
@@ -75,7 +75,7 @@ class ModePicker(QDialog):
         c = self._center()
         p.setPen(QPen(QColor(120, 200, 255, 90), 1.5))
         p.setBrush(QColor(6, 10, 18, 238))
-        p.drawEllipse(c, 340, 340)
+        p.drawEllipse(c, 244, 244)
         # silver ring
         ring = QPen(QColor(168, 176, 188), 16)
         p.setPen(ring)
@@ -88,20 +88,6 @@ class ModePicker(QDialog):
         # the ten coils
         for i in range(SLOTS):
             self._coil(p, c, i)
-        # labels outside the coils
-        f = QFont("Segoe UI", 9)
-        f.setBold(True)
-        f.setLetterSpacing(QFont.AbsoluteSpacing, 2)
-        p.setFont(f)
-        fm = p.fontMetrics()
-        for i, (_k, label) in enumerate(self._modes):
-            ang = math.radians(i * 360 / SLOTS)
-            tw = fm.horizontalAdvance(label) + 6
-            # push the name out past the silver ring by half its own width, so side labels never touch the ring
-            r = 246 + (tw / 2) * abs(math.sin(ang)) + 10 * abs(math.cos(ang))
-            x, y = c.x() + r * math.sin(ang), c.y() - r * math.cos(ang)
-            p.setPen(QColor(150, 225, 255) if i == self._hover or self._modes[i][0] in self._active else QColor(120, 150, 175))
-            p.drawText(QRectF(x - tw / 2 - 4, y - 10, tw + 8, 20), Qt.AlignCenter, label)
         # the glowing core in the middle
         g = QRadialGradient(c, 92)
         g.setColorAt(0.0, QColor(255, 255, 255))
@@ -138,30 +124,71 @@ class ModePicker(QDialog):
             p.drawText(QRectF(c.x() - 60, c.y() + 8, 120, 16), Qt.AlignCenter, "90 SECONDS")
         p.end()
 
+    _TRACES = (   # the circuit pattern on a card, as polylines in a 0..1 box (like the FRIDAY card)
+        ((0.18, 1.0), (0.18, 0.62), (0.34, 0.46), (0.34, 0.0)),
+        ((0.5, 1.0), (0.5, 0.0)),
+        ((0.82, 1.0), (0.82, 0.58), (0.66, 0.42), (0.66, 0.0)),
+        ((0.34, 0.8), (0.5, 0.8)),
+        ((0.5, 0.3), (0.66, 0.3)),
+    )
+
     def _coil(self, p: QPainter, c: QPointF, i: int) -> None:
+        """One mode as a small card, like the FRIDAY card: a blue circuit board with the name on a white label on top."""
         used = i < len(self._modes)
+        label = self._modes[i][1] if used else ""
         active = used and self._modes[i][0] in self._active
         hot = used and i == self._hover
-        p.save()
-        p.translate(c)
-        p.rotate(i * 360 / SLOTS)
-        rect = QRectF(-20, -190, 40, 62)
-        if used:
-            base = QColor(90, 210, 255) if (active or hot) else QColor(30, 120, 215)
-            edge = QColor(190, 240, 255) if (active or hot) else QColor(90, 170, 235)
-        else:
-            base, edge = QColor(24, 30, 42), QColor(52, 62, 80)
-        if used and (active or hot):                                  # glow
+        lit = active or hot
+        ang = math.radians(i * 360 / SLOTS)
+        cx, cy = c.x() + 158 * math.sin(ang), c.y() - 158 * math.cos(ang)
+        w, h = 52.0, 66.0
+        card = QRectF(cx - w / 2, cy - h / 2, w, h)
+        if lit:                                                       # glow behind a lit card
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(80, 200, 255, 60))
-            p.drawRoundedRect(rect.adjusted(-7, -7, 7, 7), 14, 14)
-        p.setPen(QPen(edge, 2))
-        p.setBrush(base)
-        p.drawRoundedRect(rect, 9, 9)
-        # copper windings across the coil
-        p.setPen(QPen(QColor(184, 115, 51) if used else QColor(70, 56, 46), 2))
-        y = rect.top() + 8
-        while y < rect.bottom() - 4:
-            p.drawLine(QPointF(rect.left() + 5, y), QPointF(rect.right() - 5, y))
-            y += 6
-        p.restore()
+            p.setBrush(QColor(90, 210, 255, 70))
+            p.drawRoundedRect(card.adjusted(-7, -7, 7, 7), 11, 11)
+        # black case
+        p.setPen(QPen(QColor(150, 170, 190) if lit else QColor(70, 82, 98), 1.5))
+        p.setBrush(QColor(10, 14, 22))
+        p.drawRoundedRect(card, 6, 6)
+        # label strip on top
+        strip = QRectF(card.left() + 3, card.top() + 3, w - 6, 15)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(246, 248, 250) if used else QColor(40, 48, 62))
+        p.drawRoundedRect(strip, 2.5, 2.5)
+        # blue circuit panel
+        panel = QRectF(card.left() + 3, strip.bottom() + 3, w - 6, card.bottom() - strip.bottom() - 6)
+        g = QLinearGradient(panel.topLeft(), panel.bottomLeft())
+        if used:
+            g.setColorAt(0.0, QColor(120, 215, 255) if lit else QColor(40, 150, 235))
+            g.setColorAt(1.0, QColor(20, 90, 200) if lit else QColor(10, 60, 150))
+        else:
+            g.setColorAt(0.0, QColor(30, 38, 52))
+            g.setColorAt(1.0, QColor(18, 24, 34))
+        p.setBrush(QBrush(g))
+        p.drawRoundedRect(panel, 3, 3)
+        trace = QPen(QColor(235, 248, 255, 230) if used else QColor(70, 80, 96), 1.4)
+        p.setPen(trace)
+        for line in self._TRACES:
+            pts = [QPointF(panel.left() + 3 + (panel.width() - 6) * x, panel.top() + 2 + (panel.height() - 4) * y) for x, y in line]
+            for a, b in zip(pts, pts[1:]):
+                p.drawLine(a, b)
+        p.setBrush(QColor(235, 248, 255) if used else QColor(70, 80, 96))
+        for x, y in ((0.34, 0.0), (0.66, 0.0), (0.5, 0.0), (0.18, 1.0), (0.5, 1.0), (0.82, 1.0)):
+            p.drawEllipse(QPointF(panel.left() + 3 + (panel.width() - 6) * x, panel.top() + 2 + (panel.height() - 4) * y), 1.6, 1.6)
+        # the name, written on the label
+        if used:
+            f = QFont("Segoe Print", 8)
+            if not QFontInfo(f).exactMatch():
+                f = QFont("Segoe UI", 8)
+                f.setBold(True)
+            f.setLetterSpacing(QFont.AbsoluteSpacing, 0.5)
+            size = 8.0
+            fm = QFontMetricsF(f)
+            while size > 5 and fm.horizontalAdvance(label) > strip.width() - 4:
+                size -= 0.5
+                f.setPointSizeF(size)
+                fm = QFontMetricsF(f)
+            p.setFont(f)
+            p.setPen(QColor(10, 20, 40))
+            p.drawText(strip, Qt.AlignCenter, label)

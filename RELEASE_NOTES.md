@@ -1,3 +1,15 @@
+EV AI 1.0.33
+
+NEW
+- The mode wheel now shows each mode as a small card like the FRIDAY card: a blue circuit board with the mode's name written on a white label on top.
+- Ultron's RUN CODE no longer needs Python (or anything else) installed: EV AI runs Python code with its own built-in Python. PowerShell and batch code run too. Ultron now writes Python that uses only what is built in.
+
+FIXES
+- Phone control: starting a session from the phone now always asks on the computer. Before, it could stay silent when EV AI was started before the phone was connected, or when an earlier session was left open. A session left idle for 90 seconds now asks again.
+- Phone control: if the phone's and the computer's clocks differ, the phone now says so instead of nothing happening.
+
+---
+
 EV AI 1.0.32
 
 NEW

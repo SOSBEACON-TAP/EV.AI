@@ -120,6 +120,10 @@ class ComputeController(QObject):
         self.host.ask_fn = fn
 
     def start(self) -> None:
+        if getattr(self, "_watch", None) is None:      # keeps the listener on the right channel (connect / pair later)
+            self._watch = QTimer(self)
+            self._watch.timeout.connect(self.host.ensure)
+            self._watch.start(15000)
         try:
             self.host.start()
         except Exception as e:
@@ -154,6 +158,7 @@ class ComputeDialog(QDialog):
         row.addWidget(self._unpair_btn)
         lay.addLayout(row)
         self._c.pin_listener = self._on_state
+        self._c.host.ensure()
         self._refresh()
 
     def done(self, r) -> None:

@@ -24,6 +24,14 @@ except Exception:
 # offline speech models (~40 MB) are not used; only the online recogniser is
 datas = [d for d in datas if "pocketsphinx" not in d[0].lower() and "pocketsphinx" not in d[1].lower()]
 hidden += ["scripts.create_shortcut", "core.shortcuts"]
+# the standard-library modules that code written by Ultron's RUN CODE commonly imports (the app must carry them)
+hidden += ["random", "math", "statistics", "datetime", "json", "csv", "re", "itertools", "collections", "string", "time",
+           "os", "sys", "pathlib", "shutil", "hashlib", "base64", "textwrap", "fractions", "decimal", "heapq", "bisect",
+           "functools", "operator", "glob", "fnmatch", "zipfile", "tempfile", "uuid", "secrets", "socket", "threading",
+           "subprocess", "sqlite3", "calendar", "html", "xml.etree.ElementTree", "difflib", "pprint", "copy", "typing",
+           "dataclasses", "enum", "abc", "io", "struct", "platform", "getpass", "argparse", "logging", "webbrowser",
+           "http.server", "http.client", "urllib.request", "urllib.parse", "queue", "asyncio", "ipaddress", "shlex",
+           "stat", "gzip", "tarfile", "pickle", "timeit", "traceback", "unicodedata", "locale", "ctypes", "winreg"]
 hidden += ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes", "comtypes.client", "win32com.client"]
 
 a = Analysis(
