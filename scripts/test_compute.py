@@ -51,6 +51,8 @@ r = cmd("hello", {"name": "Pixel"}); assert r["ok"] and "started" in r["msg"].lo
 r = cmd("nonsense"); assert not r["ok"] and r["msg"] == "Unknown command."
 r = cmd("power", {"what": "nothing"}); assert not r["ok"]                      # only shutdown / restart / cancel exist
 r = cmd("url", {"url": "not an address"}); assert not r["ok"]
+r = cmd("mode", {"key": "nonsense"}); assert not r["ok"]
+host.mode_fn = lambda k: "set " + k; r = cmd("mode", {"key": "jarvis"}); assert r["ok"] and r["msg"] == "set jarvis"
 r = cmd("key", {"name": "f4"}); assert not r["ok"] or True
 assert c._key_ok("ctrl") and c._key_ok("f5") and c._key_ok("a") and not c._key_ok("") and not c._key_ok("ctrl+c") and not c._key_ok("format")
 r = cmd("keys", {"keys": ["ctrl", "format"]}); assert not r["ok"]  # blocked or pyautogui missing

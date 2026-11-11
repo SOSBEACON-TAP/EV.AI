@@ -231,6 +231,7 @@ class ComputeHost:
         self._session_until = 0.0
         self._phone_name = ""
         self.ask_fn: Callable[[str], str] | None = None   # set by the UI: runs a command through EV AI
+        self.mode_fn: Callable[[str], str] | None = None  # set by the UI: switches EV's mode (a click on the mode wheel)
         self._seen: dict[str, float] = {}
         self._lock = threading.Lock()
         self._topic = ""                 # the channel the listener is on right now
@@ -426,6 +427,13 @@ class ComputeHost:
             return ok(_sleep())
         if cmd in _VOLUME_KEYS:
             return ok(_vk(cmd))
+        if cmd == "mode":                    # switch EV AI's mode from the phone (same as clicking it on the wheel)
+            key = str(a.get("key", ""))
+            if key not in _MODES:
+                return {"ok": False, "msg": "That mode doesn't exist."}
+            if self.mode_fn is None:
+                return {"ok": False, "msg": "EV AI can't switch modes right now."}
+            return ok(self.mode_fn(key))
         if cmd == "power":                   # shut down / restart with a 60 second delay that can be cancelled
             what = str(a.get("what", ""))
             import subprocess
@@ -501,6 +509,7 @@ class ComputeHost:
         return {"ok": False, "msg": "Unknown command."}
 
 
+_MODES = {"ev", "jarvis", "ultron", "game", "karen", "friday", "tars", "gideon", "edith", "baymax", "overdrive"}
 _MODIFIERS = {"ctrl", "alt", "shift", "win"}
 _EXTRA_KEYS = {"capslock", "insert", "printscreen", "volumeup", "volumedown", "volumemute", "f1", "f2", "f3", "f4", "f5", "f6",
                "f7", "f8", "f9", "f10", "f11", "f12"}
