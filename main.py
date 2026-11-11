@@ -14,6 +14,32 @@ import signal
 import sys
 from pathlib import Path
 
+# Ultron's RUN CODE: EV AI runs Python code with its own built-in Python, so nothing has to be installed.
+# (core/... never imported here: this must stay tiny and quick.)
+if len(sys.argv) >= 3 and sys.argv[1] == "--ev-run-script":
+    import runpy
+    import traceback
+    for _name, _fd in (("stdout", 1), ("stderr", 2)):      # the windowed app has no console: use the pipe we were given
+        if getattr(sys, _name) is None:
+            try:
+                setattr(sys, _name, open(_fd, "w", encoding="utf-8", errors="replace", closefd=False))
+            except OSError:
+                pass
+    _script = sys.argv[2]
+    sys.argv = [_script] + sys.argv[3:]
+    sys.path.insert(0, str(Path(_script).resolve().parent))
+    try:
+        runpy.run_path(_script, run_name="__main__")
+        _code = 0
+    except SystemExit as _e:
+        _code = _e.code if isinstance(_e.code, int) else (0 if _e.code is None else 1)
+    except BaseException:
+        traceback.print_exc()
+        _code = 1
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.exit(_code)
+
 # Started by Chrome's native messaging (the EV AI extension wants EV AI running): start the real app
 # hidden and exit at once, before any heavy import. See core/native_host.py.
 if any(a.startswith("chrome-extension://") for a in sys.argv[1:]):

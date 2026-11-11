@@ -118,6 +118,7 @@ _COMPACT_BTN = "QPushButton { padding: 5px 4px; letter-spacing: 0px; font-size: 
 
 
 class MainWindow(QMainWindow):
+    remote_mode = Signal(str)         # the phone asked for a mode (from a worker thread)
     bridge_reply = Signal(str)        # answer to a voice question about the Chrome page (from a worker thread)
     usb_inserted = Signal(str, str)   # drive, label (from the USB watcher thread)
     reminder_fired = Signal(str)  # emitted from tools/reminders.py's background timer thread
@@ -207,6 +208,7 @@ class MainWindow(QMainWindow):
         try:
             from ui.compute_ui import controller
             controller().set_ask(self._remote_ask)
+            controller().host.mode_fn = lambda k: (self.remote_mode.emit(k) or f"Done: {k}.")
             controller().start()
         except Exception as e:
             print(f"[EV AI] Compute unavailable: {e}")
@@ -235,6 +237,7 @@ class MainWindow(QMainWindow):
 
         # Chrome extension bridge (127.0.0.1 only; see core/browser_bridge.py)
         self.bridge_reply.connect(lambda t: self._deliver_reply(t))
+        self.remote_mode.connect(self._select_mode)
         if user_prefs.get("chrome_bridge"):
             try:
                 from core import browser_bridge

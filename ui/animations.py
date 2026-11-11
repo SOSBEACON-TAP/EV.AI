@@ -16,13 +16,30 @@ Design notes (kept deliberately different from any franchise UI):
 """
 
 import math
-from PySide6.QtCore import Qt, QTimer, Signal, QPointF
+from PySide6.QtCore import Qt, QTimer, Signal, QPointF, QRectF
 from pathlib import Path
 from PySide6.QtGui import QPainter, QColor, QPen, QPixmap, QRadialGradient, QBrush
 from PySide6.QtWidgets import QWidget
 
 from core.state import AIState
 from ui import theme as _theme
+
+
+# Mouths: (left, top, right, bottom) as fractions of the picture, and how far the mouth opens.
+_MOUTHS = {
+    "tars": (0.28, 0.72, 0.70, 0.80, 3.0),       # the blue bar becomes a thick bar
+    "gideon": (0.42, 0.50, 0.58, 0.57, 1.4),
+    "friday": (0.36, 0.62, 0.64, 0.74, 1.0),
+    "ultron": (0.30, 0.66, 0.70, 0.80, 0.5),
+}
+# Baymax has no mouth: the line between his eyes thickens as he speaks. (x0, y0, x1, y1) of the line.
+_MOUTH_LINE = {"baymax": (0.345, 0.504, 0.685, 0.587)}
+# Blinking: the eyes squash shut for a moment. shape, cover colour, line colour, then the eye boxes (l, t, r, b).
+_EYES = {
+    "baymax": ("ellipse", (244, 245, 247), (10, 10, 12), [(0.225, 0.37, 0.36, 0.60), (0.655, 0.45, 0.80, 0.68)]),
+    "tars": ("rect", (4, 10, 20), (70, 190, 255), [(0.14, 0.36, 0.34, 0.52), (0.59, 0.36, 0.80, 0.52)]),
+}
+_FLICKER = {"gideon", "jarvis", "game", "friday", "karen"}      # holograms: a faint electrical shimmer
 
 
 def _face_path(key: str):
@@ -106,67 +123,150 @@ class AICoreWidget(QWidget):
             self.clicked.emit()
         super().mousePressEvent(event)
 
+    def _face_clock(self):
+        """Smooth animation state (seconds, mouth openness 0..1, blink 0..1), advanced once per frame."""
+        import time as _t
+        now = _t.monotonic()
+        dt = min(0.1, max(0.001, now - getattr(self, "_fc_last", now)))
+        self._fc_last = now
+        speaking = self._state == AIState.SPEAKING
+        # speech rhythm: a new "syllable" about 8 times a second, with a short pause every few words
+        k = int(now * 8)
+        h = (k * 2654435761) & 0xFFFFFFFF
+        target = 0.25 + 0.75 * ((h >> 8) % 100) / 100.0
+        if (k // 9) % 3 == 2 and (k % 9) > 5:
+            target = 0.0
+        if not speaking:
+            target = 0.0
+        v = getattr(self, "_mouth_v", 0.0)
+        v += (target - v) * (1 - math.exp(-dt * (34 if target > v else 16)))      # opens fast, closes a little slower
+        self._mouth_v = v
+        # blinking every 2.5 to 6 seconds
+        nb = getattr(self, "_next_blink", now + 3.0)
+        blink = 0.0
+        if now >= nb:
+            span = now - nb
+            blink = 1 - abs(span / 0.09 - 1) if span < 0.18 else 0.0
+            if span >= 0.18:
+                self._next_blink = now + 2.5 + (((int(now * 1000) * 40503) & 0xFFFF) / 65535.0) * 3.5
+        else:
+            self._next_blink = nb
+        return now, v, max(0.0, blink)
+
     def _draw_face(self, painter, cx, cy, radius, accent) -> None:
-        """The mode's picture on its own, alive: it floats, breathes, glows in the mode colour, and a scan line
-        sweeps over it. Listening sends out ripples, thinking sends sparks around it, speaking makes it pulse."""
+        """The mode's picture on its own, alive: it floats, sways and breathes, glows in the mode colour and has a scan
+        line sliding over it. Eyes blink; a speaking mouth moves with a speech rhythm and the head nods a little.
+        Listening sends out ripples, thinking sends sparks around it, speaking makes it pulse."""
         pm = self._face
+        now, mouth_v, blink = self._face_clock()
         ph = self._pulse_phase * 2 * math.pi
         st = self._state
+        key = self._face_key
         box = radius * 1.7
         scale = min(box / pm.width(), box / pm.height())
         if pm.width() > pm.height() * 1.8:                      # wide pictures (glasses, Jarvis) use the full width
             scale = (radius * 2.0) / pm.width()
         speaking = st == AIState.SPEAKING
-        breathe = 1.0 + (0.045 if speaking else 0.022) * math.sin(ph * (3 if speaking else 1))
+        breathe = 1.0 + 0.02 * math.sin(ph) + (0.025 * mouth_v if speaking else 0.0)
         tw, th = pm.width() * scale * breathe, pm.height() * scale * breathe
-        cy = cy + math.sin(ph) * radius * 0.035                  # a slow float
+        cy = cy + math.sin(ph) * radius * 0.03                   # a slow float
+        cx = cx + math.sin(now * 0.7) * radius * 0.012
         big = max(tw, th)
 
         col = QColor("#FF5252") if st == AIState.ERROR else QColor(accent)
         beat = 0.5 + 0.5 * math.sin(ph * (3 if speaking else 1))
-        glow = QRadialGradient(cx, cy, big * 0.75)
-        col.setAlpha(int(55 + 70 * beat))
-        glow.setColorAt(0.0, col)
-        col.setAlpha(0)
-        glow.setColorAt(1.0, col)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(glow))
-        painter.drawEllipse(QPointF(cx, cy), big * 0.75, big * 0.75)
+        for rad, a0 in ((0.85, 40), (0.6, 85)):                  # two soft layers of glow
+            glow = QRadialGradient(cx, cy, big * rad)
+            col.setAlpha(int(a0 * (0.6 + 0.7 * beat)))
+            glow.setColorAt(0.0, col)
+            col.setAlpha(0)
+            glow.setColorAt(1.0, col)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QPointF(cx, cy), big * rad, big * rad)
 
         if st == AIState.LISTENING:                              # ripples spreading outwards
             for k in range(3):
                 t = (self._pulse_phase * 2 + k / 3) % 1.0
                 c = QColor(accent)
-                c.setAlpha(int(150 * (1 - t)))
+                c.setAlpha(int(150 * (1 - t) ** 1.5))
                 painter.setPen(QPen(c, 2))
                 painter.setBrush(Qt.NoBrush)
                 painter.drawEllipse(QPointF(cx, cy), big * (0.45 + 0.5 * t), big * (0.45 + 0.5 * t))
-        elif st in (AIState.THINKING, AIState.PROCESSING, AIState.EXECUTING):   # sparks circling the picture
+        elif st in (AIState.THINKING, AIState.PROCESSING, AIState.EXECUTING):   # sparks circling, with fading trails
             painter.setPen(Qt.NoPen)
             for k in range(6):
-                a = math.radians(self._angle * 3 + k * 60)
-                c = QColor(accent)
-                c.setAlpha(230 if k == 0 else 150)
-                painter.setBrush(c)
-                painter.drawEllipse(QPointF(cx + math.cos(a) * big * 0.62, cy + math.sin(a) * big * 0.62), 4, 4)
+                for tr in range(5):
+                    a = math.radians(self._angle * 3 + k * 60 - tr * 7)
+                    c = QColor(accent)
+                    c.setAlpha(int((230 if k == 0 else 150) * (1 - tr / 5)))
+                    painter.setBrush(c)
+                    rr = 4 - tr * 0.55
+                    painter.drawEllipse(QPointF(cx + math.cos(a) * big * 0.62, cy + math.sin(a) * big * 0.62), rr, rr)
 
-        # the picture, with a bright scan line sliding over it (only where the picture is solid)
         w, h = int(tw), int(th)
         if w < 8 or h < 8:
             return
         layer = QPixmap(w, h)
         layer.fill(Qt.transparent)
         lp = QPainter(layer)
+        lp.setRenderHint(QPainter.Antialiasing)
         lp.setRenderHint(QPainter.SmoothPixmapTransform)
         lp.drawPixmap(0, 0, w, h, pm)
+
+        mouth = _MOUTHS.get(key)
+        if mouth and mouth_v > 0.02:                             # the mouth opens and closes with the speech
+            x0, y0, x1, y1, gain = mouth
+            sx0, sy0, sx1, sy1 = int(x0 * pm.width()), int(y0 * pm.height()), int(x1 * pm.width()), int(y1 * pm.height())
+            dw, dh = (x1 - x0) * w, (y1 - y0) * h
+            grow = 1.0 + gain * mouth_v
+            cxm, cym = (x0 + x1) / 2 * w, (y0 + y1) / 2 * h
+            lp.drawPixmap(QRectF(cxm - dw / 2, cym - dh * grow / 2, dw, dh * grow), pm,
+                          QRectF(sx0, sy0, sx1 - sx0, sy1 - sy0))
+        line = _MOUTH_LINE.get(key)
+        if line:                                                 # Baymax: the line between his eyes thickens as he talks
+            lp.setPen(QPen(QColor(10, 10, 12), max(1.0, w * (0.006 + 0.03 * mouth_v)), Qt.SolidLine, Qt.RoundCap))
+            lp.drawLine(QPointF(line[0] * w, line[1] * h), QPointF(line[2] * w, line[3] * h))
+        eyes = _EYES.get(key)
+        if eyes and blink > 0.02:                                # eyes squash shut and open again
+            shape, cover, ink, boxes = eyes
+            for l, t, r, b in boxes:
+                rect = QRectF(l * w, t * h, (r - l) * w, (b - t) * h)
+                lp.setPen(Qt.NoPen)
+                lp.setBrush(QColor(*cover))
+                (lp.drawEllipse if shape == "ellipse" else lp.drawRect)(rect)
+                shut = rect.height() * max(0.08, 1 - blink)
+                lid = QRectF(rect.left(), rect.center().y() - shut / 2, rect.width(), shut)
+                lp.setBrush(QColor(*ink))
+                (lp.drawEllipse if shape == "ellipse" else lp.drawRect)(lid)
+
         lp.setCompositionMode(QPainter.CompositionMode_SourceAtop)
-        y = int(((self._angle / 360.0 * 1.6) % 1.0) * (h + 40)) - 20
-        band = QColor(255, 255, 255, 70)
-        lp.fillRect(0, y, w, 6, band)
+        y = int(((self._angle / 360.0 * 1.6) % 1.0) * (h + 40)) - 20      # the scan line
+        lp.fillRect(0, y, w, 6, QColor(255, 255, 255, 70))
         lp.fillRect(0, y + 6, w, 14, QColor(accent.red(), accent.green(), accent.blue(), 35))
         lp.end()
+
+        # a hologram shimmers; every few seconds it glitches for a blink: a band slips sideways
+        opacity = 1.0
+        if key in _FLICKER:
+            opacity = 0.9 + 0.1 * math.sin(now * 37) * math.sin(now * 11)
+        painter.setOpacity(opacity)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.drawPixmap(int(cx - w / 2), int(cy - h / 2), layer)
+        painter.save()
+        painter.translate(cx, cy)
+        tilt = math.sin(now * 0.9) * 1.1 + (math.sin(now * 5.5) * 1.6 * mouth_v if speaking else 0.0)
+        painter.rotate(tilt)                                     # a gentle sway, and a nod while speaking
+        gl = key in _FLICKER and int(now * 3) % 9 == 0 and (now * 3) % 1 < 0.12
+        if gl:
+            band_y = int(((now * 7) % 1.0) * h * 0.8)
+            band_h = max(6, h // 12)
+            painter.drawPixmap(int(-w / 2), int(-h / 2), layer, 0, 0, w, band_y)
+            painter.drawPixmap(int(-w / 2 + w * 0.03), int(-h / 2 + band_y), layer, 0, band_y, w, band_h)
+            painter.drawPixmap(int(-w / 2), int(-h / 2 + band_y + band_h), layer, 0, band_y + band_h, w, h - band_y - band_h)
+        else:
+            painter.drawPixmap(int(-w / 2), int(-h / 2), layer)
+        painter.restore()
+        painter.setOpacity(1.0)
 
     def set_tint(self, colours) -> None:
         self._tint = colours

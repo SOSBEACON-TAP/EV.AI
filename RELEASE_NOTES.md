@@ -1,3 +1,20 @@
+EV AI 1.0.33
+
+NEW
+- The faces are livelier: they sway, nod while speaking, and the mouth follows a speech rhythm (opens fast, closes slower). Tars and Baymax blink. Hologram faces shimmer and glitch for a moment now and then. Thinking sparks leave trails.
+- Baymax is now just his head, so you can see him move: he blinks, sways, nods and the line between his eyes thickens when he talks.
+- RUN CODE now also runs JavaScript without Node, using the script engine built into Windows. It must be old-style JavaScript (var, function, no arrow functions); Ultron now writes it that way.
+- Phone control: from the phone you can open a link on the computer, and shut down or restart it with a 60 second delay that the phone can cancel.
+- Faces with a mouth now talk: while EV speaks, the mouth of Tars, Gideon, Friday and Ultron opens and closes.
+- The mode wheel now shows each mode as a small card like the FRIDAY card: a blue circuit board with the mode's name written on a white label on top.
+- Ultron's RUN CODE no longer needs Python (or anything else) installed: EV AI runs Python code with its own built-in Python. PowerShell and batch code run too. Ultron now writes Python that uses only what is built in.
+
+FIXES
+- Phone control: starting a session from the phone now always asks on the computer. Before, it could stay silent when EV AI was started before the phone was connected, or when an earlier session was left open. A session left idle for 90 seconds now asks again.
+- Phone control: if the phone's and the computer's clocks differ, the phone now says so instead of nothing happening.
+
+---
+
 EV AI 1.0.32
 
 NEW

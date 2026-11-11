@@ -231,8 +231,13 @@ class ComputeHost:
         self._session_until = 0.0
         self._phone_name = ""
         self.ask_fn: Callable[[str], str] | None = None   # set by the UI: runs a command through EV AI
+        self.mode_fn: Callable[[str], str] | None = None  # set by the UI: switches EV's mode (a click on the mode wheel)
         self._seen: dict[str, float] = {}
         self._lock = threading.Lock()
+        self._topic = ""                 # the channel the listener is on right now
+        self._thread: threading.Thread | None = None
+        self._last_activity = 0.0        # last real command from the phone (pings do not count)
+        self._asking = False             # a "allow this session?" box is already open
 
     # -- state ----------------------------------------------------------
     @property
@@ -301,11 +306,23 @@ class ComputeHost:
             return
         self._stop = threading.Event()
         topic = session_topic(dev, key)
-        threading.Thread(target=self.tx.stream, args=(topic, self._on_event, self._stop), daemon=True).start()
+        self._topic = topic
+        self._thread = threading.Thread(target=self.tx.stream, args=(topic, self._on_event, self._stop), daemon=True)
+        self._thread.start()
 
     def restart(self) -> None:
         self._stop.set()
         self.start()
+
+    def ensure(self) -> None:
+        """Called every few seconds: (re)starts the listener if it is not on the right channel. This covers connecting
+        the phone, or pairing, after EV AI was already running."""
+        key, dev = self.key, self._device_id()
+        if not key or not dev:
+            return
+        alive = self._thread is not None and self._thread.is_alive()
+        if not alive or self._topic != session_topic(dev, key) or self._stop.is_set():
+            self.restart()
 
     def shutdown(self) -> None:
         self._stop.set()
@@ -340,7 +357,11 @@ class ComputeHost:
         if not msg or msg.get("d") != "c":
             return
         now = time.time()
-        if abs(now - float(msg.get("t", 0))) > MAX_SKEW_SECONDS:
+        skew = now - float(msg.get("t", 0))
+        if abs(skew) > MAX_SKEW_SECONDS:
+            if abs(skew) < 86400 and msg.get("n"):    # not a stale replay: tell the phone why nothing happens
+                mins = int(abs(skew) // 60)
+                self._send({"ok": False, "n": str(msg.get("n")), "msg": f"The clocks of the phone and the computer differ by about {mins} minutes. Turn on automatic date and time on both."})
             return
         n = str(msg.get("n", ""))
         with self._lock:
@@ -362,10 +383,20 @@ class ComputeHost:
             return {"ok": True, "msg": "pong", "active": self.session_active}
         if cmd == "hello":
             name = str(a.get("name", "your phone"))[:40]
-            if self.session_active:
-                return {"ok": True, "msg": "Session already on."}
-            if self.ask_session(name):
+            if self.session_active and time.time() - self._last_activity < 90:
+                return {"ok": True, "msg": "Session already on."}     # the phone is in the middle of a session
+            if self._asking:
+                return {"ok": False, "msg": "Waiting for you to answer on the computer."}
+            if self.session_active:                                  # an old, idle session: every new session asks again
+                self.end_session("The earlier session was idle.")
+            self._asking = True
+            try:
+                allowed = self.ask_session(name)
+            finally:
+                self._asking = False
+            if allowed:
                 self._session_until = time.time() + SESSION_MINUTES * 60
+                self._last_activity = time.time()
                 self._phone_name = name
                 self.on_state("session", name)
                 return {"ok": True, "msg": "Session started.", "minutes": SESSION_MINUTES}
@@ -375,6 +406,7 @@ class ComputeHost:
             return {"ok": True, "msg": "Ended."}
         if not self.session_active:
             return {"ok": False, "msg": "No active session. Start one and allow it on the computer."}
+        self._last_activity = time.time()
         return self._run(cmd, a)
 
     def _run(self, cmd: str, a: dict) -> dict:
@@ -395,6 +427,36 @@ class ComputeHost:
             return ok(_sleep())
         if cmd in _VOLUME_KEYS:
             return ok(_vk(cmd))
+        if cmd == "mode":                    # switch EV AI's mode from the phone (same as clicking it on the wheel)
+            key = str(a.get("key", ""))
+            if key not in _MODES:
+                return {"ok": False, "msg": "That mode doesn't exist."}
+            if self.mode_fn is None:
+                return {"ok": False, "msg": "EV AI can't switch modes right now."}
+            return ok(self.mode_fn(key))
+        if cmd == "power":                   # shut down / restart with a 60 second delay that can be cancelled
+            what = str(a.get("what", ""))
+            import subprocess
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if what == "shutdown":
+                subprocess.Popen(["shutdown", "/s", "/t", "60"], creationflags=flags)
+                return ok("Shutting down in 60 seconds. You can cancel from the phone.")
+            if what == "restart":
+                subprocess.Popen(["shutdown", "/r", "/t", "60"], creationflags=flags)
+                return ok("Restarting in 60 seconds. You can cancel from the phone.")
+            if what == "cancel":
+                subprocess.Popen(["shutdown", "/a"], creationflags=flags)
+                return ok("Cancelled.")
+            return {"ok": False, "msg": "Unknown power action."}
+        if cmd == "url":                     # open a web address on the computer
+            u = str(a.get("url", "")).strip()[:500]
+            if not u.lower().startswith(("http://", "https://")):
+                u = "https://" + u
+            if " " in u or "." not in u:
+                return {"ok": False, "msg": "That doesn't look like a web address."}
+            from tools import browser as _b
+            _b._open(u)
+            return ok("Opened.")
         if cmd == "open_app":
             from tools.applications import open_application
             r = open_application(str(a.get("name", ""))[:60])
@@ -447,6 +509,7 @@ class ComputeHost:
         return {"ok": False, "msg": "Unknown command."}
 
 
+_MODES = {"ev", "jarvis", "ultron", "game", "karen", "friday", "tars", "gideon", "edith", "baymax", "overdrive"}
 _MODIFIERS = {"ctrl", "alt", "shift", "win"}
 _EXTRA_KEYS = {"capslock", "insert", "printscreen", "volumeup", "volumedown", "volumemute", "f1", "f2", "f3", "f4", "f5", "f6",
                "f7", "f8", "f9", "f10", "f11", "f12"}
