@@ -107,24 +107,66 @@ class AICoreWidget(QWidget):
         super().mousePressEvent(event)
 
     def _draw_face(self, painter, cx, cy, radius, accent) -> None:
+        """The mode's picture on its own, alive: it floats, breathes, glows in the mode colour, and a scan line
+        sweeps over it. Listening sends out ripples, thinking sends sparks around it, speaking makes it pulse."""
         pm = self._face
-        box = radius * 1.25
-        scale = min(box * 2 / pm.width(), box * 2 / pm.height())
-        if pm.width() > pm.height() * 1.8:                      # wide pictures (glasses, Jarvis) may use the full width
-            scale = (radius * 1.7) / pm.width()
-        tw, th = pm.width() * scale, pm.height() * scale
-        beat = 0.5 + 0.5 * math.sin(self._pulse_phase * 2 * math.pi)
-        glow = QRadialGradient(cx, cy, max(tw, th) * 0.62)
-        c = QColor(accent)
-        c.setAlpha(int(40 + 50 * beat))
-        glow.setColorAt(0.0, c)
-        c.setAlpha(0)
-        glow.setColorAt(1.0, c)
+        ph = self._pulse_phase * 2 * math.pi
+        st = self._state
+        box = radius * 1.7
+        scale = min(box / pm.width(), box / pm.height())
+        if pm.width() > pm.height() * 1.8:                      # wide pictures (glasses, Jarvis) use the full width
+            scale = (radius * 2.0) / pm.width()
+        speaking = st == AIState.SPEAKING
+        breathe = 1.0 + (0.045 if speaking else 0.022) * math.sin(ph * (3 if speaking else 1))
+        tw, th = pm.width() * scale * breathe, pm.height() * scale * breathe
+        cy = cy + math.sin(ph) * radius * 0.035                  # a slow float
+        big = max(tw, th)
+
+        col = QColor("#FF5252") if st == AIState.ERROR else QColor(accent)
+        beat = 0.5 + 0.5 * math.sin(ph * (3 if speaking else 1))
+        glow = QRadialGradient(cx, cy, big * 0.75)
+        col.setAlpha(int(55 + 70 * beat))
+        glow.setColorAt(0.0, col)
+        col.setAlpha(0)
+        glow.setColorAt(1.0, col)
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(glow))
-        painter.drawEllipse(QPointF(cx, cy), max(tw, th) * 0.62, max(tw, th) * 0.62)
+        painter.drawEllipse(QPointF(cx, cy), big * 0.75, big * 0.75)
+
+        if st == AIState.LISTENING:                              # ripples spreading outwards
+            for k in range(3):
+                t = (self._pulse_phase * 2 + k / 3) % 1.0
+                c = QColor(accent)
+                c.setAlpha(int(150 * (1 - t)))
+                painter.setPen(QPen(c, 2))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawEllipse(QPointF(cx, cy), big * (0.45 + 0.5 * t), big * (0.45 + 0.5 * t))
+        elif st in (AIState.THINKING, AIState.PROCESSING, AIState.EXECUTING):   # sparks circling the picture
+            painter.setPen(Qt.NoPen)
+            for k in range(6):
+                a = math.radians(self._angle * 3 + k * 60)
+                c = QColor(accent)
+                c.setAlpha(230 if k == 0 else 150)
+                painter.setBrush(c)
+                painter.drawEllipse(QPointF(cx + math.cos(a) * big * 0.62, cy + math.sin(a) * big * 0.62), 4, 4)
+
+        # the picture, with a bright scan line sliding over it (only where the picture is solid)
+        w, h = int(tw), int(th)
+        if w < 8 or h < 8:
+            return
+        layer = QPixmap(w, h)
+        layer.fill(Qt.transparent)
+        lp = QPainter(layer)
+        lp.setRenderHint(QPainter.SmoothPixmapTransform)
+        lp.drawPixmap(0, 0, w, h, pm)
+        lp.setCompositionMode(QPainter.CompositionMode_SourceAtop)
+        y = int(((self._angle / 360.0 * 1.6) % 1.0) * (h + 40)) - 20
+        band = QColor(255, 255, 255, 70)
+        lp.fillRect(0, y, w, 6, band)
+        lp.fillRect(0, y + 6, w, 14, QColor(accent.red(), accent.green(), accent.blue(), 35))
+        lp.end()
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.drawPixmap(int(cx - tw / 2), int(cy - th / 2), int(tw), int(th), pm)
+        painter.drawPixmap(int(cx - w / 2), int(cy - h / 2), layer)
 
     def set_tint(self, colours) -> None:
         self._tint = colours
@@ -172,12 +214,12 @@ class AICoreWidget(QWidget):
 
             accent, red, blue = self.palette_colors()
 
-            self._draw_web(painter, cx, cy, radius, accent)
-            self._draw_beams(painter, cx, cy, radius, red, blue)
-            self._draw_orbit_rings(painter, cx, cy, radius, red, blue)
             if self._face is not None:
                 self._draw_face(painter, cx, cy, radius, accent)
             else:
+                self._draw_web(painter, cx, cy, radius, accent)
+                self._draw_beams(painter, cx, cy, radius, red, blue)
+                self._draw_orbit_rings(painter, cx, cy, radius, red, blue)
                 self._draw_core(painter, cx, cy, radius, accent)
         finally:
             # Guarantees the painter is always closed, even if something

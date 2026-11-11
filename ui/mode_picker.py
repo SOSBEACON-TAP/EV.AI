@@ -19,7 +19,7 @@ class ModePicker(QDialog):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setModal(True)
         self.setMouseTracking(True)
-        self.resize(580, 580)
+        self.resize(720, 720)
         self._modes = modes[:SLOTS]
         self._active = set(active)
         self._hover = -1
@@ -59,7 +59,7 @@ class ModePicker(QDialog):
         elif 0 <= i < len(self._modes):
             self.chosen.emit(self._modes[i][0])
             self.accept()
-        elif math.hypot(e.position().x() - self._center().x(), e.position().y() - self._center().y()) > 262:
+        elif math.hypot(e.position().x() - self._center().x(), e.position().y() - self._center().y()) > 340:
             self.reject()
 
     def keyPressEvent(self, e) -> None:
@@ -75,7 +75,7 @@ class ModePicker(QDialog):
         c = self._center()
         p.setPen(QPen(QColor(120, 200, 255, 90), 1.5))
         p.setBrush(QColor(6, 10, 18, 238))
-        p.drawEllipse(c, 262, 262)
+        p.drawEllipse(c, 340, 340)
         # silver ring
         ring = QPen(QColor(168, 176, 188), 16)
         p.setPen(ring)
@@ -93,12 +93,15 @@ class ModePicker(QDialog):
         f.setBold(True)
         f.setLetterSpacing(QFont.AbsoluteSpacing, 2)
         p.setFont(f)
+        fm = p.fontMetrics()
         for i, (_k, label) in enumerate(self._modes):
             ang = math.radians(i * 360 / SLOTS)
-            r = 238
+            tw = fm.horizontalAdvance(label) + 6
+            # push the name out past the silver ring by half its own width, so side labels never touch the ring
+            r = 246 + (tw / 2) * abs(math.sin(ang)) + 10 * abs(math.cos(ang))
             x, y = c.x() + r * math.sin(ang), c.y() - r * math.cos(ang)
             p.setPen(QColor(150, 225, 255) if i == self._hover or self._modes[i][0] in self._active else QColor(120, 150, 175))
-            p.drawText(QRectF(x - 50, y - 10, 100, 20), Qt.AlignCenter, label)
+            p.drawText(QRectF(x - tw / 2 - 4, y - 10, tw + 8, 20), Qt.AlignCenter, label)
         # the glowing core in the middle
         g = QRadialGradient(c, 92)
         g.setColorAt(0.0, QColor(255, 255, 255))

@@ -142,6 +142,9 @@ class UltronTerminal(QDialog):
         self.explain_btn.clicked.connect(self.explain)
         self.write_btn = QPushButton("WRITE CODE FOR ME")
         self.write_btn.clicked.connect(self.write)
+        self.run_code_btn = QPushButton("RUN CODE")
+        self.run_code_btn.setToolTip("Runs the code Ultron just wrote (or the code in the left box) and shows what it prints")
+        self.run_code_btn.clicked.connect(self.run_code)
         self.run_btn = QPushButton("RUN LINE AS COMMAND")
         self.run_btn.clicked.connect(self.run_line)
         copy_btn = QPushButton("COPY OUTPUT")
@@ -152,7 +155,7 @@ class UltronTerminal(QDialog):
         clear_btn.clicked.connect(self._clear)
         exit_btn = QPushButton("[Esc] EXIT")
         exit_btn.clicked.connect(self.close)
-        for b in (self.explain_btn, self.write_btn, self.run_btn, copy_btn, save_btn, clear_btn):
+        for b in (self.explain_btn, self.write_btn, self.run_code_btn, self.run_btn, copy_btn, save_btn, clear_btn):
             row.addWidget(b)
         row.addStretch(1)
         row.addWidget(exit_btn)
@@ -186,10 +189,12 @@ class UltronTerminal(QDialog):
     def _clear(self) -> None:
         self.code.clear()
         self.out.clear()
+        self._last_code = self._last_output = self._last_request = ""
 
     def _busy(self, on: bool) -> None:
         self.explain_btn.setDisabled(on)
         self.write_btn.setDisabled(on)
+        self.run_code_btn.setDisabled(on)
         self.run_btn.setDisabled(on)
 
     def _current_line(self) -> str:
@@ -210,6 +215,7 @@ class UltronTerminal(QDialog):
         if not text or text.startswith(">"):
             self._say("ULTRON", "Tell me what to write. For example: a python program that renames all files in a folder.", "#FFB020")
             return
+        self._last_request = text
         self._say("ULTRON", "Writing...", DIM)
         self._busy(True)
         self._core.write_code(text, self._show_code, lambda e: (self._busy(False), self._say("ULTRON", e, "#FF5050")))
@@ -218,10 +224,31 @@ class UltronTerminal(QDialog):
         import html
         self._busy(False)
         self._last_output = code
+        self._last_code = code
         self.out.append('<pre style="color:%s; margin:0">%s</pre>' % (GREEN, html.escape(code)))
         self.out.moveCursor(QTextCursor.End)
 
     _last_output = ""
+    _last_code = ""
+    _last_request = ""
+
+    def run_code(self) -> None:
+        """Runs the code Ultron just wrote; if there is none, the code in the left box."""
+        left = self.code.toPlainText().strip()
+        edited = bool(left) and left != self._last_request and not left.startswith(">")
+        code = left if edited or not self._last_code else self._last_code
+        if not code.strip():
+            self._say("ULTRON", "There is nothing to run yet. Ask me to write something, or paste code on the left.", "#FFB020")
+            return
+        self._say("ULTRON", "Running...", DIM)
+        self._busy(True)
+        started = self._core.run_code(
+            code,
+            lambda r: (self._busy(False), self._say("ULTRON", "OUTPUT:\n" + r)),
+            lambda e: (self._busy(False), self._say("ULTRON", e, "#FF5050")))
+        if not started:
+            self._busy(False)
+            self._say("ULTRON", "Not run.", "#FFB020")
 
     def _copy(self) -> None:
         from PySide6.QtWidgets import QApplication

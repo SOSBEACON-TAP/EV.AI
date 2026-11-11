@@ -56,7 +56,7 @@ class RadarWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(170, 170)
+        self.setMinimumSize(120, 120)
         self._angle = 0.0
         self._devices: list[dict] = []
         self._wifi: list[dict] = []
@@ -164,7 +164,7 @@ class LocationRadarWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(170, 170)
+        self.setMinimumSize(120, 120)
         self._places: list[dict] = []
         self._range = 1000
         self._angle = 0.0
@@ -705,6 +705,68 @@ class HackCore(QObject):
             return t.replace("```", "")
         self._quiet_job(lambda _p: brain.ask(prompt), lambda r: on_done(clean(r)), on_fail)
 
+    @staticmethod
+    def guess_language(code: str) -> str:
+        t = code.lstrip()
+        low = code.lower()
+        if t.startswith("#!") and "python" in t.split("\n", 1)[0]:
+            return "python"
+        if "@echo" in low or low.startswith("rem ") or "\nset /p" in low:
+            return "batch"
+        if any(k in code for k in ("Write-Host", "Get-ChildItem", "Get-Process", "$env:", "Set-Location")):
+            return "powershell"
+        if any(k in code for k in ("console.log", "require(", "=> {", "const ", "let ")) and "def " not in code and "import " not in code[:200]:
+            return "node"
+        return "python"
+
+    def run_code(self, code: str, on_done, on_fail) -> bool:
+        """Runs a piece of code from a temporary file (Python, Node, PowerShell or batch) and returns its output.
+        Asks first. Stops it after 30 seconds. Never feeds it keyboard input."""
+        import os
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+        lang = self.guess_language(code)
+        if lang == "python":
+            exe = shutil.which("python") or shutil.which("py") or shutil.which("python3")
+            if exe is None and not getattr(sys, "frozen", False):
+                exe = sys.executable
+            cmd, ext = ([exe, "-u"] if exe else None), ".py"
+        elif lang == "node":
+            exe = shutil.which("node")
+            cmd, ext = ([exe] if exe else None), ".js"
+        elif lang == "powershell":
+            exe = shutil.which("powershell") or shutil.which("pwsh")
+            cmd, ext = ([exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"] if exe else None), ".ps1"
+        else:
+            cmd, ext = (["cmd", "/c"] if os.name == "nt" else None), ".bat"
+        if cmd is None or cmd[0] is None:
+            on_fail(f"I can't find {lang} on this PC, so I can't run this {lang} code. Install it, then try again.")
+            return False
+        preview = "\n".join(code.strip().splitlines()[:12])
+        if QMessageBox.question(self.w, "Run this code?", f"This will run as {lang} on your PC:\n\n{preview}\n\nRun it?",
+                                QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:
+            return False
+
+        def work(_p):
+            folder = tempfile.mkdtemp(prefix="ultron_run_")
+            path = os.path.join(folder, "run" + ext)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(code)
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            try:
+                r = subprocess.run(cmd + [path], cwd=folder, capture_output=True, text=True, timeout=30,
+                                   stdin=subprocess.DEVNULL, creationflags=flags, errors="replace")
+                out = (r.stdout or "") + (("\n" + r.stderr) if r.stderr else "")
+                return (out.strip() or "(no output)")[:8000] + f"\n[finished, exit code {r.returncode}]"
+            except subprocess.TimeoutExpired:
+                return "[stopped after 30 seconds]"
+            finally:
+                shutil.rmtree(folder, ignore_errors=True)
+        self._quiet_job(work, lambda r: on_done(str(r)), on_fail)
+        return True
+
     def run_command(self, cmd: str, on_done, on_fail) -> bool:
         """Runs one Windows command and hands the output to on_done. Asks first if it can delete data or change the system."""
         if shellmod.is_dangerous(cmd):
@@ -896,7 +958,7 @@ class HackRadarPanel(QWidget):
     def _list_box(self) -> QTextEdit:
         box = QTextEdit()
         box.setReadOnly(True)
-        box.setMinimumHeight(110)
+        box.setMinimumHeight(70)
         box.setStyleSheet(f"background: #0B0102; color: #F0B0B0; border: 1px solid {DIM}; font-family: Consolas; font-size: 11px;")
         return box
 
