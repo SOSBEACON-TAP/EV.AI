@@ -327,6 +327,7 @@ class MainWindow(QMainWindow):
         sa.setWidgetResizable(True)
         sa.setFrameShape(QFrame.NoFrame)
         sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sa.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)       # no scroll bar to see; the mouse wheel still scrolls
         sa.setStyleSheet("QScrollArea { background: transparent; border: 0; } "
                          "QScrollArea > QWidget > QWidget { background: transparent; } "
                          "QScrollBar:vertical { width: 6px; background: transparent; } "
@@ -1219,7 +1220,20 @@ class MainWindow(QMainWindow):
         self._append_conversation("EV", f"(error) {message}")
         QTimer.singleShot(1800, lambda: self._apply_state(AIState.IDLE))
 
-    def _deliver_reply(self, reply: str, speaker: str = "EV", speak_text: str | None = None):
+    def _speaker_name(self) -> str:
+        """Who is talking: EV, or the mode that is on (Karen, Tars, Baymax...), so the chat names the right voice."""
+        name = self._current_mode_name()
+        return "EV" if name == "ev" else name.upper()
+
+    def _speak_watchdog(self) -> None:
+        """If the voice never reported back (TTS hiccup), do not stay on SPEAKING and ignore the chat box."""
+        w = self._speech_worker
+        if self._state == AIState.SPEAKING and (w is None or not w.isRunning()):
+            self._apply_state(AIState.IDLE)
+
+    def _deliver_reply(self, reply: str, speaker: str | None = None, speak_text: str | None = None):
+        speaker = speaker or self._speaker_name()
+        QTimer.singleShot(max(7000, len(speak_text if speak_text is not None else reply) * 90), self._speak_watchdog)
         self._apply_state(AIState.SPEAKING)
         self._append_conversation(speaker, reply)
         if self._hud_overlay is not None:
@@ -1708,9 +1722,9 @@ class MainWindow(QMainWindow):
         """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice.
         With cut_off, EV's sentence is spoken only up to that text and the character barges in at once."""
         if cut_off:
-            self._deliver_reply(intro, speak_text=cut_off)
+            self._deliver_reply(intro, "EV", speak_text=cut_off)
         else:
-            self._deliver_reply(intro)
+            self._deliver_reply(intro, "EV")
         worker = self._speech_worker if (VOICE_AVAILABLE and user_prefs.get("speak_replies")) else None
 
         def arrive():
