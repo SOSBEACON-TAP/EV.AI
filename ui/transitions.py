@@ -78,3 +78,55 @@ class ModeTransition(QWidget):
         for y in range(0, h, 3):                                  # scan lines
             p.fillRect(0, y, w, 1, QColor(0, 0, 0, 90))
         p.end()
+
+
+class ShrinkTransition(QWidget):
+    """EDITH: the whole screen shrinks away to the middle (a picture of it, taken just before), and when it is small
+    enough `on_done` runs - that is when the HUD appears. A separate see-through window, so it survives the main window
+    hiding underneath it."""
+
+    def __init__(self, window: QWidget, on_done=None, ms: int = 650):
+        super().__init__(None)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self._pm = window.grab()
+        self._on_done = on_done
+        self._ms = ms
+        self._t0 = time.monotonic()
+        self.setGeometry(window.mapToGlobal(window.rect().topLeft()).x(), window.mapToGlobal(window.rect().topLeft()).y(),
+                         window.width(), window.height())
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(16)
+        self.show()
+
+    def _tick(self) -> None:
+        if (time.monotonic() - self._t0) * 1000.0 >= self._ms:
+            self._timer.stop()
+            self.hide()
+            self.deleteLater()
+            if self._on_done:
+                try:
+                    self._on_done()
+                except Exception as e:
+                    print(f"[EV AI] shrink transition callback failed: {e}")
+            return
+        self.update()
+
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        t = min(1.0, (time.monotonic() - self._t0) * 1000.0 / self._ms)
+        k = t * t * (3 - 2 * t)
+        scale = 1.0 - 0.9 * k                                   # shrinks to a tenth of its size
+        w, h = self.width(), self.height()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.setOpacity(1.0 - 0.85 * k)
+        tw, th = w * scale, h * scale
+        rect = QRectF((w - tw) / 2, (h - th) / 2, tw, th)
+        p.drawPixmap(rect, self._pm, QRectF(self._pm.rect()))
+        p.setOpacity(1.0)
+        p.setPen(QColor(100, 170, 255, int(220 * (1 - k * 0.6))))     # a thin glowing frame around the shrinking screen
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(rect)
+        p.end()

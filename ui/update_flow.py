@@ -131,22 +131,35 @@ class UpdateFlow(QObject):
                 f"Version {latest} is available (you have {settings.APP_VERSION}).{notes}{link}\n\n"
                 "It can't be installed automatically — copy the new files over your EV.AI folder.")
             return
-        answer = QMessageBox.question(
-            self._parent, "Update available",
-            f"Version {latest} is available (you have {settings.APP_VERSION}).{notes}\n\n"
-            "Download and install it now? Your settings, memory and keys are kept, and the "
-            "files being replaced are backed up first.",
-        )
-        if answer != QMessageBox.Yes:
+        box = QMessageBox(self._parent)
+        box.setWindowTitle("Update available")
+        box.setIcon(QMessageBox.Question)
+        box.setText(f"Version {latest} is available (you have {settings.APP_VERSION}).{notes}\n\n"
+                    "Download and install it now? Your settings, memory and keys are kept, and the "
+                    "files being replaced are backed up first.")
+        now_btn = box.addButton("Update now", QMessageBox.AcceptRole)
+        silent_btn = box.addButton("Update silently", QMessageBox.AcceptRole)
+        box.addButton("Later", QMessageBox.RejectRole)
+        silent_btn.setToolTip("Download in the background without the full-screen updating page, so it never covers what you're doing")
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked not in (now_btn, silent_btn):
             return
+        silent = clicked is silent_btn
         self._busy("Updating… 0%")
-        from ui.update_screen import UpdateScreen
-        self._screen = UpdateScreen()
-        self._screen.show_full()
-        self._screen.cancel_clicked.connect(self._cancel_install)
+        self._screen = None
+        if not silent:
+            from ui.update_screen import UpdateScreen
+            self._screen = UpdateScreen()
+            self._screen.show_full()
+            self._screen.cancel_clicked.connect(self._cancel_install)
         self._install_worker = InstallWorker(settings.UPDATE_CHECK_URL, self)
-        self._install_worker.progress.connect(lambda pct: (self._button.setText(f"Updating… {pct}%"),
-                                                           self._screen.set_progress(pct)))
+
+        def on_progress(pct):
+            self._button.setText(f"Updating… {pct}%" + (" (silent)" if silent else ""))
+            if self._screen is not None:
+                self._screen.set_progress(pct)
+        self._install_worker.progress.connect(on_progress)
         self._install_worker.finished_ok.connect(self._on_installed)
         self._install_worker.failed.connect(self._on_failed)
         self._install_worker.start()

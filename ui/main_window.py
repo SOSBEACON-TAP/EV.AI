@@ -266,6 +266,11 @@ class MainWindow(QMainWindow):
         self._wheel_shortcut = QShortcut(QKeySequence("Ctrl+M"), self)      # Ctrl+M opens the mode wheel
         self._wheel_shortcut.activated.connect(self._open_mode_picker)
         QTimer.singleShot(0, self._refresh_face)
+        try:
+            from ui.hover_info import HoverInfo            # EDITH: hold Ctrl and point at anything to learn what it is
+            self._hover_info = HoverInfo(lambda: self._style_char == "edith" or self._observing)
+        except Exception as e:
+            print(f"[EV AI] hover info unavailable: {e}")
 
         self._append_conversation("EV", "SYSTEM ONLINE. READY.")
 
@@ -1358,11 +1363,25 @@ class MainWindow(QMainWindow):
         return self._speech_worker
 
     def _then(self, worker, callback, fallback_ms: int = 2600, delay_ms: int = 250):
-        """Runs callback when this utterance has finished (or after a short delay if nothing is being spoken)."""
+        """Runs callback exactly once when this utterance has finished (or after a short delay if nothing is being
+        spoken). A safety timer guarantees it still runs if the finished signal was missed (a speech engine that fails
+        instantly can finish before we connect), so a mode switch can never be left waiting forever."""
+        fired = []
+
+        def go():
+            if fired:
+                return
+            fired.append(True)
+            callback()
+
         if worker is None:
-            QTimer.singleShot(fallback_ms, callback)
-        else:
-            worker.finished_speaking.connect(lambda: QTimer.singleShot(delay_ms, callback))
+            QTimer.singleShot(fallback_ms, go)
+            return
+        if not worker.isRunning():                      # already finished: its signal will not come again
+            QTimer.singleShot(delay_ms, go)
+            return
+        worker.finished_speaking.connect(lambda: QTimer.singleShot(delay_ms, go))
+        QTimer.singleShot(15000, go)                    # safety net
 
     # ---- mode picker -----------------------------------------------------------------------------
     MODE_LIST = [("ev", "EV"), ("jarvis", "JARVIS"), ("ultron", "ULTRON"), ("game", "GAME"), ("karen", "KAREN"),
@@ -1408,7 +1427,23 @@ class MainWindow(QMainWindow):
             if not AI_AVAILABLE:
                 self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
                 return
-            self._toggle_observation()
+            if self._observing or not self.isVisible() or self.isMinimized():
+                self._toggle_observation()               # turning it off (or nothing to shrink): no animation
+                return
+            try:
+                from ui.transitions import ShrinkTransition
+                if getattr(self, "_shrinking", False):
+                    return
+                self._shrinking = True
+
+                def go():
+                    self._shrinking = False
+                    self._toggle_observation()           # the screen has shrunk away: now the HUD comes up
+                self._shrink = ShrinkTransition(self, go)
+            except Exception as e:
+                self._shrinking = False
+                print(f"[EV AI] shrink transition skipped: {e}")
+                self._toggle_observation()
 
     def _sync_mode_button(self) -> None:
         self._refresh_face()
@@ -1639,6 +1674,13 @@ class MainWindow(QMainWindow):
 
     def _od_start(self) -> None:                         # called once the Overdrive screen is actually up
         self._od_left = self.OVERDRIVE_SECONDS
+        try:
+            from ui.overdrive_fx import OverdriveFX
+            self._od_stop_fx()
+            self._od_fx = OverdriveFX(self)
+            self.ai_core.set_boost(2.2)                  # brighter (the glow layer) and faster (the core turns quicker)
+        except Exception as e:
+            print(f"[EV AI] overdrive effect skipped: {e}")
         t = getattr(self, "_od_timer", None)
         if t is None:
             t = self._od_timer = QTimer(self)
@@ -1651,18 +1693,51 @@ class MainWindow(QMainWindow):
             return
         self._od_left -= 1
         self._logo_label.setText(f"O V E R D R I V E   {self._od_left // 60}:{self._od_left % 60:02d}")
+        fx = getattr(self, "_od_fx", None)
+        if fx is not None:
+            fx.set_left(self._od_left)
         if self._od_left == 10:
             self._deliver_reply("Ten seconds left.")
         if self._od_left <= 0:
-            self._end_overdrive("Overdrive complete. Cooling down for five minutes.")
+            self._od_timer.stop()
+            fx = getattr(self, "_od_fx", None)
+            msg = "Overdrive burned out. Cooling down for five minutes."
+            if fx is not None:                           # the bulb burns out first; the screen returns to EV while it is dark
+                fx.burn_out(on_done=lambda: self._end_overdrive(msg, keep_fx=True))
+            else:
+                self._end_overdrive(msg)
 
-    def _end_overdrive(self, msg: str) -> None:
+    def _od_stop_fx(self) -> None:
+        fx = getattr(self, "_od_fx", None)
+        self._od_fx = None
+        if fx is not None:
+            try:
+                fx.stop()
+            except Exception:
+                pass
+        try:
+            self.ai_core.set_boost(1.0)
+        except Exception:
+            pass
+
+    def _end_overdrive(self, msg: str, keep_fx: bool = False) -> None:
         t = getattr(self, "_od_timer", None)
         if t is not None:
             t.stop()
         self._od_ready_at = time.time() + self.OVERDRIVE_COOLDOWN_S
+        if keep_fx:                                      # the dark cool-down layer finishes and removes itself
+            try:
+                self.ai_core.set_boost(1.0)
+            except Exception:
+                pass
+            fx, self._od_fx = getattr(self, "_od_fx", None), None
+        else:
+            fx = None
+            self._od_stop_fx()
         if self._style_char == "overdrive":
             self._exit_style_char()
+        if fx is not None:
+            fx.raise_()                                  # stay above the mode change dissolve
         self._deliver_reply(msg)
 
     def _exit_style_char(self, silent: bool = False) -> None:
@@ -1745,7 +1820,16 @@ class MainWindow(QMainWindow):
         worker = self._speech_worker if (VOICE_AVAILABLE and user_prefs.get("speak_replies")) else None
 
         def arrive():
-            apply_ui()
+            try:
+                apply_ui()
+            except Exception as e:                       # never fail silently: say what went wrong and log it
+                try:
+                    from ui.transition import _log_error
+                    _log_error(f"mode switch failed ({speaker})")
+                except Exception:
+                    pass
+                self._append_conversation("EV", f"I couldn't switch to {speaker.title()}: {e}. Details are in data/animation_error.log.")
+                return
             self._deliver_reply(line, speaker)
         self._then(worker, arrive, delay_ms=0 if cut_off else 250)
 

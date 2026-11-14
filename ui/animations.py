@@ -309,8 +309,12 @@ class AICoreWidget(QWidget):
             AIState.ERROR: 0.2,
         }.get(self._state, 0.5)
 
+    def set_boost(self, factor: float) -> None:
+        """Overdrive turns the core faster (1.0 = normal)."""
+        self._boost = max(0.1, float(factor))
+
     def _tick(self) -> None:
-        self._angle = (self._angle + self._speed_for_state()) % 360
+        self._angle = (self._angle + self._speed_for_state() * getattr(self, "_boost", 1.0)) % 360
         self._pulse_phase = (self._pulse_phase + 0.02) % 1.0
         self.update()
 

@@ -20,12 +20,12 @@ SCALE = 4             # chips are drawn at 4x and shrunk, so every trace stays c
 
 # (bright colour, dark colour) of each mode's chip when it is lit
 THEMES = {
-    "ev": ((60, 160, 245), (12, 60, 150)), "jarvis": ((240, 180, 50), (125, 72, 6)),
-    "ultron": ((235, 50, 55), (100, 10, 16)), "game": ((55, 215, 120), (10, 92, 52)),
-    "karen": ((170, 100, 240), (72, 30, 132)), "friday": ((215, 100, 225), (84, 30, 104)),
-    "tars": ((190, 198, 208), (62, 68, 80)), "gideon": ((70, 205, 235), (10, 92, 122)),
-    "edith": ((90, 165, 255), (20, 62, 152)), "sonar": ((45, 205, 185), (10, 92, 82)),
-    "minority": ((245, 100, 175), (112, 22, 72)), "baymax": ((255, 128, 116), (132, 42, 42)),
+    "ev": ((48, 132, 212), (12, 56, 140)), "jarvis": ((206, 150, 38), (118, 66, 6)),
+    "ultron": ((225, 46, 50), (96, 10, 16)), "game": ((44, 178, 100), (10, 84, 48)),
+    "karen": ((146, 86, 214), (68, 28, 124)), "friday": ((182, 82, 196), (78, 28, 98)),
+    "tars": ((136, 146, 160), (54, 60, 72)), "gideon": ((56, 168, 198), (10, 84, 112)),
+    "edith": ((72, 138, 226), (18, 56, 142)), "sonar": ((38, 172, 154), (10, 84, 74)),
+    "minority": ((214, 84, 150), (104, 20, 66)), "baymax": ((218, 104, 94), (124, 38, 38)),
 }
 _BLUE = THEMES["ev"]
 
@@ -211,7 +211,7 @@ class ModePicker(QDialog):
         # the circuit board
         panel = QRectF(case.left() + 3, strip.bottom() + 3, CHIP_W - 6, case.bottom() - strip.bottom() - 6)
         bg = QLinearGradient(panel.topLeft(), panel.bottomLeft())
-        bg.setColorAt(0.0, QColor(*bright).lighter(112))
+        bg.setColorAt(0.0, QColor(*bright))
         bg.setColorAt(1.0, QColor(*dark))
         p.setBrush(QBrush(bg))
         p.drawRoundedRect(panel, 3, 3)
@@ -404,6 +404,11 @@ class ModePicker(QDialog):
         p.drawEllipse(c, 254, 254)
         p.setPen(QPen(QColor(60, 66, 78), 2))
         p.drawEllipse(c, 237, 237)
+        # the ring spins: bright notches travel around it (the chips stay put so they are easy to click)
+        p.setPen(QPen(QColor(int(70 + 160 * ct), int(120 - 80 * ct), int(190 - 140 * ct), 230), 5, Qt.SolidLine, Qt.FlatCap))
+        for n in range(48):
+            a0 = n * 7.5 + self._spin * 1.6
+            p.drawArc(QRectF(c.x() - 246, c.y() - 246, 492, 492), int(-a0 * 16), int(-3.2 * 16))
         for i in range(SLOTS):
             self._draw_chip(p, i)
         self._draw_core(p, c, ct)
