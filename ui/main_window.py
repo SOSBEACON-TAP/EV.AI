@@ -262,6 +262,9 @@ class MainWindow(QMainWindow):
         self._battery_timer.timeout.connect(self._check_battery)
         self._battery_timer.start(60_000)
         self.ai_core.clicked.connect(self._on_orb_clicked)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        self._wheel_shortcut = QShortcut(QKeySequence("Ctrl+M"), self)      # Ctrl+M opens the mode wheel
+        self._wheel_shortcut.activated.connect(self._open_mode_picker)
         QTimer.singleShot(0, self._refresh_face)
 
         self._append_conversation("EV", "SYSTEM ONLINE. READY.")
@@ -1453,6 +1456,8 @@ class MainWindow(QMainWindow):
         if key == "baymax":
             on = "ON" if user_prefs.get("baymax_care") else "OFF"
             return "BAYMAX CARE", [
+                ("I feel good", "__bm_mood_happy__"), ("I feel stressed", "__bm_mood_stressed__"),
+                ("I feel tired", "__bm_mood_tired__"), ("I feel sad", "__bm_mood_sad__"),
                 ("How I feel", "prefill:I feel "), ("Health question", "prefill:I have a health question: "),
                 ("Care dashboard", "__bm_dash__"), ("Log water", "__bm_water__"), ("Took a break", "__bm_break__"),
                 ("PC check-up", "Run a full health check of my computer. Explain any problem in simple words and tell me how to fix it."),
@@ -1504,6 +1509,16 @@ class MainWindow(QMainWindow):
                 self._observe_timer.start(nxt * 1000)
             self._push_mode_tools()
             self._refresh_char_tools()
+        elif action.startswith("__bm_mood_"):
+            from core import baymax
+            mood = action[len("__bm_mood_"):-2]
+            baymax.log("mood", mood)
+            self._deliver_reply({
+                "happy": "I am glad. Good moods are worth keeping. Maybe drink some water to keep it going.",
+                "stressed": "That sounds heavy. Let us slow down together: breathe in for four, hold for four, out for six. Shall I guide you?",
+                "tired": "Your body is asking for rest. A short break, some water, and a stretch can help. If it is late, sleep is best.",
+                "sad": "I am here with you. You do not have to carry it alone. Would you like to tell me what happened, or talk to someone you trust?",
+            }.get(mood, "Thank you for telling me. I have noted it."), "BAYMAX")
         elif action == "__bm_dash__":
             from ui.baymax_dialog import BaymaxDialog
             BaymaxDialog(self).exec()
@@ -1636,6 +1651,8 @@ class MainWindow(QMainWindow):
             return
         self._od_left -= 1
         self._logo_label.setText(f"O V E R D R I V E   {self._od_left // 60}:{self._od_left % 60:02d}")
+        if self._od_left == 10:
+            self._deliver_reply("Ten seconds left.")
         if self._od_left <= 0:
             self._end_overdrive("Overdrive complete. Cooling down for five minutes.")
 
@@ -2549,7 +2566,7 @@ def _faded(fn):
     """Wraps a method that changes the screen's look (a mode turning on or off): the old screen is photographed first
     and then dissolves slowly into the new one; switching to Ultron corrupts it and turns it red instead."""
     def wrapper(self, *args, **kwargs):
-        if getattr(self, "_fade_depth", 0) or not self.isVisible() or self.isMinimized():
+        if getattr(self, "_fade_depth", 0) or not self.isVisible() or self.isMinimized() or not user_prefs.get("mode_transitions"):
             self._fade_depth = getattr(self, "_fade_depth", 0) + 1
             try:
                 return fn(self, *args, **kwargs)

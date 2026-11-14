@@ -9,7 +9,7 @@ import time
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (QBrush, QColor, QFont, QFontInfo, QFontMetricsF, QLinearGradient, QPainter, QPainterPath,
                            QPen, QPixmap, QRadialGradient)
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QToolTip
 
 from ui.chip_art import chip_layout
 
@@ -28,6 +28,21 @@ THEMES = {
     "minority": ((245, 100, 175), (112, 22, 72)), "baymax": ((255, 128, 116), (132, 42, 42)),
 }
 _BLUE = THEMES["ev"]
+
+DESCRIPTIONS = {
+    "ev": "EV: your everyday assistant, and control of this computer from your phone",
+    "jarvis": "Jarvis: watches your PC's health, battery and speed",
+    "ultron": "Ultron: security tools, the radar, and a terminal that writes and runs code",
+    "game": "Game: boost the PC, auto-clicker, game stats and break reminders",
+    "karen": "Karen: screen-time limits and blocking distracting sites",
+    "friday": "Friday: quick, automatic answers",
+    "tars": "Tars: serious and to the point",
+    "gideon": "Gideon: slow, deep thinking",
+    "edith": "Edith: click her glasses to start the HUD",
+    "sonar": "Sonar: the sound player",
+    "minority": "Minority: the video player you control with gestures",
+    "baymax": "Baymax: a gentle health companion",
+}
 
 
 class ModePicker(QDialog):
@@ -96,6 +111,12 @@ class ModePicker(QDialog):
         if i != self._hover or core != self._core_hover:
             self._hover, self._core_hover = i, core
             self.setCursor(Qt.PointingHandCursor if (0 <= i < len(self._modes) or core) else Qt.ArrowCursor)
+            tip = ("Overdrive: every important tool at once, for 1 minute 30 seconds" if core
+                   else (DESCRIPTIONS.get(self._modes[i][0], "") + f"  (press {self._key_for(i)})") if 0 <= i < len(self._modes) else "")
+            if tip:
+                QToolTip.showText(e.globalPosition().toPoint(), tip, self)
+            else:
+                QToolTip.hideText()
 
     def mousePressEvent(self, e) -> None:
         if self._corrupt_t0 is not None:
@@ -114,7 +135,36 @@ class ModePicker(QDialog):
         elif math.hypot(e.position().x() - self._center().x(), e.position().y() - self._center().y()) > 270:
             self.reject()
 
+    @staticmethod
+    def _key_for(i: int) -> str:
+        return str((i + 1) % 10) if i < 10 else "-"
+
     def keyPressEvent(self, e) -> None:
+        if self._corrupt_t0 is not None:
+            return
+        k = e.key()
+        slot = -1
+        if Qt.Key_1 <= k <= Qt.Key_9:
+            slot = k - Qt.Key_1
+        elif k == Qt.Key_0:
+            slot = 9
+        elif k == Qt.Key_Minus:
+            slot = 10
+        elif k == Qt.Key_Equal:
+            slot = 11
+        if 0 <= slot < len(self._modes):                       # number keys pick a chip: 1 = the first ... 0 = the tenth
+            key = self._modes[slot][0]
+            if key == "ultron" and "ultron" not in self._active:
+                self._hover = slot
+                self._corrupt_t0 = time.monotonic()
+            else:
+                self.chosen.emit(key)
+                self.accept()
+            return
+        if k == Qt.Key_O:                                      # O = Overdrive
+            self.chosen.emit("overdrive")
+            self.accept()
+            return
         if e.key() == Qt.Key_Escape:
             self.reject()
         else:

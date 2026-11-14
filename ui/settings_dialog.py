@@ -522,6 +522,11 @@ class SettingsDialog(QDialog):
         self._speak_check.toggled.connect(lambda on: user_prefs.set_value("speak_replies", on))
         root.addWidget(self._speak_check)
 
+        self._transitions_check = QCheckBox("Smooth mode transitions (slow colour change, Ultron glitch)")
+        self._transitions_check.setChecked(user_prefs.get("mode_transitions"))
+        self._transitions_check.toggled.connect(lambda on: user_prefs.set_value("mode_transitions", on))
+        root.addWidget(self._transitions_check)
+
         battery_check = QCheckBox("Warn me when the battery is low (laptops)")
         battery_check.setChecked(user_prefs.get("battery_alerts"))
         battery_check.toggled.connect(lambda on: user_prefs.set_value("battery_alerts", on))
@@ -825,7 +830,8 @@ class SettingsDialog(QDialog):
         """After prefs were changed in bulk (profile / import / reset): refresh
         every control on this page and push the changes to the running app."""
         checks = {
-            self._speak_check: "speak_replies", self._top_check: "always_on_top",
+            self._speak_check: "speak_replies", self._transitions_check: "mode_transitions",
+            self._top_check: "always_on_top",
             self._tray_check: "minimize_to_tray", self._start_tray_check: "start_in_tray",
             self._hotkey_check: "global_hotkey", self._hover_check: "hover_sound",
             self._offline_check: "offline_first", self._briefing_check: "briefing_on_start",

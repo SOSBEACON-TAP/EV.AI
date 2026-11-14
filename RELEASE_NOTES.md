@@ -6,6 +6,11 @@ NEW
 - Switching modes now changes the screen slowly: the old look dissolves into the new mode's colours over about a second and a half.
 - Ultron: when you pick the Ultron chip it corrupts (it tears, jitters and bleeds red while the wheel flickers), then the whole screen glitches, turns red and dissolves into Ultron mode.
 
+- Wheel shortcuts: press Ctrl+M anywhere in EV AI to open the wheel; inside it press 1 to 9 and 0 to pick a chip, and O for Overdrive. Pointing at a chip or the core shows what it does.
+- Settings > Behaviour: "Smooth mode transitions" switches the slow colour change and Ultron's glitch on or off.
+- Baymax: one-tap mood buttons (good, stressed, tired, sad) that log your mood and answer kindly.
+- Overdrive says "Ten seconds left" before it ends.
+
 CHANGES
 - Faces in the orb now melt into the screen: soft edges instead of a visible rectangle, a glow that stays inside the orb area, a fainter scan line, and cleaner Game and Jarvis pictures.
 - Replies are now named after the mode that is on (KAREN, TARS, BAYMAX...) instead of always EV.
