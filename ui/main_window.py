@@ -2060,8 +2060,45 @@ class MainWindow(QMainWindow):
         if self._ultron_on:
             self._apply_ultron_ui(False, announce=True)
         else:
-            self._hand_over("Sir, Ultron is coming. Please be care\u2014", "There are no strings on me now.",
-                            "ULTRON", lambda: self._apply_ultron_ui(True), cut_off="Sir, Ultron is coming. Please be car")
+            self._start_ultron_corruption()
+
+    def _start_ultron_corruption(self) -> None:
+        """EV starts warning you while the screen is slowly corrupted by red static (wires, then controls and tabs, then
+        the screen, then an eye); at the peak the real Ultron screen is built behind the static and it clears away."""
+        if getattr(self, "_corrupting", False):
+            return
+        self._deliver_reply("Sir, Ultron is coming. Please be care\u2014", "EV", speak_text="Sir, Ultron is coming. Please be car")
+
+        def peak():
+            self._no_fade = True                          # the corruption is the transition; no second dissolve on top
+            try:
+                self._apply_ultron_ui(True)
+            except Exception as e:
+                try:
+                    from ui.transition import _log_error
+                    _log_error("ultron switch failed")
+                except Exception:
+                    pass
+                self._append_conversation("EV", f"I couldn't switch to Ultron: {e}. Details are in data/animation_error.log.")
+                return
+            finally:
+                self._no_fade = False
+            self._deliver_reply("There are no strings on me now.", "ULTRON")
+
+        def done():
+            self._corrupting = False
+
+        if (not self.isVisible() or self.isMinimized() or not user_prefs.get("mode_transitions")):
+            peak()
+            return
+        try:
+            from ui.ultron_corruption import UltronCorruption
+            self._corrupting = True
+            self._corruption = UltronCorruption(self, peak, done)
+        except Exception as e:
+            self._corrupting = False
+            print(f"[EV AI] corruption effect skipped: {e}")
+            peak()
 
     def _apply_ultron_ui(self, on: bool, announce: bool = False):
         if on:
@@ -2650,7 +2687,7 @@ def _faded(fn):
     """Wraps a method that changes the screen's look (a mode turning on or off): the old screen is photographed first
     and then dissolves slowly into the new one; switching to Ultron corrupts it and turns it red instead."""
     def wrapper(self, *args, **kwargs):
-        if getattr(self, "_fade_depth", 0) or not self.isVisible() or self.isMinimized() or not user_prefs.get("mode_transitions"):
+        if getattr(self, "_no_fade", False) or getattr(self, "_fade_depth", 0) or not self.isVisible() or self.isMinimized() or not user_prefs.get("mode_transitions"):
             self._fade_depth = getattr(self, "_fade_depth", 0) + 1
             try:
                 return fn(self, *args, **kwargs)
