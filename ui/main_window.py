@@ -2543,3 +2543,37 @@ class MainWindow(QMainWindow):
         # Simple internet check placeholder — a real check is added in a
         # later stage (it will avoid blocking the UI thread).
         self.internet_status_label.setText("INTERNET: (checked at startup)")
+
+
+def _faded(fn):
+    """Wraps a method that changes the screen's look (a mode turning on or off): the old screen is photographed first
+    and then dissolves slowly into the new one; switching to Ultron corrupts it and turns it red instead."""
+    def wrapper(self, *args, **kwargs):
+        if getattr(self, "_fade_depth", 0) or not self.isVisible() or self.isMinimized():
+            self._fade_depth = getattr(self, "_fade_depth", 0) + 1
+            try:
+                return fn(self, *args, **kwargs)
+            finally:
+                self._fade_depth -= 1
+        self._fade_depth = 1
+        try:
+            old = self.grab()
+        except Exception:
+            old = None
+        ultron_before = bool(getattr(self, "_ultron_on", False))
+        try:
+            return fn(self, *args, **kwargs)
+        finally:
+            self._fade_depth = 0
+            if old is not None and not old.isNull():
+                try:
+                    from ui.transitions import ModeTransition
+                    glitch = bool(getattr(self, "_ultron_on", False)) and not ultron_before
+                    ModeTransition(self, old, glitch=glitch, ms=2100 if glitch else 1600)
+                except Exception as e:           # a transition must never break a mode switch
+                    print(f"[EV AI] transition skipped: {e}")
+
+
+for _name in ("_apply_ultron_ui", "_apply_jarvis_ui", "_apply_game_ui", "_apply_karen_ui",
+              "_enter_style_char", "_exit_style_char"):
+    setattr(MainWindow, _name, _faded(getattr(MainWindow, _name)))
