@@ -1,3 +1,26 @@
+EV AI 1.0.33
+
+NEW
+- The mode wheel chips are now small circuit boards: a dark case with gold pins, a white label with the mode's name, and a board of copper traces (bundles of parallel lines that bend and end in round pads). Each chip is drawn at four times the detail. A chip is blue until you point at it or turn it on; then it takes its mode's own colour (gold for Jarvis, green for Game, violet for Karen and so on).
+- The centre of the wheel is now an arc reactor: a ring of ten turning copper coils, fine ticks, a glowing ring and core with a turning triangle. Click it for Overdrive; it glows orange when Overdrive is on.
+- Switching modes now changes the screen slowly: the old look dissolves into the new mode's colours over about a second and a half.
+- Ultron: when you pick the Ultron chip it corrupts (it tears, jitters and bleeds red while the wheel flickers), then the whole screen glitches, turns red and dissolves into Ultron mode.
+
+- Wheel shortcuts: press Ctrl+M anywhere in EV AI to open the wheel; inside it press 1 to 9 and 0 to pick a chip, and O for Overdrive. Pointing at a chip or the core shows what it does.
+- Settings > Behaviour: "Smooth mode transitions" switches the slow colour change and Ultron's glitch on or off.
+- Baymax: one-tap mood buttons (good, stressed, tired, sad) that log your mood and answer kindly.
+- Overdrive says "Ten seconds left" before it ends.
+
+CHANGES
+- Faces in the orb now melt into the screen: soft edges instead of a visible rectangle, a glow that stays inside the orb area, a fainter scan line, and cleaner Game and Jarvis pictures.
+- Replies are now named after the mode that is on (KAREN, TARS, BAYMAX...) instead of always EV.
+- The side columns no longer show a scroll bar (the mouse wheel still scrolls them).
+
+FIXES
+- If EV's voice ever failed to report back, the screen stayed on SPEAKING and the chat box ignored you. It now returns to idle on its own.
+
+---
+
 EV AI 1.0.32
 
 NEW

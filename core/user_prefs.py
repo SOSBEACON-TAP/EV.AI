@@ -26,6 +26,7 @@ DEFAULTS = {
     "global_hotkey": True,       # Ctrl+Alt+E shows/hides EV from anywhere
     "briefing_on_start": False,  # read out a morning briefing when EV opens
     "offline_first": False,      # answer simple commands locally before asking the AI
+    "mode_transitions": True,    # the screen dissolves slowly into a mode's colours (and Ultron's glitch)
     "hover_sound": True,         # soft sound when hovering buttons
     "profile": "Default",        # last applied profile name
     "auto_check_updates": True,  # quietly look for a newer version when EV opens

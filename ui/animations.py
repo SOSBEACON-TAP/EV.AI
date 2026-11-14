@@ -175,15 +175,19 @@ class AICoreWidget(QWidget):
 
         col = QColor("#FF5252") if st == AIState.ERROR else QColor(accent)
         beat = 0.5 + 0.5 * math.sin(ph * (3 if speaking else 1))
-        for rad, a0 in ((0.85, 40), (0.6, 85)):                  # two soft layers of glow
-            glow = QRadialGradient(cx, cy, big * rad)
+        room = min(self.width(), self.height()) / 2 - 2           # a glow must fade out before the edge of this widget
+        for rad, a0 in ((0.85, 34), (0.6, 70)):                  # two soft layers of glow
+            gr = min(big * rad, room)
+            glow = QRadialGradient(cx, cy, gr)
             col.setAlpha(int(a0 * (0.6 + 0.7 * beat)))
             glow.setColorAt(0.0, col)
+            col.setAlpha(int(a0 * (0.6 + 0.7 * beat) * 0.35))
+            glow.setColorAt(0.55, col)
             col.setAlpha(0)
             glow.setColorAt(1.0, col)
             painter.setPen(Qt.NoPen)
             painter.setBrush(QBrush(glow))
-            painter.drawEllipse(QPointF(cx, cy), big * rad, big * rad)
+            painter.drawEllipse(QPointF(cx, cy), gr, gr)
 
         if st == AIState.LISTENING:                              # ripples spreading outwards
             for k in range(3):
@@ -241,9 +245,18 @@ class AICoreWidget(QWidget):
                 (lp.drawEllipse if shape == "ellipse" else lp.drawRect)(lid)
 
         lp.setCompositionMode(QPainter.CompositionMode_SourceAtop)
-        y = int(((self._angle / 360.0 * 1.6) % 1.0) * (h + 40)) - 20      # the scan line
-        lp.fillRect(0, y, w, 6, QColor(255, 255, 255, 70))
-        lp.fillRect(0, y + 6, w, 14, QColor(accent.red(), accent.green(), accent.blue(), 35))
+        y = int(((self._angle / 360.0 * 1.6) % 1.0) * (h + 40)) - 20      # a faint scan line
+        lp.fillRect(0, y, w, 2, QColor(255, 255, 255, 38))
+        lp.fillRect(0, y + 2, w, 10, QColor(accent.red(), accent.green(), accent.blue(), 16))
+        # soften the edges so the picture melts into the screen instead of showing its rectangle
+        lp.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+        lp.translate(w / 2.0, h / 2.0)
+        lp.scale(w / 2.0, h / 2.0)
+        fade = QRadialGradient(0.0, 0.0, 1.0)
+        fade.setColorAt(0.0, QColor(0, 0, 0, 255))
+        fade.setColorAt(0.78, QColor(0, 0, 0, 255))
+        fade.setColorAt(1.0, QColor(0, 0, 0, 0))
+        lp.fillRect(QRectF(-1.0, -1.0, 2.0, 2.0), QBrush(fade))
         lp.end()
 
         # a hologram shimmers; every few seconds it glitches for a blink: a band slips sideways

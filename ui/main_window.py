@@ -262,6 +262,9 @@ class MainWindow(QMainWindow):
         self._battery_timer.timeout.connect(self._check_battery)
         self._battery_timer.start(60_000)
         self.ai_core.clicked.connect(self._on_orb_clicked)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        self._wheel_shortcut = QShortcut(QKeySequence("Ctrl+M"), self)      # Ctrl+M opens the mode wheel
+        self._wheel_shortcut.activated.connect(self._open_mode_picker)
         QTimer.singleShot(0, self._refresh_face)
 
         self._append_conversation("EV", "SYSTEM ONLINE. READY.")
@@ -327,6 +330,7 @@ class MainWindow(QMainWindow):
         sa.setWidgetResizable(True)
         sa.setFrameShape(QFrame.NoFrame)
         sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sa.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)       # no scroll bar to see; the mouse wheel still scrolls
         sa.setStyleSheet("QScrollArea { background: transparent; border: 0; } "
                          "QScrollArea > QWidget > QWidget { background: transparent; } "
                          "QScrollBar:vertical { width: 6px; background: transparent; } "
@@ -1219,7 +1223,20 @@ class MainWindow(QMainWindow):
         self._append_conversation("EV", f"(error) {message}")
         QTimer.singleShot(1800, lambda: self._apply_state(AIState.IDLE))
 
-    def _deliver_reply(self, reply: str, speaker: str = "EV", speak_text: str | None = None):
+    def _speaker_name(self) -> str:
+        """Who is talking: EV, or the mode that is on (Karen, Tars, Baymax...), so the chat names the right voice."""
+        name = self._current_mode_name()
+        return "EV" if name == "ev" else name.upper()
+
+    def _speak_watchdog(self) -> None:
+        """If the voice never reported back (TTS hiccup), do not stay on SPEAKING and ignore the chat box."""
+        w = self._speech_worker
+        if self._state == AIState.SPEAKING and (w is None or not w.isRunning()):
+            self._apply_state(AIState.IDLE)
+
+    def _deliver_reply(self, reply: str, speaker: str | None = None, speak_text: str | None = None):
+        speaker = speaker or self._speaker_name()
+        QTimer.singleShot(max(7000, len(speak_text if speak_text is not None else reply) * 90), self._speak_watchdog)
         self._apply_state(AIState.SPEAKING)
         self._append_conversation(speaker, reply)
         if self._hud_overlay is not None:
@@ -1439,6 +1456,8 @@ class MainWindow(QMainWindow):
         if key == "baymax":
             on = "ON" if user_prefs.get("baymax_care") else "OFF"
             return "BAYMAX CARE", [
+                ("I feel good", "__bm_mood_happy__"), ("I feel stressed", "__bm_mood_stressed__"),
+                ("I feel tired", "__bm_mood_tired__"), ("I feel sad", "__bm_mood_sad__"),
                 ("How I feel", "prefill:I feel "), ("Health question", "prefill:I have a health question: "),
                 ("Care dashboard", "__bm_dash__"), ("Log water", "__bm_water__"), ("Took a break", "__bm_break__"),
                 ("PC check-up", "Run a full health check of my computer. Explain any problem in simple words and tell me how to fix it."),
@@ -1490,6 +1509,16 @@ class MainWindow(QMainWindow):
                 self._observe_timer.start(nxt * 1000)
             self._push_mode_tools()
             self._refresh_char_tools()
+        elif action.startswith("__bm_mood_"):
+            from core import baymax
+            mood = action[len("__bm_mood_"):-2]
+            baymax.log("mood", mood)
+            self._deliver_reply({
+                "happy": "I am glad. Good moods are worth keeping. Maybe drink some water to keep it going.",
+                "stressed": "That sounds heavy. Let us slow down together: breathe in for four, hold for four, out for six. Shall I guide you?",
+                "tired": "Your body is asking for rest. A short break, some water, and a stretch can help. If it is late, sleep is best.",
+                "sad": "I am here with you. You do not have to carry it alone. Would you like to tell me what happened, or talk to someone you trust?",
+            }.get(mood, "Thank you for telling me. I have noted it."), "BAYMAX")
         elif action == "__bm_dash__":
             from ui.baymax_dialog import BaymaxDialog
             BaymaxDialog(self).exec()
@@ -1622,6 +1651,8 @@ class MainWindow(QMainWindow):
             return
         self._od_left -= 1
         self._logo_label.setText(f"O V E R D R I V E   {self._od_left // 60}:{self._od_left % 60:02d}")
+        if self._od_left == 10:
+            self._deliver_reply("Ten seconds left.")
         if self._od_left <= 0:
             self._end_overdrive("Overdrive complete. Cooling down for five minutes.")
 
@@ -1708,9 +1739,9 @@ class MainWindow(QMainWindow):
         """EV announces the switch in its own voice; then the character takes over and speaks its line in its own voice.
         With cut_off, EV's sentence is spoken only up to that text and the character barges in at once."""
         if cut_off:
-            self._deliver_reply(intro, speak_text=cut_off)
+            self._deliver_reply(intro, "EV", speak_text=cut_off)
         else:
-            self._deliver_reply(intro)
+            self._deliver_reply(intro, "EV")
         worker = self._speech_worker if (VOICE_AVAILABLE and user_prefs.get("speak_replies")) else None
 
         def arrive():
@@ -2529,3 +2560,37 @@ class MainWindow(QMainWindow):
         # Simple internet check placeholder — a real check is added in a
         # later stage (it will avoid blocking the UI thread).
         self.internet_status_label.setText("INTERNET: (checked at startup)")
+
+
+def _faded(fn):
+    """Wraps a method that changes the screen's look (a mode turning on or off): the old screen is photographed first
+    and then dissolves slowly into the new one; switching to Ultron corrupts it and turns it red instead."""
+    def wrapper(self, *args, **kwargs):
+        if getattr(self, "_fade_depth", 0) or not self.isVisible() or self.isMinimized() or not user_prefs.get("mode_transitions"):
+            self._fade_depth = getattr(self, "_fade_depth", 0) + 1
+            try:
+                return fn(self, *args, **kwargs)
+            finally:
+                self._fade_depth -= 1
+        self._fade_depth = 1
+        try:
+            old = self.grab()
+        except Exception:
+            old = None
+        ultron_before = bool(getattr(self, "_ultron_on", False))
+        try:
+            return fn(self, *args, **kwargs)
+        finally:
+            self._fade_depth = 0
+            if old is not None and not old.isNull():
+                try:
+                    from ui.transitions import ModeTransition
+                    glitch = bool(getattr(self, "_ultron_on", False)) and not ultron_before
+                    ModeTransition(self, old, glitch=glitch, ms=2100 if glitch else 1600)
+                except Exception as e:           # a transition must never break a mode switch
+                    print(f"[EV AI] transition skipped: {e}")
+
+
+for _name in ("_apply_ultron_ui", "_apply_jarvis_ui", "_apply_game_ui", "_apply_karen_ui",
+              "_enter_style_char", "_exit_style_char"):
+    setattr(MainWindow, _name, _faded(getattr(MainWindow, _name)))
