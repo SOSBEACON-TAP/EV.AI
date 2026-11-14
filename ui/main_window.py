@@ -1828,7 +1828,7 @@ class MainWindow(QMainWindow):
                     _log_error(f"mode switch failed ({speaker})")
                 except Exception:
                     pass
-                self._append_conversation("EV", f"I couldn't switch to {speaker.title()}: {e}. Details are in data/animation_error.log.")
+                self._append_conversation("EV", f"I couldn't switch to {speaker.title()}: {e}\n{_where(e)}\nDetails: data/animation_error.log")
                 return
             self._deliver_reply(line, speaker)
         self._then(worker, arrive, delay_ms=0 if cut_off else 250)
@@ -2079,7 +2079,7 @@ class MainWindow(QMainWindow):
                     _log_error("ultron switch failed")
                 except Exception:
                     pass
-                self._append_conversation("EV", f"I couldn't switch to Ultron: {e}. Details are in data/animation_error.log.")
+                self._append_conversation("EV", f"I couldn't switch to Ultron: {e}\n{_where(e)}\nDetails: data/animation_error.log")
                 return
             finally:
                 self._no_fade = False
@@ -2681,6 +2681,13 @@ class MainWindow(QMainWindow):
         # Simple internet check placeholder — a real check is added in a
         # later stage (it will avoid blocking the UI thread).
         self.internet_status_label.setText("INTERNET: (checked at startup)")
+
+
+def _where(e: BaseException) -> str:
+    """The last few places in the code an error passed through, as 'file.py:123 in function', for the chat."""
+    import traceback
+    frames = traceback.extract_tb(e.__traceback__)[-4:]
+    return "\n".join(f"  {Path(f.filename).name}:{f.lineno} in {f.name}: {(f.line or '').strip()[:80]}" for f in frames)
 
 
 def _faded(fn):

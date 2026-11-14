@@ -30,7 +30,8 @@ def _log_error(where: str) -> None:
     """Never break startup, but leave a trace in data/animation_error.log."""
     try:
         import traceback
-        log = Path(__file__).resolve().parent.parent / "data" / "animation_error.log"
+        from core import user_prefs
+        log = user_prefs._root() / "data" / "animation_error.log"     # the real data folder, also in the packaged app
         log.parent.mkdir(exist_ok=True)
         with log.open("a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {where}\n{traceback.format_exc()}\n")
