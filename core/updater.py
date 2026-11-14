@@ -260,6 +260,33 @@ def wait_until_unlocked(path: Path, seconds: int = 90) -> bool:
             time.sleep(1)
 
 
+def _precopy_exe(src: Path, dst: Path, seconds: int = 150) -> None:
+    """Copies the new EV_AI.exe next to the app, WHILE EV AI is still running. An update once failed because the unpacked
+    program was held by another program (antivirus) for minutes AFTER EV AI had been closed, so it could not be moved or
+    copied and the update was rolled back. Doing the copy first means that, if the file is held, we find out now, wait
+    here, and stop with a clear message before anything is closed or changed. The swap later only has to rename."""
+    import time
+    end = time.monotonic() + seconds
+    last = None
+    while True:
+        try:
+            dst.unlink(missing_ok=True)
+            shutil.copyfile(src, dst)
+            return
+        except OSError as e:
+            last = e
+            if time.monotonic() >= end:
+                break
+            time.sleep(2)
+    try:
+        dst.unlink(missing_ok=True)
+    except OSError:
+        pass
+    raise UpdateError("Another program (most likely your antivirus) is holding the new EV_AI.exe, so the update was "
+                      "not started and nothing was changed. Wait a minute and try again, or add the EV AI folder to "
+                      f"your antivirus exclusions. ({last})")
+
+
 def stage_frozen(zip_path: Path, app_root: Path) -> Path:
     """Unpacks the Windows zip next to the app and writes the swap script."""
     global PENDING_SCRIPT
@@ -281,6 +308,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         raise UpdateError("The update doesn't contain EV_AI.exe. Not installing.")
     new_dir = exes[0].parent
     wait_until_unlocked(exes[0], 90)       # antivirus may be scanning the new program: let it finish BEFORE we start swapping
+    _precopy_exe(exes[0], app_root / "EV_AI.exe.new")
     script = app_root / "data" / "apply_update.bat"
     exe = Path(sys.executable).resolve()
     pid = os.getpid()
@@ -390,11 +418,14 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         # for reading (copy fails with "used by another process") but still allows a rename.
         "set xf=",
         "set /a m=0",
+        # the new program was copied next to the app BEFORE EV AI closed (EV_AI.exe.new): just rename it into place
+        f'set "xs={new_dir}\\EV_AI.exe"',
+        f'if exist "{app_root}\\EV_AI.exe.new" set "xs={app_root}\\EV_AI.exe.new"',
         ":movexe",
-        f'if not exist "{new_dir}\\EV_AI.exe" goto movedxe',
+        'if not exist "%xs%" goto movedxe',
         f'if exist "{app_root}\\EV_AI.exe.old" del /f /q "{app_root}\\EV_AI.exe.old" >nul 2>&1',
         f'if exist "{app_root}\\EV_AI.exe" ren "{app_root}\\EV_AI.exe" EV_AI.exe.old >nul 2>&1',
-        f'move /Y "{new_dir}\\EV_AI.exe" "{app_root}\\EV_AI.exe" >nul 2>&1 && set xf=/XF EV_AI.exe && goto movedxe',
+        f'move /Y "%xs%" "{app_root}\\EV_AI.exe" >nul 2>&1 && set xf=/XF EV_AI.exe && goto movedxe',
         "set /a m+=1",
         "if %m% GEQ 60 goto movedxe",
         "ping -n 3 127.0.0.1 >nul",
@@ -426,6 +457,7 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'if exist "{app_root}\\EV_AI.exe.old" (del /f /q "{app_root}\\EV_AI.exe" >nul 2>&1 & ren "{app_root}\\EV_AI.exe.old" EV_AI.exe)',
         ":failed",
         f'echo UPDATE FAILED, starting the old version again >> "{log}"',
+        f'del /f /q "{app_root}\\EV_AI.exe.new" >nul 2>&1',
         f'del "{busy}" >nul 2>&1',
         f'start "" "{exe}"',
         "exit /b 1",
@@ -450,6 +482,7 @@ def cleanup_leftovers(app_root: Path) -> None:
         for old in app_root.glob("_internal.old*"):
             shutil.rmtree(old, ignore_errors=True)
         (app_root / "EV_AI.exe.old").unlink(missing_ok=True)
+        (app_root / "EV_AI.exe.new").unlink(missing_ok=True)
     except Exception:
         pass
 
