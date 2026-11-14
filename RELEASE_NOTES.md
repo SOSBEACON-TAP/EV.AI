@@ -1,3 +1,20 @@
+EV AI 1.0.34
+
+NEW
+- Ultron: choosing Ultron now corrupts the screen slowly. Red static spreads over the wires first, then the controls and tabs, then the rest of the screen. An eye forms in the static and its iris follows your mouse. Then the picture glitches and the real Ultron screen takes over as the static clears.
+- Overdrive now works like a tungsten bulb driven too hard: a warm glow and a faster core while it runs, a flicker in the last ten seconds, then it burns out in a white flash and the screen goes dark for a few seconds while it cools down.
+- EDITH: clicking her glasses now shrinks the screen away before the HUD appears. While EDITH is on, hold Ctrl and point at any control to see what it does.
+- Updates: the update prompt has an "Update silently" button, which skips the full-screen updating page so it never covers what you are doing.
+- The ring around the mode wheel now spins.
+
+CHANGES
+- The wheel's chip colours are a little darker, so the lighter ones are easier on the eyes.
+
+FIXES
+- Switching modes could silently do nothing if EV's spoken intro never reported back. A safety timer now makes the switch happen, and if a switch fails EV says why and logs it in data/animation_error.log.
+
+---
+
 EV AI 1.0.33
 
 NEW
