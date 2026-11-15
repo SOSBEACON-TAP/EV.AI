@@ -1614,27 +1614,37 @@ class MainWindow(QMainWindow):
         self._leave_game_karen()
 
     def _enter_style_char(self, key: str) -> None:
-        self._fit_to_screen()
+        self._steps_begin()
+        S = self._step
+        S("fit the window to the screen", self._fit_to_screen)
         if self._style_char and self._style_char != key:
-            self._exit_style_char(silent=True)
-        self._leave_personas()
-        mode, qss, tint, logo, _i, _l = self._char_info(key)
+            S("leave the previous character", self._exit_style_char, silent=True)
+        S("leave Jarvis/Ultron/Game/Karen", self._leave_personas)
+        info = S("character details", self._char_info, key) or (None, "", None, settings.APP_NAME, None, None)
+        mode, qss, tint, logo, _i, _l = info
         self._style_char = key
-        from core import voices
-        voices.set_character(key)
-        self._central.setStyleSheet(qss)
-        self.ai_core.set_tint(tint)
-        self._logo_label.setText(logo)
-        self._quick_panel.setVisible(False)
-        self._mode_panel.setVisible(False)             # EV ACTIONS belongs to EV; characters have their own tools
-        self._char_panel.setVisible(True)
+
+        def voice():
+            from core import voices
+            voices.set_character(key)
+        S("voice", voice)
+        S("style sheet", self._central.setStyleSheet, qss)
+        S("core look", self.ai_core.set_tint, tint)
+        S("title", self._logo_label.setText, logo)
+
+        def panels():
+            self._quick_panel.setVisible(False)
+            self._mode_panel.setVisible(False)             # EV ACTIONS belongs to EV; characters have their own tools
+            self._char_panel.setVisible(True)
+        S("panels", panels)
         if mode is not None:
-            self._set_mode(mode)                      # the brain's answer style for this character
-        self._refresh_char_tools()
-        self._sync_mode_button()
-        self._care_start(key == "baymax")
+            S("answer style", self._set_mode, mode)        # the brain's answer style for this character
+        S("character tools", self._refresh_char_tools)
+        S("mode button", self._sync_mode_button)
+        S("care reminders", self._care_start, key == "baymax")
         if key == "overdrive":
-            self._od_start()
+            S("overdrive", self._od_start)
+        self._steps_report(key.title())
 
     # ---- Baymax: gentle care reminders while Baymax is on ----------------------------------------------------------
     def _care_start(self, on: bool) -> None:
@@ -1743,28 +1753,40 @@ class MainWindow(QMainWindow):
     def _exit_style_char(self, silent: bool = False) -> None:
         if not self._style_char:
             return
+        self._steps_begin()
+        S = self._step
         if self._style_char == "edith" and self._observing:
-            self._stop_observation()
-        self._care_start(False)
+            S("stop watching the screen", self._stop_observation)
+        S("care reminders", self._care_start, False)
         self._style_char = None
-        from core import voices
-        voices.set_character(None)
-        self._central.setStyleSheet("")
-        self.ai_core.set_tint(None)
-        self._logo_label.setText(settings.APP_NAME)
-        self._char_panel.setVisible(False)
-        self._quick_panel.setVisible(True)
-        self._mode_panel.setVisible(True)
-        if AI_AVAILABLE:
-            if silent:                                # another mode is taking over: just reset the answer style quietly
-                if self._brain is not None:
-                    self._brain.set_mode(Mode.NORMAL)
-                self._current_mode = Mode.NORMAL
-                for m, btn in self._mode_buttons.items():
-                    btn.setChecked(m == Mode.NORMAL)
-            else:
-                self._set_mode(Mode.NORMAL)
-        self._sync_mode_button()
+
+        def voice():
+            from core import voices
+            voices.set_character(None)
+        S("voice", voice)
+        S("style sheet", self._central.setStyleSheet, "")
+        S("core look", self.ai_core.set_tint, None)
+        S("title", self._logo_label.setText, settings.APP_NAME)
+
+        def panels():
+            self._char_panel.setVisible(False)
+            self._quick_panel.setVisible(True)
+            self._mode_panel.setVisible(True)
+        S("panels", panels)
+
+        def answer_style():
+            if AI_AVAILABLE:
+                if silent:                            # another mode is taking over: just reset the answer style quietly
+                    if self._brain is not None:
+                        self._brain.set_mode(Mode.NORMAL)
+                    self._current_mode = Mode.NORMAL
+                    for m, btn in self._mode_buttons.items():
+                        btn.setChecked(m == Mode.NORMAL)
+                else:
+                    self._set_mode(Mode.NORMAL)
+        S("answer style", answer_style)
+        S("mode button", self._sync_mode_button)
+        self._steps_report("Leaving the character")
 
     def _select_mode(self, key: str) -> None:
         """A segment of the mode wheel was clicked."""
@@ -1955,56 +1977,72 @@ class MainWindow(QMainWindow):
                             "KAREN", lambda: self._apply_karen_ui(True))
 
     def _apply_game_ui(self, on: bool, announce: bool = False):
+        self._steps_begin()
+        S = self._step
         if on:
-            self._exit_style_char(silent=True)
-        self._fit_to_screen()
+            S("leave the previous character", self._exit_style_char, silent=True)
+        S("fit the window to the screen", self._fit_to_screen)
         if on:
             if self._jarvis_on:
-                self._apply_jarvis_ui(False)
+                S("turn Jarvis off", self._apply_jarvis_ui, False)
             if self._ultron_on:
-                self._apply_ultron_ui(False)
+                S("turn Ultron off", self._apply_ultron_ui, False)
             if self._karen_on:
-                self._apply_karen_ui(False)
+                S("turn Karen off", self._apply_karen_ui, False)
         self._game_on = on
-        from core import voices
-        voices.set_character("game" if on else None)
-        from ui.mode_styles import GAME_QSS
-        self._central.setStyleSheet(GAME_QSS if on else "")
-        self.ai_core.set_tint(("#2BFF88", "#5CFFA3") if on else None)
-        self._logo_label.setText("G A M E   M O D E" if on else settings.APP_NAME)
-        self._mode_panel.setVisible(not on)
-        self._game_left.setVisible(on)
-        self._refresh_face()
-        (self._game_panel.activate if on else self._game_panel.deactivate)()
-        self.game_switch_btn.setText("🎮\nLEAVE" if on else "🎮\nGAME")
+
+        def voice():
+            from core import voices
+            voices.set_character("game" if on else None)
+        S("voice", voice)
+
+        def style():
+            from ui.mode_styles import GAME_QSS
+            self._central.setStyleSheet(GAME_QSS if on else "")
+        S("style sheet", style)
+        S("core look", self.ai_core.set_tint, ("#2BFF88", "#5CFFA3") if on else None)
+        S("title", lambda: self._logo_label.setText("G A M E   M O D E" if on else settings.APP_NAME))
+        S("panels", lambda: (self._mode_panel.setVisible(not on), self._game_left.setVisible(on)))
+        S("face", self._refresh_face)
+        S("game panel", self._game_panel.activate if on else self._game_panel.deactivate)
+        S("switch button", lambda: self.game_switch_btn.setText("🎮\nLEAVE" if on else "🎮\nGAME"))
         if announce:
-            self._deliver_reply("Switched back to EV.")
+            S("announce", self._deliver_reply, "Switched back to EV.")
+        self._steps_report("Game mode")
 
     def _apply_karen_ui(self, on: bool, announce: bool = False):
+        self._steps_begin()
+        S = self._step
         if on:
-            self._exit_style_char(silent=True)
-        self._fit_to_screen()
+            S("leave the previous character", self._exit_style_char, silent=True)
+        S("fit the window to the screen", self._fit_to_screen)
         if on:
             if self._jarvis_on:
-                self._apply_jarvis_ui(False)
+                S("turn Jarvis off", self._apply_jarvis_ui, False)
             if self._ultron_on:
-                self._apply_ultron_ui(False)
+                S("turn Ultron off", self._apply_ultron_ui, False)
             if self._game_on:
-                self._apply_game_ui(False)
+                S("turn Game off", self._apply_game_ui, False)
         self._karen_on = on
-        from core import voices
-        voices.set_character("karen" if on else None)
-        from ui.mode_styles import KAREN_QSS
-        self._central.setStyleSheet(KAREN_QSS if on else "")
-        self.ai_core.set_tint(("#B26BFF", "#D9B3FF") if on else None)
-        self._logo_label.setText("K A R E N   M O D E" if on else settings.APP_NAME)
-        self._mode_panel.setVisible(not on)
-        self._karen_left.setVisible(on)
-        self._refresh_face()
-        self._karen_panel.refresh()
-        self.karen_switch_btn.setText("🛡\nLEAVE" if on else "🛡\nKAREN")
+
+        def voice():
+            from core import voices
+            voices.set_character("karen" if on else None)
+        S("voice", voice)
+
+        def style():
+            from ui.mode_styles import KAREN_QSS
+            self._central.setStyleSheet(KAREN_QSS if on else "")
+        S("style sheet", style)
+        S("core look", self.ai_core.set_tint, ("#B26BFF", "#D9B3FF") if on else None)
+        S("title", lambda: self._logo_label.setText("K A R E N   M O D E" if on else settings.APP_NAME))
+        S("panels", lambda: (self._mode_panel.setVisible(not on), self._karen_left.setVisible(on)))
+        S("face", self._refresh_face)
+        S("karen panel", self._karen_panel.refresh)
+        S("switch button", lambda: self.karen_switch_btn.setText("🛡\nLEAVE" if on else "🛡\nKAREN"))
         if announce:
-            self._deliver_reply("Switched back to EV. Karen's limits keep running if they are on.")
+            S("announce", self._deliver_reply, "Switched back to EV. Karen's limits keep running if they are on.")
+        self._steps_report("Karen mode")
 
     def _karen_state_changed(self, enabled: bool):
         self.setWindowTitle(f"{settings.APP_NAME} - Karen mode ON" if enabled else settings.APP_NAME)
@@ -2101,7 +2139,12 @@ class MainWindow(QMainWindow):
             peak()
 
     def _steps_begin(self) -> None:
-        self._step_failures = []
+        """A switch can start another one inside it (Jarvis turning Ultron off), so only the outermost one resets the list
+        and only the outermost one reports."""
+        depth = getattr(self, "_step_depth", 0)
+        if depth == 0:
+            self._step_failures = []
+        self._step_depth = depth + 1
 
     def _step(self, name: str, fn, *args, **kwargs):
         """Runs one step of a mode switch on its own. If it fails, the switch carries on with the other steps (most of
@@ -2118,8 +2161,9 @@ class MainWindow(QMainWindow):
             return None
 
     def _steps_report(self, mode_name: str) -> None:
+        self._step_depth = max(0, getattr(self, "_step_depth", 1) - 1)
         fails = getattr(self, "_step_failures", [])
-        if not fails:
+        if self._step_depth > 0 or not fails:
             return
         lines = [f"{mode_name} is on, but {len(fails)} step(s) of the switch failed:"]
         for name, e in fails[:6]:
@@ -2199,7 +2243,7 @@ class MainWindow(QMainWindow):
         S("switch button", switch_button)
         S("window layout", self._sync_corner_ui)
         if announce:
-            self._deliver_reply("Switched back to EV." if not on else "Ultron online.")
+            S("announce", self._deliver_reply, "Switched back to EV." if not on else "Ultron online.")
         self._steps_report("Ultron")
 
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
@@ -2262,7 +2306,7 @@ class MainWindow(QMainWindow):
         S("switch button", switch_button)
         S("window layout", self._sync_corner_ui)
         if announce:
-            self._deliver_reply("Switched to Jarvis." if on else "Switched back to EV.")
+            S("announce", self._deliver_reply, "Switched to Jarvis." if on else "Switched back to EV.")
         self._steps_report("Jarvis")
 
     def _set_mode(self, mode: Mode):
