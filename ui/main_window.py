@@ -2100,102 +2100,170 @@ class MainWindow(QMainWindow):
             print(f"[EV AI] corruption effect skipped: {e}")
             peak()
 
+    def _steps_begin(self) -> None:
+        self._step_failures = []
+
+    def _step(self, name: str, fn, *args, **kwargs):
+        """Runs one step of a mode switch on its own. If it fails, the switch carries on with the other steps (most of
+        them are looks), and the failure is remembered so _steps_report can say which step broke and where."""
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            try:
+                from ui.transition import _log_error
+                _log_error(f"mode switch step '{name}' failed")
+            except Exception:
+                pass
+            self._step_failures.append((name, e))
+            return None
+
+    def _steps_report(self, mode_name: str) -> None:
+        fails = getattr(self, "_step_failures", [])
+        if not fails:
+            return
+        lines = [f"{mode_name} is on, but {len(fails)} step(s) of the switch failed:"]
+        for name, e in fails[:6]:
+            lines.append(f"- {name}: {type(e).__name__}: {e}")
+            lines.append(_where(e))
+        lines.append("Details: data/animation_error.log")
+        self._append_conversation("EV", "\n".join(lines))
+        self._step_failures = []
+
     def _apply_ultron_ui(self, on: bool, announce: bool = False):
-        if on:
-            self._exit_style_char(silent=True)
-        self._fit_to_screen()
         """Ultron: the red/black console look plus a colder, sarcastic personality. Keeps every EV tool."""
+        self._steps_begin()
+        S = self._step
+        if on:
+            S("leave the previous character", self._exit_style_char, silent=True)
+        S("fit the window to the screen", self._fit_to_screen)
         if on and self._jarvis_on:
-            self._apply_jarvis_ui(False)
+            S("turn Jarvis off", self._apply_jarvis_ui, False)
         if on:
-            self._leave_game_karen()
+            S("turn Game/Karen off", self._leave_game_karen)
         self._ultron_on = on
-        from core import voices
-        voices.set_character("ultron" if on else None)
-        user_prefs.set_value("ultron_ui", on)
-        self.ai_core.set_ultron(on)
-        from ui.ultron_style import ULTRON_QSS
-        self._central.setStyleSheet(ULTRON_QSS if on else "")
-        self._logo_label.setText("U L T R O N" if on else settings.APP_NAME)
-        self._mode_panel.setVisible(not on)
-        self._quick_panel.setVisible(not on)
-        self._ultron_left.setVisible(on)
-        # the radar column must never show a scroll bar: it is built to fit
-        self._right_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff if on else Qt.ScrollBarAsNeeded)
-        self._metrics_panel.setVisible(not on)          # the clock panel makes way so every tool fits without scrolling
-        self._ultron_right.setVisible(on)
-        if on and not self._hack.findings:
-            QTimer.singleShot(2500, lambda: self._hack.dark_scan() if self._ultron_on and not self._hack.findings else None)
-        if on:
-            self._pre_ultron_mode = self._current_mode if self._current_mode not in (None, Mode.ULTRON) else Mode.NORMAL
-            self.ultron_switch_btn.setText("☠ SWITCH BACK TO EV")
-            self.ultron_switch_btn.setStyleSheet(
-                "QPushButton { background: rgba(255,42,42,40); border: 1px solid #FF2A2A; color: #FF2A2A; "
-                "padding: 6px 16px; border-radius: 6px; font-weight: 600; }")
-            if self._brain is not None:
-                self._brain.set_mode(Mode.ULTRON)
-            self._current_mode = Mode.ULTRON if AI_AVAILABLE else None
-            for btn in self._mode_buttons.values():
-                btn.setChecked(False)
-        else:
-            self.ultron_switch_btn.setText("☠ SWITCH TO ULTRON")
-            self.ultron_switch_btn.setStyleSheet("")
-            back = getattr(self, "_pre_ultron_mode", None) or Mode.NORMAL
-            if self._brain is not None:
-                self._brain.set_mode(back)
-            self._current_mode = back if AI_AVAILABLE else None
-            for m, btn in self._mode_buttons.items():
-                btn.setChecked(m == back)
+
+        def voice():
+            from core import voices
+            voices.set_character("ultron" if on else None)
+        S("voice", voice)
+        S("save the setting", user_prefs.set_value, "ultron_ui", on)
+        S("core look", self.ai_core.set_ultron, on)
+
+        def style():
+            from ui.ultron_style import ULTRON_QSS
+            self._central.setStyleSheet(ULTRON_QSS if on else "")
+        S("style sheet", style)
+        S("title", lambda: self._logo_label.setText("U L T R O N" if on else settings.APP_NAME))
+
+        def panels():
+            self._mode_panel.setVisible(not on)
+            self._quick_panel.setVisible(not on)
+            self._ultron_left.setVisible(on)
+            # the radar column must never show a scroll bar: it is built to fit
+            self._right_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff if on else Qt.ScrollBarAsNeeded)
+            self._metrics_panel.setVisible(not on)      # the clock panel makes way so every tool fits without scrolling
+            self._ultron_right.setVisible(on)
+        S("panels", panels)
+
+        def scan():
+            if on and not self._hack.findings:
+                QTimer.singleShot(2500, lambda: self._hack.dark_scan() if self._ultron_on and not self._hack.findings else None)
+        S("security scan", scan)
+
+        def answer_style():
+            if on:
+                self._pre_ultron_mode = self._current_mode if self._current_mode not in (None, Mode.ULTRON) else Mode.NORMAL
+                if self._brain is not None:
+                    self._brain.set_mode(Mode.ULTRON)
+                self._current_mode = Mode.ULTRON if AI_AVAILABLE else None
+                for btn in self._mode_buttons.values():
+                    btn.setChecked(False)
+            else:
+                back = getattr(self, "_pre_ultron_mode", None) or Mode.NORMAL
+                if self._brain is not None:
+                    self._brain.set_mode(back)
+                self._current_mode = back if AI_AVAILABLE else None
+                for m, btn in self._mode_buttons.items():
+                    btn.setChecked(m == back)
+        S("answer style", answer_style)
+
+        def switch_button():
+            if on:
+                self.ultron_switch_btn.setText("☠ SWITCH BACK TO EV")
+                self.ultron_switch_btn.setStyleSheet(
+                    "QPushButton { background: rgba(255,42,42,40); border: 1px solid #FF2A2A; color: #FF2A2A; "
+                    "padding: 6px 16px; border-radius: 6px; font-weight: 600; }")
+            else:
+                self.ultron_switch_btn.setText("☠ SWITCH TO ULTRON")
+                self.ultron_switch_btn.setStyleSheet("")
+        S("switch button", switch_button)
+        S("window layout", self._sync_corner_ui)
         if announce:
             self._deliver_reply("Switched back to EV." if not on else "Ultron online.")
-        self._sync_corner_ui()
+        self._steps_report("Ultron")
 
     def _apply_jarvis_ui(self, on: bool, announce: bool = False):
+        self._steps_begin()
+        S = self._step
         if on:
-            self._exit_style_char(silent=True)
-        self._fit_to_screen()
+            S("leave the previous character", self._exit_style_char, silent=True)
+        S("fit the window to the screen", self._fit_to_screen)
         if on and getattr(self, "_ultron_on", False):
-            self._apply_ultron_ui(False)
+            S("turn Ultron off", self._apply_ultron_ui, False)
         if on:
-            self._leave_game_karen()
+            S("turn Game/Karen off", self._leave_game_karen)
         self._jarvis_on = on
-        from core import voices
-        voices.set_character("jarvis" if on else None)
-        user_prefs.set_value("jarvis_ui", on)
-        self.ai_core.set_jarvis(on)
-        from ui.jarvis_style import JARVIS_QSS
-        self._central.setStyleSheet(JARVIS_QSS if on else "")
-        self._logo_label.setText("J.A.R.V.I.S" if on else settings.APP_NAME)
-        self._mode_panel.setVisible(not on)
-        self._jarvis_left.setVisible(on)
-        self._quick_panel.setVisible(not on)
-        self._jarvis_right.setVisible(on)
-        if on:
-            self._sysmon.start()
-        else:
-            self._sysmon.stop()
-        if on:
-            self._pre_jarvis_mode = self._current_mode if self._current_mode not in (None, Mode.JARVIS) else Mode.NORMAL
-            self.jarvis_switch_btn.setText("⚡ SWITCH BACK TO EV")
-            self.jarvis_switch_btn.setStyleSheet(
-                "QPushButton { background: rgba(255,196,0,40); border: 1px solid #FFC400; color: #FFC400; "
-                "padding: 6px 16px; border-radius: 6px; font-weight: 600; }"
-            )
-            if self._brain is not None:
-                self._brain.set_mode(Mode.JARVIS)
-            self._current_mode = Mode.JARVIS if AI_AVAILABLE else None
-        else:
-            self.jarvis_switch_btn.setText("⚡ SWITCH TO JARVIS")
-            self.jarvis_switch_btn.setStyleSheet("")
-            back = getattr(self, "_pre_jarvis_mode", None) or Mode.NORMAL
-            if self._brain is not None:
-                self._brain.set_mode(back)
-            self._current_mode = back if AI_AVAILABLE else None
-            for m, btn in self._mode_buttons.items():
-                btn.setChecked(m == back)
+
+        def voice():
+            from core import voices
+            voices.set_character("jarvis" if on else None)
+        S("voice", voice)
+        S("save the setting", user_prefs.set_value, "jarvis_ui", on)
+        S("core look", self.ai_core.set_jarvis, on)
+
+        def style():
+            from ui.jarvis_style import JARVIS_QSS
+            self._central.setStyleSheet(JARVIS_QSS if on else "")
+        S("style sheet", style)
+        S("title", lambda: self._logo_label.setText("J.A.R.V.I.S" if on else settings.APP_NAME))
+
+        def panels():
+            self._mode_panel.setVisible(not on)
+            self._jarvis_left.setVisible(on)
+            self._quick_panel.setVisible(not on)
+            self._jarvis_right.setVisible(on)
+        S("panels", panels)
+        S("system monitor", self._sysmon.start if on else self._sysmon.stop)
+
+        def answer_style():
+            if on:
+                self._pre_jarvis_mode = self._current_mode if self._current_mode not in (None, Mode.JARVIS) else Mode.NORMAL
+                if self._brain is not None:
+                    self._brain.set_mode(Mode.JARVIS)
+                self._current_mode = Mode.JARVIS if AI_AVAILABLE else None
+            else:
+                back = getattr(self, "_pre_jarvis_mode", None) or Mode.NORMAL
+                if self._brain is not None:
+                    self._brain.set_mode(back)
+                self._current_mode = back if AI_AVAILABLE else None
+                for m, btn in self._mode_buttons.items():
+                    btn.setChecked(m == back)
+        S("answer style", answer_style)
+
+        def switch_button():
+            if on:
+                self.jarvis_switch_btn.setText("⚡ SWITCH BACK TO EV")
+                self.jarvis_switch_btn.setStyleSheet(
+                    "QPushButton { background: rgba(255,196,0,40); border: 1px solid #FFC400; color: #FFC400; "
+                    "padding: 6px 16px; border-radius: 6px; font-weight: 600; }")
+            else:
+                self.jarvis_switch_btn.setText("⚡ SWITCH TO JARVIS")
+                self.jarvis_switch_btn.setStyleSheet("")
+        S("switch button", switch_button)
+        S("window layout", self._sync_corner_ui)
         if announce:
             self._deliver_reply("Switched to Jarvis." if on else "Switched back to EV.")
-        self._sync_corner_ui()
+        self._steps_report("Jarvis")
 
     def _set_mode(self, mode: Mode):
         if getattr(self, "_ultron_on", False):
