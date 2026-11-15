@@ -75,3 +75,4 @@ mediapipe==0.10.21
 # Gesture control: exact system volume on Windows (optional; falls back to volume keys)
 pycaw; sys_platform == "win32"
 comtypes; sys_platform == "win32"
+tzdata

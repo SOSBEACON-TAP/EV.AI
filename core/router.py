@@ -26,6 +26,7 @@ from typing import Callable, Any
 
 from tools import system as system_tools
 from tools import clipboard as clipboard_tools
+from tools import utilities as utility_tools
 from tools import finder as finder_tools
 from tools import usage as usage_tools
 from tools import applications as app_tools
@@ -230,6 +231,75 @@ class ToolRouter:
             parameters={"text": {"type": "string", "description": "The text to place on the clipboard."}},
             required=["text"],
             func=clipboard_tools.write_clipboard,
+        ))
+
+        # --- Everyday helpers (pure Python, no internet) ---
+        self.register(Tool(
+            name="calculate",
+            description=("Work out a maths expression exactly instead of estimating it, e.g. '(12.5*8)/3', '15% of 480' "
+                         "written as '0.15*480', 'sqrt(144)'. Use for any arithmetic where the exact number matters."),
+            parameters={"expression": {"type": "string", "description": "The expression, e.g. '(12.5 * 8) / 3 + sqrt(49)'."}},
+            required=["expression"],
+            func=utility_tools.calculate,
+        ))
+        self.register(Tool(
+            name="convert_units",
+            description=("Convert a value between units: length (km, miles, ft...), mass (kg, lb...), volume (l, gallon, cup...), "
+                         "time, speed (mph, km/h), data size (MB, GiB...), area and temperature (C, F, K)."),
+            parameters={
+                "value": {"type": "number", "description": "The amount to convert."},
+                "from_unit": {"type": "string", "description": "The unit it is in, e.g. 'km'."},
+                "to_unit": {"type": "string", "description": "The unit to convert to, e.g. 'miles'."},
+            },
+            required=["value", "from_unit", "to_unit"],
+            func=utility_tools.convert_units,
+        ))
+        self.register(Tool(
+            name="date_math",
+            description=("Date arithmetic: how many days until a date, days between two dates, a date N days from another, or "
+                         "which weekday a date falls on. Dates are YYYY-MM-DD or DD-MM-YYYY, or 'today'/'tomorrow'/'yesterday'."),
+            parameters={
+                "operation": {"type": "string", "description": "days_until, days_between, add_days or weekday."},
+                "date": {"type": "string", "description": "The (first) date. Default today."},
+                "other_date": {"type": "string", "description": "Second date, only for days_between."},
+                "days": {"type": "integer", "description": "How many days to add (negative to go back), only for add_days."},
+            },
+            required=["operation"],
+            func=utility_tools.date_math,
+        ))
+        self.register(Tool(
+            name="world_time",
+            description="The current local time and date in a city or time zone, e.g. 'Tokyo', 'New York', 'Asia/Kolkata'.",
+            parameters={"place": {"type": "string", "description": "A city or an IANA time zone name."}},
+            required=["place"],
+            func=utility_tools.world_time,
+        ))
+        self.register(Tool(
+            name="roll_dice",
+            description="Roll dice (any number of sides) or flip a coin. Use when the user wants a random pick or a game roll.",
+            parameters={
+                "sides": {"type": "integer", "description": "Sides per die (default 6)."},
+                "count": {"type": "integer", "description": "How many dice (default 1)."},
+                "flip_coin": {"type": "boolean", "description": "True to flip a coin instead."},
+            },
+            required=[],
+            func=utility_tools.roll_dice,
+        ))
+
+        self.register(Tool(
+            name="pick_random",
+            description="Pick one item at random from a list the user gives, e.g. to settle 'pizza or burgers?'.",
+            parameters={"options": {"type": "array", "items": {"type": "string"}, "description": "The choices (at least two)."}},
+            required=["options"],
+            func=utility_tools.pick_random,
+        ))
+        self.register(Tool(
+            name="text_stats",
+            description=("Count words, characters, sentences and estimate reading time for a piece of text (works well after "
+                         "read_clipboard when the user asks 'how long is this?')."),
+            parameters={"text": {"type": "string", "description": "The text to count."}},
+            required=["text"],
+            func=utility_tools.text_stats,
         ))
 
         # --- Applications ---
