@@ -1,3 +1,15 @@
+EV AI 1.0.35
+
+NEW
+- Seven everyday tools EV can use instead of guessing: exact maths (calculate), unit conversion (length, weight, volume, time, speed, data size, area, temperature), date maths (days until a date, days between dates, a date N days away, the weekday of a date), the time in another city, dice and coin flips, a random pick from a list, and word and reading-time counts for a piece of text.
+
+FIXES
+- Switching modes no longer stops when one visual step fails. Jarvis, Ultron, Game, Karen and every character mode (Friday, Tars, Gideon, Edith, Baymax, Sonar, Minority, Overdrive) now switch step by step: if a step breaks, the mode still turns on, and one message in the chat names the broken step and where it failed.
+- The in-app update could fail when another program (usually antivirus) held the new EV_AI.exe after EV AI closed, and it rolled back. The new program is now copied while EV AI is still running, with a clear message and no changes if it stays held, and the swap only has to rename it.
+- The mode-switch error log (data/animation_error.log) is now written to your real data folder, also in the packaged app.
+
+---
+
 EV AI 1.0.34
 
 NEW
