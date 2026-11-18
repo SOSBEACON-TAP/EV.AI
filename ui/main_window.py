@@ -2829,6 +2829,7 @@ def _faded(fn):
                     ModeTransition(self, old, glitch=glitch, ms=2100 if glitch else 1600)
                 except Exception as e:           # a transition must never break a mode switch
                     print(f"[EV AI] transition skipped: {e}")
+    return wrapper
 
 
 for _name in ("_apply_ultron_ui", "_apply_jarvis_ui", "_apply_game_ui", "_apply_karen_ui",
