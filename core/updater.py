@@ -412,7 +412,23 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         "goto failed",
         ":moved",
         f'echo Old folder moved aside after %t% retries >> "{log}"',
-        f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 || goto rollback',
+        # The new folder was just unpacked, so antivirus is probably still scanning its files and may refuse the rename
+        # for a while ("Access is denied"). Retry for about a minute, then copy it file by file with retries.
+        "set /a k=0",
+        ":trynew",
+        f'move "{new_internal}" "{internal}" >> "{log}" 2>&1 && goto movednew',
+        "set /a k+=1",
+        "if %k% GEQ 30 goto copynew",
+        "ping -n 3 127.0.0.1 >nul",
+        "goto trynew",
+        ":copynew",
+        f'echo The new folder could not be renamed into place, copying it instead >> "{log}"',
+        f'if not exist "{internal}" mkdir "{internal}"',
+        f'robocopy "{new_internal}" "{internal}" /E /R:30 /W:2 /NFL /NDL /NJH /NJS >> "{log}" 2>&1',
+        "set rc=%errorlevel%",
+        f'echo robocopy of the new folder exit code %rc% >> "{log}"',
+        "if %rc% GEQ 8 goto rollback",
+        ":movednew",
         ":loose",
         # EV_AI.exe first, by RENAMING it into place: antivirus often keeps the freshly downloaded program open
         # for reading (copy fails with "used by another process") but still allows a rename.
@@ -449,6 +465,9 @@ def stage_frozen(zip_path: Path, app_root: Path) -> Path:
         f'echo Swap failed, putting the old version back >> "{log}"',
         'if "%mode%"=="files" goto rollbackfiles',
         f'if exist "{internal}" rd /s /q "{internal}" >> "{log}" 2>&1',
+        # if part of the new folder could not be removed (locked), moving the old folder "into" it would nest it
+        # inside and break the app: copy the old files over it instead
+        f'if exist "{internal}" goto rollbackfiles',
         f'if exist "{internal_old}" move "{internal_old}" "{internal}" >> "{log}" 2>&1',
         f'if exist "{app_root}\\EV_AI.exe.old" (del /f /q "{app_root}\\EV_AI.exe" >nul 2>&1 & ren "{app_root}\\EV_AI.exe.old" EV_AI.exe)',
         "goto failed",

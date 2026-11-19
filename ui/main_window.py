@@ -980,6 +980,9 @@ class MainWindow(QMainWindow):
         quick_actions = [
             ("Open YouTube", "open youtube"),
             ("Search the Web", "search the web for "),
+            ("Send WhatsApp", "prefill:send a whatsapp message to "),
+            ("Send Email", "prefill:send an email to "),
+            ("Message My Phone", "__phone_msg__"),
             ("Save Conversation", "__save__"),
             ("Clear Conversation", "__clear__"),
         ]
@@ -990,7 +993,7 @@ class MainWindow(QMainWindow):
             # __clear__ doesn't touch the AI brain, so it's fine to use
             # anytime; anything else goes through handle_user_input and
             # must be blocked while a request is already in flight.
-            if command not in ("__clear__", "__save__"):
+            if command not in ("__clear__", "__save__", "__phone_msg__") and not command.startswith("prefill:"):
                 self._busy_disable_widgets.append(btn)
 
         p_layout.addStretch(1)
@@ -1073,11 +1076,32 @@ class MainWindow(QMainWindow):
         if command == "__save__":
             self._save_conversation()
             return
+        if command == "__phone_msg__":
+            self._message_phone()
+            return
         if command.startswith("prefill:"):        # fill the box so you can finish the sentence
             self.command_input.setText(command[len("prefill:"):])
             self.command_input.setFocus()
             return
         self.handle_user_input(command)
+
+    def _message_phone(self) -> None:
+        """Send a short message to the connected phone (the same alert channel as 'find my phone')."""
+        from PySide6.QtWidgets import QInputDialog
+        from core import devices
+        if not devices.connected_id():
+            self._append_conversation("EV", "(No phone is connected yet. Pair it in Settings -> Connected device.)")
+            return
+        text, ok = QInputDialog.getText(self, "Message my phone", "What should the message say?")
+        text = (text or "").strip()
+        if not ok or not text:
+            return
+        import threading
+
+        def work():
+            good, msg = devices.ring_phone(text[:300])
+            self.bridge_reply.emit("Sent to your phone." if good else f"I couldn't send it: {msg}")
+        threading.Thread(target=work, daemon=True).start()
 
     def _view_memory(self):
         """Shows stored memory directly from the database — no AI call
