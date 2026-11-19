@@ -334,10 +334,7 @@ class AICoreWidget(QWidget):
             if self._face is not None:
                 self._draw_face(painter, cx, cy, radius, accent)
             else:
-                self._draw_web(painter, cx, cy, radius, accent)
-                self._draw_beams(painter, cx, cy, radius, red, blue)
-                self._draw_orbit_rings(painter, cx, cy, radius, red, blue)
-                self._draw_core(painter, cx, cy, radius, accent)
+                self._draw_reactor(painter, cx, cy, radius, accent, red, blue)
         finally:
             # Guarantees the painter is always closed, even if something
             # above raises (e.g. the process gets interrupted mid-frame) —
@@ -345,6 +342,80 @@ class AICoreWidget(QWidget):
             # "QBackingStore::endPaint() called with active painter"
             # warning spam.
             painter.end()
+
+    def _draw_reactor(self, painter, cx, cy, radius, accent, red, blue):
+        """The centre of every mode: an arc reactor like the one in the mode wheel (steel housing, turning copper coil
+        segments, a glowing ring and a bright core with a triangle). It takes the colour of the current mode and state."""
+        from PySide6.QtGui import QBrush, QPainterPath, QRadialGradient
+        pulse = 0.5 + 0.5 * math.sin(self._pulse_phase * 2 * math.pi)
+        glow = QColor(accent)
+        gr, gg, gb = glow.red(), glow.green(), glow.blue()
+        painter.save()
+        painter.translate(cx, cy)
+        painter.scale(radius / 120.0, radius / 120.0)          # everything below is drawn for a 120 radius
+        # faint outer halo that breathes
+        halo = QRadialGradient(QPointF(0, 0), 140)
+        halo.setColorAt(0.78, QColor(gr, gg, gb, int(34 + 30 * pulse)))
+        halo.setColorAt(1.0, QColor(gr, gg, gb, 0))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(halo))
+        painter.drawEllipse(QPointF(0, 0), 140, 140)
+        # housing
+        painter.setPen(QPen(QColor(150, 160, 175), 3))
+        painter.setBrush(QColor(5, 11, 20))
+        painter.drawEllipse(QPointF(0, 0), 116, 116)
+        # fine ticks around the edge, turning
+        painter.setPen(QPen(QColor(gr, gg, gb, 170), 1.2))
+        for n in range(72):
+            a = math.radians(n * 5 - self._angle * 0.4)
+            r1, r2 = 108, (112 if n % 6 else 114)
+            painter.drawLine(QPointF(r1 * math.cos(a), r1 * math.sin(a)), QPointF(r2 * math.cos(a), r2 * math.sin(a)))
+        # ten coil segments with copper windings, turning slowly
+        rect_o, rect_i = QRectF(-98, -98, 196, 196), QRectF(-66, -66, 132, 132)
+        for n in range(10):
+            a0 = n * 36 + self._angle * 0.25
+            path = QPainterPath()
+            path.arcMoveTo(rect_o, -a0)
+            path.arcTo(rect_o, -a0, -26)
+            path.arcTo(rect_i, -a0 - 26, 26)
+            path.closeSubpath()
+            g = QRadialGradient(QPointF(0, 0), 98)
+            g.setColorAt(0.62, QColor(28, 40, 56))
+            g.setColorAt(1.0, QColor(54, 70, 92))
+            painter.setPen(QPen(QColor(gr, gg, gb, 200), 1.3))
+            painter.setBrush(QBrush(g))
+            painter.drawPath(path)
+            painter.setPen(QPen(QColor(214, 128, 52, 210), 0.8))
+            for k in range(1, 6):
+                r = 66 + k * 5.2
+                painter.drawArc(QRectF(-r, -r, 2 * r, 2 * r), int((-a0 - 3) * 16), int(-20 * 16))
+        # second ring in the other colour, counter-rotating dashes
+        painter.setPen(QPen(QColor(blue.red(), blue.green(), blue.blue(), 190), 2.2))
+        for n in range(6):
+            a0 = n * 60 - self._angle * 0.9
+            painter.drawArc(QRectF(-80, -80, 160, 160), int(-a0 * 16), int(-26 * 16))
+        # glowing ring and core
+        painter.setPen(QPen(QColor(gr, gg, gb, 230), 2.4))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawEllipse(QPointF(0, 0), 60, 60)
+        cg = QRadialGradient(QPointF(0, 0), 58)
+        cg.setColorAt(0.0, QColor(255, 255, 255, 255))
+        cg.setColorAt(0.35, QColor(gr, gg, gb, int(210 + 45 * pulse)))
+        cg.setColorAt(1.0, QColor(gr, gg, gb, 0))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(cg))
+        painter.drawEllipse(QPointF(0, 0), 58, 58)
+        # triangle in the middle, turning the other way
+        painter.setPen(QPen(QColor(255, 255, 255, 200), 1.4))
+        painter.setBrush(Qt.NoBrush)
+        tri = QPainterPath()
+        for n in range(3):
+            a = math.radians(-90 + n * 120 - self._angle * 0.6)
+            pt = QPointF(32 * math.cos(a), 32 * math.sin(a))
+            tri.moveTo(pt) if n == 0 else tri.lineTo(pt)
+        tri.closeSubpath()
+        painter.drawPath(tri)
+        painter.restore()
 
     def _draw_web(self, painter, cx, cy, radius, accent):
         """Faint rotating web: a few concentric circles crossed by radial

@@ -1,3 +1,14 @@
+EV AI 1.0.38
+
+NEW
+- A new centre for every mode: the old atom-and-beams orb is replaced by an arc reactor like the one in the mode wheel. It takes the colour of the mode you are in (violet EV, gold Jarvis, red Ultron, Game and Karen colours) and speeds up while EV thinks or speaks.
+- EV home screen: three new buttons, Send WhatsApp, Send Email and Message My Phone. The first two start the sentence for you; the third sends a short alert to your paired phone.
+
+FIXES
+- The in-app update could fail and leave a mess when antivirus was still scanning the freshly unpacked files ("Access is denied"). It now retries for about a minute, falls back to copying the files, and a failed update puts the old files back cleanly instead of nesting them inside the new folder.
+
+---
+
 EV AI 1.0.37
 
 NEW
