@@ -1,3 +1,14 @@
+EV AI 1.0.37
+
+NEW
+- Baymax now has a human-body HUD at the top of its panel: a glowing body outline with a scan line and a heartbeat. Click a body part (head, chest, stomach, arms, legs) to tell Baymax where you feel something. It gives general care tips only, never a diagnosis.
+- Ultron: after about 30 minutes with Ultron on, he takes over the screen for one minute with a red glitch and a countdown. It is only a picture: it does not control your PC, and Ctrl+Alt+Del and the Task Manager still work. It ends by itself; Ctrl+Alt+Shift+U held for 3 seconds is a hidden emergency exit.
+
+FIXES
+- Ultron's radar column no longer scrolls with the mouse wheel.
+
+---
+
 EV AI 1.0.36
 
 FIXES
