@@ -1472,6 +1472,7 @@ class MainWindow(QMainWindow):
             return "FRIDAY TOOLS", [
                 ("Daily briefing", "Give me my daily briefing: the time and date, my to-dos and my notes, and anything I should not forget."),
                 ("My notes", "show my notes"),
+                ("Look through camera", "__cam__"), ("Read what the camera sees", "__cam_read__"),
                 ("Add a to-do", "prefill:add to-do: "), ("Set a timer", "prefill:set a timer for "),
                 ("Plan my day", "prefill:Plan my day around these things: "), ("Remind me", "prefill:remind me to ")]
         if key == "tars":
@@ -1571,6 +1572,8 @@ class MainWindow(QMainWindow):
             d.exec()
         elif action == "__computer__":
             self._open_computer_control()
+        elif action in ("__cam__", "__cam_read__"):
+            self._camera_look(read_text=(action == "__cam_read__"))
         elif action == "__look__":
             self._last_screen_hash = None
             if self._observing:
@@ -2480,6 +2483,43 @@ class MainWindow(QMainWindow):
         self._image_worker.reply_ready.connect(self._on_brain_reply)
         self._image_worker.brain_error.connect(self._on_brain_error)
         self._image_worker.start()
+
+    def _camera_look(self, read_text: bool = False) -> None:
+        """Friday: grab ONE webcam frame and have the AI describe it. The frame leaves the PC for the
+        AI provider, so the user is asked first (once per session) and nothing is recorded or kept."""
+        if self._state != AIState.IDLE:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        if not getattr(self, "_cam_consent", False):
+            ok = QMessageBox.question(
+                self, "Look through the camera?",
+                "Friday will take one picture from your camera and send it to your AI provider to describe it.\n"
+                "Nothing is recorded or saved. Continue?") == QMessageBox.Yes
+            if not ok:
+                return
+            self._cam_consent = True
+        try:
+            import cv2
+            cap = cv2.VideoCapture(0, getattr(cv2, "CAP_DSHOW", 0))
+            frame = None
+            for _ in range(6):                      # the first frames are dark while the camera adjusts
+                good, f = cap.read()
+                if good:
+                    frame = f
+            cap.release()
+            if frame is None:
+                raise RuntimeError("no picture from the camera")
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, _c = rgb.shape
+            image = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888).copy()
+        except Exception as e:
+            self._append_conversation("EV", f"(I couldn't use the camera: {e}. Check that no other app is using it.)")
+            return
+        self.command_input.setText(
+            "Read out any text, labels or writing you can see in this camera picture." if read_text else
+            "Describe what you see: people, objects, what is happening, and anything notable. "
+            "Do not identify anyone by face and do not make medical diagnoses.")
+        self._ask_about_image(image, "camera picture")
 
     def _capture_screen_png(self) -> bytes | None:
         screen = QGuiApplication.primaryScreen()

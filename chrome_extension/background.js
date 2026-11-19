@@ -182,11 +182,12 @@ async function loop() {
       const t = await token();
       if (!t) break;
       try {
-        const r = await fetch(BASE + "/poll", { headers: { "X-EV-Token": t }, signal: AbortSignal.timeout(30000) });
+        const r = await fetch(BASE + "/poll", { headers: { "X-EV-Token": t, "X-EV-Ext-Version": chrome.runtime.getManifest().version }, signal: AbortSignal.timeout(30000) });
         if (r.status === 401) { await chrome.storage.local.remove("token"); break; }
         flush();
         syncRules();
         const { command } = await r.json();
+        if (command && command.action === "reload_extension") { chrome.runtime.reload(); break; }
         if (command) { try { await run(command); } catch (e) { console.warn("EV command failed", e); } }
       } catch (e) {
         wakeEV();

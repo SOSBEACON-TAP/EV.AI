@@ -144,6 +144,19 @@ class Bridge:
                 self.code = self._new_code()
             return None
 
+    def needs_reload(self, running: str) -> bool:
+        """True when the extension running in Chrome is older than the one bundled with this app."""
+        try:
+            def key(v):
+                return tuple(int(x) for x in str(v).split("."))
+            bundled = json.loads((Path(__file__).resolve().parent.parent / "chrome_extension" / "manifest.json")
+                                 .read_text(encoding="utf-8")).get("version", "")
+            if not running or not bundled:
+                return False
+            return key(running) < key(bundled)
+        except Exception:
+            return False
+
     def authorized(self, token: str) -> bool:
         return bool(token) and any(hmac.compare_digest(token, t) for t in self._tokens)
 
@@ -219,7 +232,7 @@ class Bridge:
                     return self._send(403, {"error": "forbidden"})
                 self.send_response(204)
                 self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin", ""))
-                self.send_header("Access-Control-Allow-Headers", "Content-Type, X-EV-Token")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, X-EV-Token, X-EV-Ext-Version")
                 self.send_header("Access-Control-Allow-Methods", "GET, POST")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
@@ -243,6 +256,10 @@ class Bridge:
                     except queue.Empty:
                         cmd = None
                     bridge._last_poll = time.time()
+                    # The app was updated but Chrome still runs the old extension build:
+                    # ask it to reload itself from the (already updated) folder on disk.
+                    if bridge.needs_reload(self.headers.get("X-EV-Ext-Version", "")):
+                        return self._send(200, {"command": {"action": "reload_extension"}})
                     return self._send(200, {"command": cmd})
                 self._send(404, {"error": "not found"})
 
