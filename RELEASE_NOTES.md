@@ -1,3 +1,17 @@
+EV AI 1.0.36
+
+FIXES
+- Switching modes works again. In 1.0.33 to 1.0.35 every switch to Jarvis, Ultron, Game, Karen and the character modes failed with "'NoneType' object is not callable". That was a one-line bug, now fixed and guarded by a check script.
+- The Chrome extension now updates itself: when EV AI is newer than the extension running in Chrome, EV AI tells it to reload. (Reload the extension once at chrome://extensions to get the self-update going.)
+
+CHANGES
+- Ultron: the screen corruption now uses a mix of reds and glitches your real screen (sliced tears, blocky corruption, colour split, scan lines) instead of static. The eye is replaced by a sentinel scanner whose core follows your mouse.
+
+NEW
+- Friday can look through your camera: "Look through camera" describes one picture and "Read what the camera sees" reads out any text. It asks permission first and saves nothing.
+
+---
+
 EV AI 1.0.35
 
 NEW
