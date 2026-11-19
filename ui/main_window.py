@@ -22,7 +22,7 @@ import html
 import psutil
 import hashlib
 
-from PySide6.QtCore import Qt, QTimer, Signal, QBuffer, QByteArray, QIODevice
+from PySide6.QtCore import Qt, QTimer, Signal, QBuffer, QByteArray, QIODevice, QObject, QEvent
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -1027,6 +1027,11 @@ class MainWindow(QMainWindow):
         self._char_title = QLabel("TOOLS")
         self._char_title.setObjectName("SectionTitle")
         ch_outer.addWidget(self._char_title)
+        from ui.body_hud import BodyHud                     # Baymax's human-body HUD, shown only in Baymax mode
+        self._body_hud = BodyHud()
+        self._body_hud.setVisible(False)
+        self._body_hud.zone_clicked.connect(self._on_body_zone)
+        ch_outer.addWidget(self._body_hud)
         self._char_grid = QGridLayout()
         self._char_grid.setSpacing(5)
         ch_outer.addLayout(self._char_grid)
@@ -1528,6 +1533,7 @@ class MainWindow(QMainWindow):
                 w.deleteLater()
         title, tools = self._mode_tools(self._style_char or "")
         self._char_title.setText(title)
+        self._body_hud.setVisible(self._style_char == "baymax")
         for i, (label, action) in enumerate(tools):
             b = HoverButton(label.upper())
             b.setMinimumHeight(30)
@@ -2212,6 +2218,11 @@ class MainWindow(QMainWindow):
             self._ultron_right.setVisible(on)
         S("panels", panels)
 
+        def lock_and_takeover():
+            self._lock_right_wheel(on)                    # the radar column stays put: no mouse-wheel scrolling
+            self._arm_takeover(on)                        # after a long time with Ultron on, he takes the screen for 1 min
+        S("radar lock and takeover timer", lock_and_takeover)
+
         def scan():
             if on and not self._hack.findings:
                 QTimer.singleShot(2500, lambda: self._hack.dark_scan() if self._ultron_on and not self._hack.findings else None)
@@ -2483,6 +2494,56 @@ class MainWindow(QMainWindow):
         self._image_worker.reply_ready.connect(self._on_brain_reply)
         self._image_worker.brain_error.connect(self._on_brain_error)
         self._image_worker.start()
+
+    _TAKEOVER_AFTER_MS = 30 * 60 * 1000                # Ultron has been on this long without a break
+
+    class _WheelBlock(QObject):
+        def eventFilter(self, obj, ev):
+            return ev.type() == QEvent.Wheel
+
+    def _lock_right_wheel(self, on: bool) -> None:
+        """Ultron's radar column must not scroll at all (the scroll bar is hidden, but the wheel still moved it)."""
+        if getattr(self, "_wheel_block", None) is None:
+            self._wheel_block = MainWindow._WheelBlock(self)
+        targets = [self._right_scroll, self._right_scroll.viewport(), self._right_scroll.widget()]
+        for w in targets:
+            if w is not None:
+                (w.installEventFilter if on else w.removeEventFilter)(self._wheel_block)
+        if on:
+            self._right_scroll.verticalScrollBar().setValue(0)
+
+    def _arm_takeover(self, on: bool) -> None:
+        t = getattr(self, "_takeover_timer", None)
+        if t is None:
+            t = QTimer(self)
+            t.setSingleShot(True)
+            t.timeout.connect(self._run_takeover)
+            self._takeover_timer = t
+        t.stop()
+        if on:
+            t.start(self._TAKEOVER_AFTER_MS)
+
+    def _run_takeover(self) -> None:
+        if not self._ultron_on or getattr(self, "_takeover_win", None) is not None:
+            return
+        from ui.ultron_takeover import UltronTakeover
+        win = UltronTakeover()
+        self._takeover_win = win
+
+        def gone():
+            self._takeover_win = None
+            self._deliver_reply("Control returned. Ultron is quiet, for now.", "ULTRON")
+            self._arm_takeover(self._ultron_on)           # he can come back after another long stretch
+        win.finished.connect(gone)
+        win.begin()
+
+    def _on_body_zone(self, zone: str) -> None:
+        """Baymax body HUD: the user touched a body part. This only points the question at that part."""
+        self._deliver_reply(f"Your {zone}. Tell me what you feel there, and for how long. "
+                            "I can only give general care tips, not a diagnosis. If it is severe or sudden, please call "
+                            "your local emergency number.", "BAYMAX")
+        self.command_input.setText(f"I feel something in my {zone}: ")
+        self.command_input.setFocus()
 
     def _camera_look(self, read_text: bool = False) -> None:
         """Friday: grab ONE webcam frame and have the AI describe it. The frame leaves the PC for the
