@@ -21,10 +21,13 @@ LABEL = "Ctrl+Alt+E"
 
 
 class GlobalHotkey(QAbstractNativeEventFilter):
-    def __init__(self, callback):
+    def __init__(self, callback, hotkey_id: int = _HOTKEY_ID, vk: int = _VK_E, modifiers: int = _MOD_CONTROL | _MOD_ALT):
         super().__init__()
         self._callback = callback
         self._registered = False
+        self._id = hotkey_id
+        self._vk = vk
+        self._mods = modifiers
 
     def enable(self) -> bool:
         if sys.platform != "win32" or self._registered:
@@ -32,7 +35,7 @@ class GlobalHotkey(QAbstractNativeEventFilter):
         try:
             import ctypes
             ok = ctypes.windll.user32.RegisterHotKey(
-                None, _HOTKEY_ID, _MOD_CONTROL | _MOD_ALT | _MOD_NOREPEAT, _VK_E)
+                None, self._id, self._mods | _MOD_NOREPEAT, self._vk)
         except Exception:
             ok = False
         if ok:
@@ -45,7 +48,7 @@ class GlobalHotkey(QAbstractNativeEventFilter):
             return
         try:
             import ctypes
-            ctypes.windll.user32.UnregisterHotKey(None, _HOTKEY_ID)
+            ctypes.windll.user32.UnregisterHotKey(None, self._id)
             QApplication.instance().removeNativeEventFilter(self)
         except Exception:
             pass
@@ -57,7 +60,7 @@ class GlobalHotkey(QAbstractNativeEventFilter):
                 import ctypes
                 from ctypes import wintypes
                 msg = wintypes.MSG.from_address(int(message))
-                if msg.message == _WM_HOTKEY and msg.wParam == _HOTKEY_ID:
+                if msg.message == _WM_HOTKEY and msg.wParam == self._id:
                     self._callback()
                     return True, 0
             except Exception:

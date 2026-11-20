@@ -140,8 +140,20 @@ class MainWindow(QMainWindow):
         self._usage.start()
         self._insights_dlg = None
         self._finder_dlg = None
+        # AI Portal (Ctrl+Alt+Space) and Emergency Lock (Ctrl+Alt+Shift+L) work from any program
+        self._portal = None
+        self._portal_hotkey = GlobalHotkey(self._open_portal, hotkey_id=0x5650, vk=0x20)
+        self._lock_hotkey = GlobalHotkey(self._lock_now, hotkey_id=0x4C4B, vk=0x4C, modifiers=0x0001 | 0x0002 | 0x0004)
         if user_prefs.get("global_hotkey"):
             self._hotkey.enable()
+            self._portal_hotkey.enable()
+            self._lock_hotkey.enable()
+        from core.context import ContextTracker
+        self._ctx_tracker = ContextTracker()
+        self._ctx_timer = QTimer(self)
+        self._ctx_timer.timeout.connect(self._context_tick)
+        if user_prefs.get("context_aware"):
+            self._ctx_timer.start(5000)
         if user_prefs.get("auto_check_updates") and settings.UPDATE_CHECK_URL:
             from ui.update_flow import StartupCheck
             self._startup_update_check = StartupCheck(self._on_update_available, self)
@@ -980,6 +992,10 @@ class MainWindow(QMainWindow):
         quick_actions = [
             ("Open YouTube", "open youtube"),
             ("Search the Web", "search the web for "),
+            ("Mission Spaces", "__spaces__"),
+            ("Context Awareness", "__context__"),
+            ("Privacy Shield", "__shield__"),
+            ("Lock Windows Now", "__lock__"),
             ("Send WhatsApp", "prefill:send a whatsapp message to "),
             ("Send Email", "prefill:send an email to "),
             ("Message My Phone", "__phone_msg__"),
@@ -993,7 +1009,8 @@ class MainWindow(QMainWindow):
             # __clear__ doesn't touch the AI brain, so it's fine to use
             # anytime; anything else goes through handle_user_input and
             # must be blocked while a request is already in flight.
-            if command not in ("__clear__", "__save__", "__phone_msg__") and not command.startswith("prefill:"):
+            if command not in ("__clear__", "__save__", "__phone_msg__", "__spaces__", "__context__", "__shield__", "__lock__") \
+                    and not command.startswith("prefill:"):
                 self._busy_disable_widgets.append(btn)
 
         p_layout.addStretch(1)
@@ -1079,11 +1096,133 @@ class MainWindow(QMainWindow):
         if command == "__phone_msg__":
             self._message_phone()
             return
+        if command == "__spaces__":
+            self._open_spaces()
+            return
+        if command == "__context__":
+            on = not user_prefs.get("context_aware")
+            user_prefs.set_value("context_aware", on)
+            (self._ctx_timer.start(5000) if on else self._ctx_timer.stop())
+            self._append_conversation("EV", "Context awareness is ON: I look at which program is in front (its name and title "
+                                      "only, nothing is sent anywhere) and offer help now and then." if on else
+                                      "Context awareness is OFF.")
+            return
+        if command == "__shield__":
+            self._privacy_shield()
+            return
+        if command == "__lock__":
+            self._lock_now()
+            return
         if command.startswith("prefill:"):        # fill the box so you can finish the sentence
             self.command_input.setText(command[len("prefill:"):])
             self.command_input.setFocus()
             return
         self.handle_user_input(command)
+
+    # ---- Mission Spaces, context awareness, AI Portal, privacy shield ---------------------------------------------
+    def _open_spaces(self) -> None:
+        from PySide6.QtWidgets import QDialog, QHBoxLayout, QInputDialog, QPushButton, QVBoxLayout, QLabel
+        from core import spaces
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Mission Spaces")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Pick a space to open its apps, sites and folders. Nothing is closed."))
+
+        def start(name):
+            dlg.accept()
+            r = spaces.start_space(name)
+            if "error" in r:
+                self._append_conversation("EV", r["error"])
+                return
+            msg = f"{r['space']} space started: " + (", ".join(r["opened"]) or "nothing to open")
+            if r["failed"]:
+                msg += ". Could not open: " + ", ".join(r["failed"])
+            if r.get("focus"):
+                msg += ". Tip: turn on Focus to block distractions."
+            self._deliver_reply(msg, "EV")
+
+        for sp in spaces.list_spaces()["spaces"]:
+            row = QHBoxLayout()
+            b = QPushButton(sp["name"].upper())
+            b.setMinimumHeight(34)
+            b.clicked.connect(lambda _=False, n=sp["name"]: start(n))
+            d = QPushButton("Delete")
+            d.clicked.connect(lambda _=False, n=sp["name"]: (spaces.delete_space(n), dlg.reject(), self._open_spaces()))
+            row.addWidget(b, 1)
+            row.addWidget(d)
+            lay.addLayout(row)
+        snap = QPushButton("Save what is open now as a new space…")
+
+        def do_snap():
+            name, ok = QInputDialog.getText(dlg, "New space", "Name for this space (for example 'Project X'):")
+            if ok and name.strip():
+                r = spaces.snapshot_space(name.strip())
+                dlg.accept()
+                self._append_conversation("EV", f"Saved space '{name.strip()}' with: " + ", ".join(r["apps"]) if "apps" in r else r.get("error", "Could not save."))
+        snap.clicked.connect(do_snap)
+        lay.addWidget(snap)
+        dlg.exec()
+
+    def _context_tick(self) -> None:
+        if self._state != AIState.IDLE or not user_prefs.get("context_aware"):
+            return
+        try:
+            from core.focus_match import active_window
+            import time
+            win = active_window()
+            if win is None:
+                return
+            offer = self._ctx_tracker.tick(win[2], win[1], time.monotonic())
+            if offer:
+                self._append_conversation("EV", offer)
+        except Exception:
+            pass
+
+    def _open_portal(self) -> None:
+        if self._portal is None:
+            from ui.portal import AIPortal
+            self._portal = AIPortal(self._portal_ask)
+        from ui.portal import grab_selection
+        grab_selection(self._portal.open_with)
+
+    def _portal_ask(self, prompt: str) -> None:
+        if self._state != AIState.IDLE:
+            self._portal.show_reply("EV is busy with something else. Try again in a moment.")
+            return
+        self.handle_user_input(prompt)
+
+    def _privacy_shield(self) -> None:
+        """Press once: mute the microphone and stop EV's own use of mic, camera and screen. Press again to unmute."""
+        from core import privacy_shield
+        if getattr(self, "_shield_on", False):
+            self._shield_on = False
+            r = privacy_shield.set_mic_muted(False)
+            self._append_conversation("EV", "Privacy shield off: microphone unmuted." if "error" not in r else r["error"])
+            return
+        self._shield_on = True
+        done = []
+        try:
+            if self._listener_thread is not None and self._listener_thread.isRunning():
+                self._toggle_voice()
+                done.append("EV stopped listening")
+            if self._video_mode_on:
+                self._stop_video_mode()
+                done.append("camera mode off")
+            if self._observing:
+                self._stop_observation()
+                done.append("screen watching off")
+        except Exception:
+            pass
+        r = privacy_shield.set_mic_muted(True)
+        done.append("microphone muted" if "error" not in r else "microphone not muted (" + r["error"] + ")")
+        self._append_conversation("EV", "Privacy shield on: " + ", ".join(done) + ". I cannot switch the webcam itself off, "
+                                  "so use its cover for that. Press Privacy Shield again to unmute.")
+
+    def _lock_now(self) -> None:
+        from core import privacy_shield
+        r = privacy_shield.lock_windows()
+        if "error" in r:
+            self._append_conversation("EV", r["error"])
 
     def _message_phone(self) -> None:
         """Send a short message to the connected phone (the same alert channel as 'find my phone')."""
@@ -1273,6 +1412,8 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(max(7000, len(speak_text if speak_text is not None else reply) * 90), self._speak_watchdog)
         self._apply_state(AIState.SPEAKING)
         self._append_conversation(speaker, reply)
+        if getattr(self, "_portal", None) is not None:
+            self._portal.show_reply(reply)
         if self._hud_overlay is not None:
             self._hud_overlay.set_last_reply(reply)
         self._speak(speak_text if speak_text is not None else reply)
