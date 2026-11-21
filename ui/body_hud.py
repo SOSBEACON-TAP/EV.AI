@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QWidget
 
 LINE = QColor(255, 120, 120)          # Baymax care red
@@ -34,7 +34,7 @@ class BodyHud(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(250)
+        self.setMinimumHeight(340)
         self.setMouseTracking(True)
         self._t = 0.0
         self._hover: str | None = None
@@ -85,18 +85,105 @@ class BodyHud(QWidget):
             self._picked = z
             self.zone_clicked.emit(z)
 
-    # -- drawing ---------------------------------------------------------------------------------------------
+    # -- drawing: a glowing blue body with a red skeleton inside, like an X-ray scan --------------------------------
+    @staticmethod
+    def _poly(pts) -> QPainterPath:
+        path = QPainterPath()
+        path.moveTo(*pts[0])
+        for pt in pts[1:]:
+            path.lineTo(*pt)
+        path.closeSubpath()
+        return path
+
     def _body_path(self) -> QPainterPath:
-        p = QPainterPath()
-        p.addEllipse(QRectF(40, 5, 20, 24))                                  # head
-        p.addRoundedRect(QRectF(46, 29, 8, 8), 2, 2)                         # neck
-        p.addRoundedRect(QRectF(31, 37, 38, 42), 8, 8)                       # torso
-        p.addRoundedRect(QRectF(33, 76, 34, 36), 8, 8)                       # hips
-        p.addRoundedRect(QRectF(11, 40, 15, 70), 7, 7)                       # arms
-        p.addRoundedRect(QRectF(74, 40, 15, 70), 7, 7)
-        p.addRoundedRect(QRectF(34, 110, 14, 84), 7, 7)                      # legs
-        p.addRoundedRect(QRectF(52, 110, 14, 84), 7, 7)
-        return p
+        P = self._poly
+        body = QPainterPath()
+        body.addEllipse(QRectF(41, 3, 18, 24))                                                   # head
+        for part in (
+            P([(46, 24), (54, 24), (55, 36), (45, 36)]),                                          # neck
+            P([(46, 34), (54, 34), (71, 38), (75, 44), (68, 64), (66, 96), (69, 112), (31, 112), (34, 96), (32, 64), (25, 44), (29, 38)]),  # torso
+            P([(28, 38), (22, 40), (19, 70), (17, 100), (20, 112), (26, 112), (27, 100), (30, 70), (33, 44)]),   # left arm
+            P([(72, 38), (78, 40), (81, 70), (83, 100), (80, 112), (74, 112), (73, 100), (70, 70), (67, 44)]),   # right arm
+            P([(33, 108), (50, 108), (50, 150), (47, 192), (39, 192), (37, 150)]),                # left leg
+            P([(67, 108), (50, 108), (50, 150), (53, 192), (61, 192), (63, 150)]),                # right leg
+        ):
+            body = body.united(part)
+        return body
+
+    def _draw_skeleton(self, p: QPainter, pulse: float) -> None:
+        bone = QColor(255, 92, 104, 235)
+        core = QColor(255, 190, 190, 235)
+
+        def line(x1, y1, x2, y2, w=1.4):
+            p.setPen(QPen(bone, w, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+            p.setPen(QPen(core, w * 0.35, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        def mirror(fn, *a):
+            fn(*a)
+            fn(*(100 - v if i % 2 == 0 else v for i, v in enumerate(a)))
+
+        p.setBrush(Qt.NoBrush)
+        # skull, eye sockets, jaw
+        p.setPen(QPen(bone, 1.3))
+        p.drawEllipse(QRectF(43, 5, 14, 15))
+        p.setBrush(QColor(20, 4, 8, 220))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QRectF(45.2, 11, 3.6, 3.6))
+        p.drawEllipse(QRectF(51.2, 11, 3.6, 3.6))
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(bone, 1.2))
+        p.drawArc(QRectF(44, 14, 12, 12), 200 * 16, 140 * 16)
+        # spine
+        for i in range(24):
+            y = 27 + i * 3.4
+            p.setPen(QPen(bone, 0.9))
+            p.setBrush(QColor(255, 120, 130, 120))
+            w = 3.0 + (1.2 if 6 < i < 17 else 0.0)
+            p.drawRoundedRect(QRectF(50 - w / 2, y, w, 2.4), 0.9, 0.9)
+        p.setBrush(Qt.NoBrush)
+        # ribcage: seven pairs of curved ribs, plus the breastbone
+        for i in range(7):
+            y = 38 + i * 4.6
+            reach = 15.5 - abs(i - 2.5) * 0.9
+            for sgn in (-1, 1):
+                path = QPainterPath()
+                path.moveTo(50 + sgn * 2, y)
+                path.cubicTo(50 + sgn * reach * 0.9, y - 2.5, 50 + sgn * reach * 1.05, y + 5, 50 + sgn * 3.2, y + 8)
+                p.setPen(QPen(bone, 1.1))
+                p.drawPath(path)
+        line(50, 38, 50, 66, 1.6)
+        # shoulders, collarbones, arms
+        mirror(line, 49, 36.5, 30, 38.5)
+        p.setBrush(QColor(255, 120, 130, 140))
+        p.setPen(QPen(bone, 1.0))
+        for x in (27.5, 72.5):
+            p.drawEllipse(QPointF(x, 40.5), 2.6, 2.6)
+        p.setBrush(Qt.NoBrush)
+        mirror(line, 27.5, 43, 24, 73)                    # upper arm
+        mirror(line, 24, 75, 20.5, 104, 1.1)              # forearm
+        mirror(line, 25.5, 75, 23.5, 104, 1.0)
+        p.setPen(QPen(bone, 1.0))
+        for x in (20.5, 79.5):
+            p.drawEllipse(QRectF(x - 2.6, 104, 5.2, 7))   # hands
+        # pelvis
+        p.setPen(QPen(bone, 1.3))
+        p.setBrush(QColor(255, 120, 130, 90))
+        p.drawEllipse(QRectF(36, 97, 14, 13))
+        p.drawEllipse(QRectF(50, 97, 14, 13))
+        p.setBrush(Qt.NoBrush)
+        # legs
+        mirror(line, 42, 112, 41, 149, 1.7)               # thigh bones
+        p.setPen(QPen(bone, 1.0))
+        p.setBrush(QColor(255, 120, 130, 140))
+        for x in (41, 59):
+            p.drawEllipse(QPointF(x, 151), 2.4, 2.4)       # knees
+        p.setBrush(Qt.NoBrush)
+        mirror(line, 41, 154, 41.5, 188, 1.5)             # shin
+        p.setPen(QPen(bone, 1.0))
+        for x in (41.5, 58.5):
+            p.drawEllipse(QRectF(x - 4, 188, 8, 4.5))      # feet
 
     def paintEvent(self, _e):
         p = QPainter(self)
@@ -105,52 +192,55 @@ class BodyHud(QWidget):
         p.save()
         p.translate(ox, oy)
         p.scale(s, s)
-
-        # glow + outline
-        body = self._body_path()
         pulse = 0.5 + 0.5 * math.sin(self._t * 2.2)
-        for w, a in ((5.0, 22), (3.0, 40)):
-            g = QColor(GLOW)
-            g.setAlpha(int(a + 14 * pulse))
+
+        # glowing blue body
+        body = self._body_path()
+        for w, a in ((7.0, 18), (4.5, 30), (2.6, 55)):
+            g = QColor(70, 150, 255, int(a + 14 * pulse))
             p.setPen(QPen(g, w, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             p.setBrush(Qt.NoBrush)
             p.drawPath(body)
-        p.setPen(QPen(LINE, 1.1))
-        p.setBrush(QBrush(QColor(255, 90, 90, 18)))
+        grad = QLinearGradient(0, 0, 0, 200)
+        grad.setColorAt(0.0, QColor(60, 140, 255, 70))
+        grad.setColorAt(1.0, QColor(30, 80, 190, 40))
+        p.setPen(QPen(QColor(120, 190, 255, 230), 1.1))
+        p.setBrush(QBrush(grad))
         p.drawPath(body)
 
-        # selectable zones
+        self._draw_skeleton(p, pulse)
+
+        # the selectable zones
         for name, r in ZONES.items():
-            hot = name == self._hover
-            picked = name == self._picked
+            hot, picked = name == self._hover, name == self._picked
             if hot or picked:
-                c = QColor(255, 140, 140, 90 if hot else 60)
                 p.setPen(QPen(LINE, 0.9, Qt.DashLine))
-                p.setBrush(QBrush(c))
-                p.drawRoundedRect(r, 5, 5)
-            else:
-                p.setPen(QPen(DIM, 0.5, Qt.DotLine))
-                p.setBrush(Qt.NoBrush)
+                p.setBrush(QBrush(QColor(255, 140, 140, 70 if hot else 45)))
                 p.drawRoundedRect(r, 5, 5)
 
-        # heart
-        hb = 1.0 + 0.18 * max(0.0, math.sin(self._t * 6.0)) ** 3
+        # heart glow
+        hb = 1.0 + 0.2 * max(0.0, math.sin(self._t * 6.0)) ** 3
+        rg = QRadialGradient(QPointF(56, 52), 7 * hb)
+        rg.setColorAt(0.0, QColor(255, 120, 120, 230))
+        rg.setColorAt(1.0, QColor(255, 60, 60, 0))
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 80, 80, 200))
-        p.drawEllipse(QPointF(56, 50), 3.2 * hb, 3.2 * hb)
+        p.setBrush(QBrush(rg))
+        p.drawEllipse(QPointF(56, 52), 7 * hb, 7 * hb)
 
-        # scan line sweeping down the body
-        y = 4 + ((self._t * 38) % 196)
-        grad = QColor(255, 150, 150, 120)
-        p.setPen(QPen(grad, 1.2))
-        p.drawLine(QPointF(6, y), QPointF(94, y))
+        # scan band sweeping down the body
+        y = 2 + ((self._t * 34) % 198)
+        band = QLinearGradient(0, y - 6, 0, y + 6)
+        band.setColorAt(0.0, QColor(120, 200, 255, 0))
+        band.setColorAt(0.5, QColor(150, 215, 255, 120))
+        band.setColorAt(1.0, QColor(120, 200, 255, 0))
+        p.setBrush(QBrush(band))
+        p.drawRect(QRectF(4, y - 6, 92, 12))
         p.restore()
 
         # heartbeat trace along the bottom
-        h = self.height()
+        w, h = self.width(), self.height()
         path = QPainterPath()
-        w = self.width()
-        base = h - 12
+        base = h - 10
         for i in range(0, int(w) + 1, 2):
             ph = (i / w * 3.0 - self._t * 0.9) % 1.0
             y2 = base
@@ -167,7 +257,7 @@ class BodyHud(QWidget):
         f.setPointSize(7)
         f.setBold(True)
         p.setFont(f)
-        p.setPen(QColor(255, 150, 150))
+        p.setPen(QColor(150, 205, 255))
         label = (self._hover or self._picked or "touch where you feel something").upper()
         p.drawText(QRectF(0, 0, w, 12), Qt.AlignHCenter | Qt.AlignTop, label)
         p.end()

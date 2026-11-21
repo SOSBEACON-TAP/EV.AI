@@ -198,9 +198,107 @@ def send_whatsapp_message(contact: str, message: str, confirmed: bool = False) -
             "message": f"This will open WhatsApp Web and send a message to '{contact}'. Ask the user to confirm first.",
         }
     try:
+        import playwright  # noqa: F401
+    except ImportError:
+        return _send_via_link(contact, message)      # the packaged app has no Playwright: use WhatsApp's own links
+    try:
         return _executor.submit(_send_blocking, contact, message).result()
     except Exception as e:
         return {"error": f"WhatsApp automation failed: {e}"}
+
+
+# ---- no-Playwright route: open WhatsApp (desktop app or the browser you are already logged in with) --------------
+_NUMBERS_PATH = None
+
+
+def _numbers_path():
+    from config import APP_ROOT
+    return APP_ROOT / "data" / "wa_numbers.json"
+
+
+def _load_numbers() -> dict:
+    import json
+    try:
+        d = json.loads(_numbers_path().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_wa_number(name: str, number: str) -> None:
+    """Remember a WhatsApp number under a name so 'message Mom' works later."""
+    import json
+    name = (name or "").strip()
+    num = _digits(number)
+    if not name or not num:
+        return
+    d = _load_numbers()
+    d[name] = num
+    try:
+        _numbers_path().parent.mkdir(parents=True, exist_ok=True)
+        _numbers_path().write_text(json.dumps(d, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _digits(text: str) -> str:
+    import re
+    d = re.sub(r"\D", "", text or "")
+    return d if 8 <= len(d) <= 15 else ""
+
+
+def _to_number(contact: str) -> str:
+    num = _digits(contact)
+    if num:
+        return num
+    low = (contact or "").strip().lower()
+    for name, n in _load_numbers().items():
+        if name.lower() == low:
+            return n
+    return ""
+
+
+def _send_via_link(contact: str, message: str) -> dict:
+    """Open the chat with the message already typed (whatsapp:// for the desktop app, else WhatsApp Web), then press Enter
+    once the WhatsApp window is in front. If that cannot be confirmed, the message is left typed for you to send."""
+    import os
+    import time
+    import urllib.parse
+    num = _to_number(contact)
+    if not num:
+        return {"error": f"I need a phone number for '{contact}'. Type it with the country code, for example +91 98765 43210, "
+                         "and I will remember it under that name."}
+    text = urllib.parse.quote(message)
+    opened = False
+    try:
+        os.startfile(f"whatsapp://send?phone={num}&text={text}")
+        opened = True
+    except Exception:
+        pass
+    if not opened:
+        try:
+            import webbrowser
+            webbrowser.open(f"https://web.whatsapp.com/send?phone={num}&text={text}")
+        except Exception as e:
+            return {"error": f"Could not open WhatsApp: {e}"}
+    sent = False
+    try:
+        from core.focus_match import active_window
+        import pyautogui
+        for _ in range(30):                          # up to ~15 s for the WhatsApp window to appear in front
+            time.sleep(0.5)
+            win = active_window()
+            if win and "whatsapp" in (win[1] or "").lower():
+                time.sleep(2.0)                      # let the typed message appear
+                pyautogui.press("enter")
+                sent = True
+                break
+    except Exception:
+        pass
+    if sent:
+        return {"status": "sent", "contact": contact, "note": "Sent through WhatsApp's own window."}
+    return {"status": "opened", "contact": contact,
+            "note": "WhatsApp is open with your message typed. Press Enter to send it (I could not confirm the window was in front)."}
 
 
 def _close_blocking() -> dict:

@@ -2,7 +2,7 @@
   1. the wires: thin glitch traces and torn slices around the AI core,
   2. the controls and tabs: their slices tear sideways, tinted dark red,
   3. the whole screen: it drains to a grayish red, tears and splits into colour fringes,
-  4. a sentinel scanner (rings, a vertical slit that watches you) assembles out of the glitch,
+  4. a (no eye or scanner: only the glitch itself)
 then the picture tears one last time and the real Ultron screen shows through.
 
 The colours are a mix of reds (crimson, blood, ember, ash, black), never one flat red, and there is no static: it is all
@@ -236,11 +236,6 @@ class UltronCorruption(QWidget):
             p.fillRect(QRectF(0, y, W, 38), _col(CRIMSON, 34 * c3))
             p.fillRect(QRectF(0, y + 17, W, 2), _col(PALE, 70 * c3))
 
-        # 4) the sentinel scanner assembles out of the glitch
-        sent = _smooth((prog - 0.72) / 0.18) * (1.0 - _smooth((reveal - 0.1) / 0.5))
-        if sent > 0.01:
-            self._draw_sentinel(p, sent, now, rnd, veil)
-
         # the last tear: the picture breaks up just before Ultron takes over, and for a moment after
         glitch = _smooth((prog - 0.9) / 0.1) if not self._peaked else max(0.0, 1.0 - reveal * 2.6)
         if glitch > 0:
@@ -256,74 +251,3 @@ class UltronCorruption(QWidget):
             p.fillRect(0, y, W, 1, QColor(0, 0, 0, 140))
         p.setOpacity(1.0)
 
-    def _draw_sentinel(self, p: QPainter, t: float, now: float, rnd: random.Random, veil: float) -> None:
-        """Rings turning against each other and a vertical slit at the centre that follows your mouse. Drawn twice with
-        a small offset in two reds, so it looks as if it is made of the glitch."""
-        W, H = self.width(), self.height()
-        cx, cy = W / 2.0, H / 2.0
-        R = min(W, H) * 0.27 * (0.7 + 0.3 * t)
-        m = self.mapFromGlobal(QCursor.pos())
-        lx = max(-1.0, min(1.0, (m.x() - cx) / max(1.0, W / 2.0)))
-        ly = max(-1.0, min(1.0, (m.y() - cy) / max(1.0, H / 2.0)))
-        spin = now * 40.0
-        jitter = rnd.uniform(-3, 3) if rnd.random() < 0.35 else 0.0
-        p.save()
-        p.setRenderHint(QPainter.Antialiasing, True)
-        # dark disc so the scanner reads clearly over the busy screen
-        disc = QRadialGradient(QPointF(cx, cy), R * 1.25)
-        disc.setColorAt(0.0, _col(VOID, 235 * t))
-        disc.setColorAt(0.8, _col(MAROON, 190 * t))
-        disc.setColorAt(1.0, _col(VOID, 0))
-        p.setPen(Qt.NoPen)
-        p.setBrush(disc)
-        p.drawEllipse(QPointF(cx, cy), R * 1.25, R * 1.25)
-        for ox, tone in ((jitter + 3.0, BLOOD), (jitter - 2.0, EMBER), (jitter, CRIMSON)):
-            p.save()
-            p.translate(ox, 0)
-            alpha = (120 if tone is not CRIMSON else 235) * t
-            # outer ring with tick marks
-            p.setBrush(Qt.NoBrush)
-            p.setPen(QPen(_col(tone, alpha * 0.55), 1.6))
-            p.drawEllipse(QPointF(cx, cy), R * 1.12, R * 1.12)
-            for i in range(72):
-                a = math.radians(i * 5.0 + spin * 0.15)
-                ln = R * (0.06 if i % 6 == 0 else 0.03)
-                p.drawLine(QPointF(cx + math.cos(a) * R * 1.12, cy + math.sin(a) * R * 1.12),
-                           QPointF(cx + math.cos(a) * (R * 1.12 - ln), cy + math.sin(a) * (R * 1.12 - ln)))
-            # three rings of arcs turning against each other
-            for ring, (rad, segs, width, speed) in enumerate(((1.0, 12, 7, 1.0), (0.78, 9, 5, -1.6), (0.56, 6, 4, 2.2))):
-                p.setPen(QPen(_col(tone, alpha), width, Qt.SolidLine, Qt.FlatCap))
-                span = 360.0 / segs
-                shown = max(0, min(segs, int(segs * _smooth(t * 1.3 - ring * 0.12) + 0.999)))
-                rect = QRectF(cx - R * rad, cy - R * rad, R * rad * 2, R * rad * 2)
-                for i in range(shown):
-                    a0 = i * span + spin * speed
-                    p.drawArc(rect, int(-a0 * 16), int(-(span * 0.62) * 16))
-            p.restore()
-        # crosshair ticks
-        p.setPen(QPen(_col(PALE, 150 * t), 1.5))
-        for a in (0, 90, 180, 270):
-            ar = math.radians(a)
-            p.drawLine(QPointF(cx + math.cos(ar) * R * 1.2, cy + math.sin(ar) * R * 1.2),
-                       QPointF(cx + math.cos(ar) * R * 1.36, cy + math.sin(ar) * R * 1.36))
-        # the core: a glow with a vertical slit that follows the mouse and tightens now and then
-        gx, gy = cx + lx * R * 0.12, cy + ly * R * 0.12
-        glow = QRadialGradient(QPointF(gx, gy), R * 0.5)
-        glow.setColorAt(0.0, _col(EMBER, 230 * t))
-        glow.setColorAt(0.45, _col(CRIMSON, 120 * t))
-        glow.setColorAt(1.0, _col(CRIMSON, 0))
-        p.setPen(Qt.NoPen)
-        p.setBrush(glow)
-        p.drawEllipse(QPointF(gx, gy), R * 0.5, R * 0.5)
-        squeeze = 0.55 + 0.45 * abs(math.sin(now * 0.9))
-        slit = QPainterPath()
-        sw, sh = R * 0.07 * squeeze, R * 0.36
-        slit.moveTo(gx, gy - sh)
-        slit.quadTo(gx + sw * 2.2, gy, gx, gy + sh)
-        slit.quadTo(gx - sw * 2.2, gy, gx, gy - sh)
-        p.setBrush(_col(VOID, 245 * t))
-        p.drawPath(slit)
-        p.setPen(QPen(_col(PALE, 235 * t), 1.6))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(slit)
-        p.restore()

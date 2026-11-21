@@ -821,6 +821,21 @@ class MainWindow(QMainWindow):
         self.finder_btn.setStyleSheet(_COMPACT_BTN)
         tool_grid.addWidget(self.finder_btn, 2, 1)
 
+        # Send things and stay safe: each of these opens a small form (or acts at once) instead of needing a sentence
+        extra = [("💬 WHATSAPP", lambda: self._open_compose("whatsapp")), ("✉ EMAIL", lambda: self._open_compose("email")),
+                 ("📱 MESSAGE PHONE", lambda: self._open_compose("phone")), ("🗂 SPACES", self._open_spaces),
+                 ("🧭 CONTEXT: OFF", self._toggle_context), ("🛡 PRIVACY SHIELD", self._privacy_shield),
+                 ("🔒 LOCK NOW", self._lock_now)]
+        for i, (label, fn) in enumerate(extra):
+            b = HoverButton(label)
+            b.setMinimumHeight(30)
+            b.setStyleSheet(_COMPACT_BTN)
+            b.clicked.connect(lambda _=False, f=fn: f())
+            tool_grid.addWidget(b, 3 + i // 2, i % 2)
+            if label.startswith("🧭"):
+                self.context_btn = b
+        if user_prefs.get("context_aware"):
+            self.context_btn.setText("🧭 CONTEXT: ON")
         mode_layout.addLayout(tool_grid)
         # EV's own feature: control this computer from the phone
         computer_btn = HoverButton("💻  COMPUTER  (phone control)")
@@ -992,13 +1007,6 @@ class MainWindow(QMainWindow):
         quick_actions = [
             ("Open YouTube", "open youtube"),
             ("Search the Web", "search the web for "),
-            ("Mission Spaces", "__spaces__"),
-            ("Context Awareness", "__context__"),
-            ("Privacy Shield", "__shield__"),
-            ("Lock Windows Now", "__lock__"),
-            ("Send WhatsApp", "prefill:send a whatsapp message to "),
-            ("Send Email", "prefill:send an email to "),
-            ("Message My Phone", "__phone_msg__"),
             ("Save Conversation", "__save__"),
             ("Clear Conversation", "__clear__"),
         ]
@@ -1099,14 +1107,6 @@ class MainWindow(QMainWindow):
         if command == "__spaces__":
             self._open_spaces()
             return
-        if command == "__context__":
-            on = not user_prefs.get("context_aware")
-            user_prefs.set_value("context_aware", on)
-            (self._ctx_timer.start(5000) if on else self._ctx_timer.stop())
-            self._append_conversation("EV", "Context awareness is ON: I look at which program is in front (its name and title "
-                                      "only, nothing is sent anywhere) and offer help now and then." if on else
-                                      "Context awareness is OFF.")
-            return
         if command == "__shield__":
             self._privacy_shield()
             return
@@ -1162,6 +1162,51 @@ class MainWindow(QMainWindow):
         snap.clicked.connect(do_snap)
         lay.addWidget(snap)
         dlg.exec()
+
+    def _toggle_context(self) -> None:
+        on = not user_prefs.get("context_aware")
+        user_prefs.set_value("context_aware", on)
+        (self._ctx_timer.start(5000) if on else self._ctx_timer.stop())
+        self.context_btn.setText("🧭 CONTEXT: ON" if on else "🧭 CONTEXT: OFF")
+        self._append_conversation("EV", "Context awareness is ON: I look at which program is in front (its name and title only, "
+                                  "nothing is sent anywhere) and offer help now and then." if on else "Context awareness is OFF.")
+
+    def _open_compose(self, kind: str) -> None:
+        """WHATSAPP / EMAIL / MESSAGE PHONE buttons: ask who and what, then send in the background."""
+        from ui.compose_dialog import ComposeDialog
+        if kind == "phone":
+            from core import devices
+            if not devices.connected_id():
+                self._append_conversation("EV", "(No phone is connected yet. Pair it in Settings -> Connected device.)")
+                return
+        dlg = ComposeDialog(kind, self)
+        if dlg.exec() != ComposeDialog.Accepted:
+            return
+        v = dlg.values()
+        import threading
+
+        def work():
+            try:
+                if kind == "whatsapp":
+                    from tools import whatsapp
+                    if v["save_as"]:
+                        whatsapp.save_wa_number(v["save_as"], v["to"])
+                    r = whatsapp.send_whatsapp_message(v["to"], v["message"], confirmed=True)
+                    ok = r.get("status") in ("sent", "opened")
+                    text = (r.get("note") or f"WhatsApp message to {r.get('contact', v['to'])}: {r.get('status')}.") if ok else r.get("error", "It did not send.")
+                elif kind == "email":
+                    from tools import mailer
+                    r = mailer.send_email(v["to"], v["subject"] or "(no subject)", v["message"], confirmed=True)
+                    text = f"Email sent to {v['to']}." if r.get("status") in ("sent", "ok") or "error" not in r else r["error"]
+                else:
+                    from core import devices
+                    good, msg = devices.ring_phone(v["message"][:300])
+                    text = "Sent to your phone." if good else f"I couldn't send it: {msg}"
+            except Exception as e:
+                text = f"It did not send: {e}"
+            self.bridge_reply.emit(text)
+        self._append_conversation("EV", "Sending…")
+        threading.Thread(target=work, daemon=True).start()
 
     def _context_tick(self) -> None:
         if self._state != AIState.IDLE or not user_prefs.get("context_aware"):

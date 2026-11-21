@@ -274,6 +274,44 @@ class ToolRouter:
             required=["place"],
             func=utility_tools.world_time,
         ))
+        from core import spaces as _spaces, privacy_shield as _shield
+        self.register(Tool(
+            name="start_mission_space",
+            description="Open a saved Mission Space (School, Coding, Gaming, Research or the user's own): its apps, websites and folders. Nothing is closed.",
+            parameters={"name": {"type": "string", "description": "The space's name."}},
+            required=["name"], func=_spaces.start_space,
+        ))
+        self.register(Tool(
+            name="list_mission_spaces",
+            description="List the saved Mission Spaces and what each one opens.",
+            parameters={}, required=[], func=_spaces.list_spaces,
+        ))
+        self.register(Tool(
+            name="save_mission_space",
+            description="Create or replace a Mission Space from lists of apps, websites and folders.",
+            parameters={"name": {"type": "string", "description": "Space name."},
+                        "apps": {"type": "array", "items": {"type": "string"}, "description": "Apps to open."},
+                        "urls": {"type": "array", "items": {"type": "string"}, "description": "Websites to open."},
+                        "folders": {"type": "array", "items": {"type": "string"}, "description": "Folders to open."}},
+            required=["name"], func=_spaces.save_space,
+        ))
+        self.register(Tool(
+            name="snapshot_mission_space",
+            description="Save the programs that are open right now as a new Mission Space, so the user can return to this work later.",
+            parameters={"name": {"type": "string", "description": "Name for the new space."}},
+            required=["name"], func=_spaces.snapshot_space,
+        ))
+        self.register(Tool(
+            name="lock_computer",
+            description="Lock the Windows session immediately (emergency lock). Use when the user says lock my computer or lock the screen.",
+            parameters={}, required=[], func=_shield.lock_windows,
+        ))
+        self.register(Tool(
+            name="mute_microphone",
+            description="Mute (muted=true) or unmute (muted=false) the computer's microphone for privacy.",
+            parameters={"muted": {"type": "boolean", "description": "True to mute, false to unmute."}},
+            required=["muted"], func=_shield.set_mic_muted,
+        ))
         self.register(Tool(
             name="roll_dice",
             description="Roll dice (any number of sides) or flip a coin. Use when the user wants a random pick or a game roll.",
