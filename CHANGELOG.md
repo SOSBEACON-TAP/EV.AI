@@ -214,3 +214,6 @@ changes are made, going forward.
 - 1.0.37: Baymax body HUD (ui/body_hud.py, _on_body_zone in ui/main_window.py); Ultron radar column blocks wheel scrolling (_lock_right_wheel); Ultron one-minute takeover after 30 minutes (ui/ultron_takeover.py, _arm_takeover/_run_takeover).
 - 1.0.38: AICoreWidget draws an arc reactor (ui/animations.py _draw_reactor) instead of the atom, beams and orbit rings; EV quick actions Send WhatsApp / Send Email / Message My Phone (ui/main_window.py _message_phone); updater retries the folder rename for about a minute, falls back to robocopy, and rolls back without nesting the old folder (core/updater.py).
 - 1.0.39: ui/compose_dialog.py and EV ACTIONS buttons; core/spaces.py (Mission Spaces); core/context.py (context awareness); ui/portal.py (AI Portal, Command Anywhere); core/privacy_shield.py (shield, lock); ui/hotkey.py takes an id, key and modifiers; tools/whatsapp.py _send_via_link; ui/body_hud.py X-ray drawing; ui/ultron_corruption.py scanner removed.
+
+## 1.0.40
+- Baymax body HUD draws the supplied X-ray picture (assets/modes/body_xray.png) with touch zones, scan band and heartbeat trace.

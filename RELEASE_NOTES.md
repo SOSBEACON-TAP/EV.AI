@@ -1,3 +1,8 @@
+EV AI 1.0.40
+
+CHANGED
+- Baymax's body HUD now uses your X-ray picture (blue body, red skeleton). Click a body part to start your question; a scan band sweeps over it and a heartbeat line runs below.
+
 EV AI 1.0.39
 
 NEW
