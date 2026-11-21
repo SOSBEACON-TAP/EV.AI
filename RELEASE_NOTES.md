@@ -1,3 +1,19 @@
+EV AI 1.0.39
+
+NEW
+- EV ACTIONS now has WHATSAPP, EMAIL and MESSAGE PHONE buttons. Each opens a small form asking who it is for and what to say; pressing Send is your confirmation.
+- Mission Spaces (SPACES button): School, Coding, Gaming and Research, or your own. One click opens the apps, sites and folders; "save what is open now" makes a new space. Nothing is closed. You can also ask by voice.
+- Context awareness (CONTEXT button, off by default): looks only at the program name and window title on your PC and offers one short, relevant suggestion every few minutes.
+- AI Portal: Ctrl+Alt+Space opens a floating EV bar anywhere. With text selected in another program it offers Explain, Rewrite, Translate and Summarize (Command Anywhere), and your clipboard is restored afterwards.
+- Privacy Shield: mutes the microphone and stops EV's mic, camera and screen watching (it cannot switch the webcam itself off). Lock Now, or Ctrl+Alt+Shift+L, locks Windows. You can also say "lock my computer".
+- Baymax's body HUD is redrawn as a glowing blue body with a red skeleton. Click a body part to start your question.
+
+FIXES
+- WhatsApp no longer needs Playwright: without it, EV opens WhatsApp with your message typed and sends it once the window is in front. Without Playwright it needs a phone number with country code and remembers it under a name.
+- Ultron: the eye is gone. The transition is only the glitch.
+
+---
+
 EV AI 1.0.38
 
 NEW
