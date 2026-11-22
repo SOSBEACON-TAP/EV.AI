@@ -10,7 +10,7 @@ CHANGED
 - Baymax's body HUD now uses your X-ray picture (blue body, red skeleton). Click a body part to start your question; a scan band sweeps over it and a heartbeat line runs below.
 
 FIXES
-- EV AI 1.0.39 passed the face check and then never opened the window (a missing setting, context_aware, stopped the window from being built; also affected the first 1.0.40 build) stopped the window from being built). Fixed. If you are stuck on those versions, install 1.0.40 by hand from the Releases page: unzip it over the EV_AI folder, or extract it and run EV_AI.exe.
+- EV AI 1.0.39 passed the face check and then never opened the window (a missing setting, context_aware, stopped the window from being built). Fixed. If you are stuck on 1.0.39, install 1.0.40 by hand from the Releases page: extract it and run EV_AI.exe.
 - After you close EV AI, the Chrome extension no longer starts it again for 10 minutes (it used to bring it back within 30 seconds, even in the middle of an update). It also never starts EV AI while an update is installing.
 - If EV AI cannot start, it now shows why and saves it to data\startup_error.txt instead of silently not opening.
 - The WHATSAPP, EMAIL and MESSAGE PHONE forms opened with an error since 1.0.39. Fixed.
