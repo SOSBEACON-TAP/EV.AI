@@ -32,6 +32,7 @@ DEFAULTS = {
     "auto_check_updates": True,  # quietly look for a newer version when EV opens
     "start_in_tray": False,      # launch hidden in the tray (needs minimize_to_tray)
     "observe_interval_s": 20,    # how often Observation mode glances at the screen
+    "context_aware": False,       # look at which program is in front and offer help now and then (off until you turn it on)
     "trust_level": "balanced",   # careful | balanced | trusting: how much EV may do without asking (EV BRAIN)
     "tars_humor": 75,            # Tars mode: how funny (percent)
     "tars_honesty": 90,          # Tars mode: how blunt (percent)
