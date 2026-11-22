@@ -197,14 +197,21 @@ def send_whatsapp_message(contact: str, message: str, confirmed: bool = False) -
             "confirmation_required": True,
             "message": f"This will open WhatsApp Web and send a message to '{contact}'. Ask the user to confirm first.",
         }
+    import sys
+    if getattr(sys, "frozen", False):
+        return _send_via_link(contact, message)      # the packaged app carries no browser for Playwright: use WhatsApp's own links
     try:
         import playwright  # noqa: F401
     except ImportError:
-        return _send_via_link(contact, message)      # the packaged app has no Playwright: use WhatsApp's own links
+        return _send_via_link(contact, message)
     try:
-        return _executor.submit(_send_blocking, contact, message).result()
+        r = _executor.submit(_send_blocking, contact, message).result()
     except Exception as e:
-        return {"error": f"WhatsApp automation failed: {e}"}
+        r = {"error": f"WhatsApp automation failed: {e}"}
+    if isinstance(r, dict) and "error" in r and ("Executable doesn't exist" in r["error"] or "playwright install" in r["error"]
+                                                  or "Could not start the WhatsApp browser session" in r["error"]):
+        return _send_via_link(contact, message)      # no Playwright browser installed: do it the simple way instead
+    return r
 
 
 # ---- no-Playwright route: open WhatsApp (desktop app or the browser you are already logged in with) --------------
