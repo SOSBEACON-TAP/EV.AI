@@ -106,6 +106,29 @@ class BodyHud(QWidget):
             self._picked = z
             self.zone_clicked.emit(z)
 
+    def _draw_heart(self, p: QPainter, r: QRectF) -> None:
+        """A small red heart in the chest, beating (a quick double pulse, then a rest)."""
+        ph = (self._t / 1.1) % 1.0
+        beat = max(math.exp(-((ph - 0.08) / 0.05) ** 2), 0.7 * math.exp(-((ph - 0.26) / 0.06) ** 2))
+        c = QPointF(r.left() + 0.545 * r.width(), r.top() + 0.285 * r.height())
+        s = r.width() * 0.062 * (1.0 + 0.16 * beat)
+        glow = QRadialGradient(c, s * 2.6)
+        glow.setColorAt(0.0, QColor(255, 60, 70, int(120 + 100 * beat)))
+        glow.setColorAt(1.0, QColor(255, 60, 70, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(glow))
+        p.drawEllipse(c, s * 2.6, s * 2.6)
+        heart = QPainterPath()
+        heart.moveTo(c.x(), c.y() + s * 0.95)
+        heart.cubicTo(c.x() - s * 1.6, c.y() - s * 0.1, c.x() - s * 0.9, c.y() - s * 1.2, c.x(), c.y() - s * 0.35)
+        heart.cubicTo(c.x() + s * 0.9, c.y() - s * 1.2, c.x() + s * 1.6, c.y() - s * 0.1, c.x(), c.y() + s * 0.95)
+        g = QRadialGradient(QPointF(c.x() - s * 0.3, c.y() - s * 0.3), s * 1.8)
+        g.setColorAt(0.0, QColor(255, 140, 150))
+        g.setColorAt(1.0, QColor(225, 30, 55))
+        p.setBrush(QBrush(g))
+        p.setPen(QPen(QColor(255, 190, 195, 200), 1))
+        p.drawPath(heart)
+
     # -- drawing: your X-ray picture, alive: a scan band sweeps down it and the part you touch lights up -------------
     def paintEvent(self, _e):
         p = QPainter(self)
@@ -124,6 +147,7 @@ class BodyHud(QWidget):
                     p.setPen(QPen(QColor(150, 215, 255, 230), 1.4, Qt.DashLine))
                     p.setBrush(QBrush(QColor(120, 190, 255, 60 if name == self._hover else 40)))
                     p.drawRoundedRect(zr, 8, 8)
+            self._draw_heart(p, r)
             y = r.top() + ((self._t * 0.18) % 1.0) * r.height()         # the scan band
             band = QLinearGradient(0, y - 14, 0, y + 14)
             band.setColorAt(0.0, QColor(120, 200, 255, 0))

@@ -221,3 +221,4 @@ changes are made, going forward.
 - 1.0.40: core/native_host.py (10-minute cooldown after quit via data/last_closed.txt, no launch during an update), main.py (startup errors written to data/startup_error.txt and shown).
 - 1.0.40: core/user_prefs.py DEFAULTS gains context_aware (its absence raised KeyError in MainWindow.__init__); scripts/check_prefs_keys.py checks every user_prefs key used in the code exists.
 - 1.0.41: tools/whatsapp.py always uses WhatsApp's own link in the packaged app (Playwright was bundled but had no browser), and falls back to it if Playwright cannot start its browser.
+- 1.0.41: new ui/edith_hud.py, ui/ecg_widget.py, ui/spaces_dialog.py; hover_info polls Ctrl; Friday PREVIEW; Jarvis reactor (animations._draw_jarvis_reactor); wheel ring spins only when charging; removed core/context.py, core/privacy_shield.py and their buttons/tools.

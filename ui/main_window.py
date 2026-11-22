@@ -839,6 +839,16 @@ class MainWindow(QMainWindow):
         self._mode_panel = mode_panel
         layout.addWidget(mode_panel)
 
+        # Baymax's left side: a glowing heartbeat line (shown only while Baymax is on)
+        from ui.ecg_widget import EcgMonitor
+        ecg_panel = glass_panel(accent="red")
+        ecg_l = QVBoxLayout(ecg_panel)
+        ecg_l.setContentsMargins(6, 6, 6, 6)
+        ecg_l.addWidget(EcgMonitor())
+        ecg_panel.setVisible(False)
+        self._ecg_panel = ecg_panel
+        layout.addWidget(ecg_panel)
+
         # Jarvis left panel: replaces the MODE panel while Jarvis is switched on.
         jv_panel = glass_panel(accent="gold")
         jv_layout = QVBoxLayout(jv_panel)
@@ -1680,6 +1690,7 @@ class MainWindow(QMainWindow):
         title, tools = self._mode_tools(self._style_char or "")
         self._char_title.setText(title)
         self._body_hud.setVisible(self._style_char == "baymax")
+        self._ecg_panel.setVisible(self._style_char == "baymax")
         if self._style_char != "friday":
             self._preview_title.setVisible(False)
             self._preview.setVisible(False)
@@ -1930,6 +1941,7 @@ class MainWindow(QMainWindow):
 
         def panels():
             self._char_panel.setVisible(False)
+            self._ecg_panel.setVisible(False)
             self._quick_panel.setVisible(True)
             self._mode_panel.setVisible(True)
         S("panels", panels)

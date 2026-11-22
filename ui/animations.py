@@ -333,6 +333,8 @@ class AICoreWidget(QWidget):
 
             if self._face is not None:
                 self._draw_face(painter, cx, cy, radius, accent)
+            elif self._jarvis:
+                self._draw_jarvis_reactor(painter, cx, cy, radius, accent)
             else:
                 self._draw_reactor(painter, cx, cy, radius, accent, red, blue)
         finally:
@@ -412,6 +414,83 @@ class AICoreWidget(QWidget):
         for n in range(3):
             a = math.radians(-90 + n * 120 - self._angle * 0.6)
             pt = QPointF(32 * math.cos(a), 32 * math.sin(a))
+            tri.moveTo(pt) if n == 0 else tri.lineTo(pt)
+        tri.closeSubpath()
+        painter.drawPath(tri)
+        painter.restore()
+
+    def _draw_jarvis_reactor(self, painter, cx, cy, radius, accent):
+        """Jarvis's own arc reactor: clean and precise. A dark glass disc, a fine gold ring with measured ticks, twelve steel
+        coil blocks with a thin gold edge, a bright core with a hollow triangle, and a slow breathing glow. Only steel, gold
+        and white, nothing busy."""
+        from PySide6.QtGui import QBrush, QPainterPath, QRadialGradient
+        pulse = 0.5 + 0.5 * math.sin(self._pulse_phase * 2 * math.pi)
+        gold = QColor(accent)
+        gr, gg, gb = gold.red(), gold.green(), gold.blue()
+        painter.save()
+        painter.translate(cx, cy)
+        painter.scale(radius / 120.0, radius / 120.0)
+        # soft halo
+        halo = QRadialGradient(QPointF(0, 0), 140)
+        halo.setColorAt(0.72, QColor(gr, gg, gb, int(40 + 36 * pulse)))
+        halo.setColorAt(1.0, QColor(gr, gg, gb, 0))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(halo))
+        painter.drawEllipse(QPointF(0, 0), 140, 140)
+        # dark glass disc with a thin gold rim
+        disc = QRadialGradient(QPointF(0, -20), 130)
+        disc.setColorAt(0.0, QColor(22, 28, 38))
+        disc.setColorAt(1.0, QColor(4, 7, 12))
+        painter.setBrush(QBrush(disc))
+        painter.setPen(QPen(QColor(gr, gg, gb, 220), 2.2))
+        painter.drawEllipse(QPointF(0, 0), 116, 116)
+        # measured ticks: a long one every 15 degrees, turning slowly
+        for n in range(72):
+            a = math.radians(n * 5 + self._angle * 0.15)
+            major = n % 3 == 0
+            r1, r2 = (101 if major else 105), 110
+            painter.setPen(QPen(QColor(gr, gg, gb, 235 if major else 120), 1.6 if major else 1.0))
+            painter.drawLine(QPointF(r1 * math.cos(a), r1 * math.sin(a)), QPointF(r2 * math.cos(a), r2 * math.sin(a)))
+        # twelve steel coil blocks, evenly spaced, a thin gold edge on each
+        outer, inner, span = QRectF(-92, -92, 184, 184), QRectF(-58, -58, 116, 116), 24.0
+        for n in range(12):
+            a0 = n * 30 - 15 + 3
+            path = QPainterPath()
+            path.arcMoveTo(outer, -a0)
+            path.arcTo(outer, -a0, -span)
+            path.arcTo(inner, -a0 - span, span)
+            path.closeSubpath()
+            g = QRadialGradient(QPointF(0, 0), 92)
+            g.setColorAt(0.60, QColor(40, 50, 64))
+            g.setColorAt(0.80, QColor(86, 98, 116))
+            g.setColorAt(1.0, QColor(58, 68, 84))
+            painter.setBrush(QBrush(g))
+            painter.setPen(QPen(QColor(gr, gg, gb, 150), 0.9))
+            painter.drawPath(path)
+            m = math.radians(a0 + span / 2)                                # a small glowing slit in the middle of each block
+            painter.setPen(QPen(QColor(gr, gg, gb, int(170 + 70 * pulse)), 1.8, Qt.SolidLine, Qt.RoundCap))
+            painter.drawLine(QPointF(70 * math.cos(m), 70 * math.sin(m)), QPointF(80 * math.cos(m), 80 * math.sin(m)))
+        # thin inner ring and the glowing core
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor(gr, gg, gb, 230), 2.0))
+        painter.drawEllipse(QPointF(0, 0), 52, 52)
+        painter.setPen(QPen(QColor(255, 255, 255, 120), 0.8))
+        painter.drawEllipse(QPointF(0, 0), 46, 46)
+        core = QRadialGradient(QPointF(0, 0), 46)
+        core.setColorAt(0.0, QColor(255, 255, 255, 255))
+        core.setColorAt(0.30, QColor(255, 244, 200, 255))
+        core.setColorAt(0.62, QColor(gr, gg, gb, int(200 + 50 * pulse)))
+        core.setColorAt(1.0, QColor(gr, gg, gb, 0))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(core))
+        painter.drawEllipse(QPointF(0, 0), 46, 46)
+        # hollow triangle, turning slowly the other way
+        painter.setPen(QPen(QColor(255, 255, 255, 215), 1.5))
+        painter.setBrush(Qt.NoBrush)
+        tri = QPainterPath()
+        for n in range(3):
+            a = math.radians(-90 + n * 120 - self._angle * 0.5)
+            pt = QPointF(26 * math.cos(a), 26 * math.sin(a))
             tri.moveTo(pt) if n == 0 else tri.lineTo(pt)
         tri.closeSubpath()
         painter.drawPath(tri)

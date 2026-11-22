@@ -1,6 +1,19 @@
 EV AI 1.0.41
 
+NEW
+- EDITH: choosing Edith now shrinks the screen away and brings up her new HUD by itself (click the glasses or the orb to close it again). The HUD has thin glowing edge lines, a status ribbon, a command bar with suggestions, a context panel (the program in front and what is running), a summary panel with her last words, and a small pulsing orb.
+- Friday: the picture from any camera feature shows on the right under the tools, named PREVIEW.
+- Baymax: a beating heart in the body picture, and a glowing heartbeat line on the left side (an illustration, not a measurement).
+- Jarvis: a new, cleaner arc reactor.
+- Spaces: EDIT what each space opens (programs, websites, folders), add new spaces and delete them.
+
+CHANGED
+- The blue dashed ring of the mode wheel now turns only while the computer is charging.
+- The light theme is a little darker.
+- Context awareness, Lock now and Privacy shield are removed.
+
 FIXES
+- EDITH's hold-Ctrl-and-point help now works (it needed mouse movement that buttons never report).
 - WhatsApp no longer asks you to "playwright install". EV AI opens WhatsApp (the desktop app, or WhatsApp Web in your browser) with the message already typed and presses Enter once the window is in front. It needs the person's phone number with country code the first time (the WHATSAPP form can remember it under a name).
 
 EV AI 1.0.40

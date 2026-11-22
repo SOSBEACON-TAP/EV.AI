@@ -59,6 +59,9 @@ class ModePicker(QDialog):
         self._hover = -1
         self._core_hover = False
         self._spin = 0.0
+        self._ring_spin = 0.0                           # the blue dashes on the outer ring
+        self._charging = self._read_charging()       # the blue ring only turns while the computer is charging
+        self._ticks = 0
         self._chips: dict[tuple[str, bool], QPixmap] = {}
         self._corrupt_t0: float | None = None        # set when Ultron was chosen: the wheel corrupts, then closes
         self._timer = QTimer(self)
@@ -92,8 +95,22 @@ class ModePicker(QDialog):
         return QPointF(c.x() + RING_R * math.sin(a), c.y() - RING_R * math.cos(a))
 
     # -- animation ------------------------------------------------------------------------------
+    @staticmethod
+    def _read_charging() -> bool:
+        try:
+            import psutil
+            b = psutil.sensors_battery()
+            return True if b is None else bool(b.power_plugged)      # no battery (a desktop) counts as plugged in
+        except Exception:
+            return True
+
     def _tick(self) -> None:
+        self._ticks += 1
+        if self._ticks % 60 == 0:
+            self._charging = self._read_charging()
         self._spin = (self._spin + 0.8) % 360
+        if self._charging:
+            self._ring_spin = (self._ring_spin + 0.8) % 360
         if self._corrupt_t0 is not None and time.monotonic() - self._corrupt_t0 >= 0.95:
             self._timer.stop()
             self._corrupt_t0 = None
@@ -407,7 +424,7 @@ class ModePicker(QDialog):
         # the ring spins: bright notches travel around it (the chips stay put so they are easy to click)
         p.setPen(QPen(QColor(int(70 + 160 * ct), int(120 - 80 * ct), int(190 - 140 * ct), 230), 5, Qt.SolidLine, Qt.FlatCap))
         for n in range(48):
-            a0 = n * 7.5 + self._spin * 1.6
+            a0 = n * 7.5 + self._ring_spin * 1.6
             p.drawArc(QRectF(c.x() - 246, c.y() - 246, 492, 492), int(-a0 * 16), int(-3.2 * 16))
         for i in range(SLOTS):
             self._draw_chip(p, i)
