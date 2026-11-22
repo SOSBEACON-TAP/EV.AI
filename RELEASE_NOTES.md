@@ -7,6 +7,8 @@ NEW  (EV ACTIONS -> EV BRAIN)
 - Self-Evolving Shortcuts: EV notices what you repeat (open Chrome then Gmail, three times) and offers to save it as a shortcut you can run by name.
 
 FIXES
+- After you close EV AI, the Chrome extension no longer starts it again for 10 minutes (it used to bring it back within 30 seconds, even in the middle of an update). It also never starts EV AI while an update is installing.
+- If EV AI cannot start, it now shows why and saves it to data\startup_error.txt instead of silently not opening.
 - The WHATSAPP, EMAIL and MESSAGE PHONE forms opened with an error since 1.0.39. Fixed.
 
 EV AI 1.0.40

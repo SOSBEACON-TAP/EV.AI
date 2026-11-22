@@ -218,3 +218,4 @@ changes are made, going forward.
 ## 1.0.40
 - Baymax body HUD draws the supplied X-ray picture (assets/modes/body_xray.png) with touch zones, scan band and heartbeat trace.
 - 1.0.41: core/trust.py (trust levels, intent check, gate in core/router.py execute), core/thoughts.py, core/replay.py, core/habits.py, ui/brain_dialog.py (EV BRAIN), tools replay_last_actions and suggest_shortcuts; ui/compose_dialog.py passes the theme to dialog_stylesheet; scripts/test_brain_features.py.
+- 1.0.41: core/native_host.py (10-minute cooldown after quit via data/last_closed.txt, no launch during an update), main.py (startup errors written to data/startup_error.txt and shown).

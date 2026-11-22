@@ -71,6 +71,30 @@ def unregister() -> None:
         pass
 
 
+def _closed_file() -> Path:
+    from config import APP_ROOT
+    return Path(APP_ROOT) / "data" / "last_closed.txt"
+
+
+def mark_closed() -> None:
+    """Called when EV AI quits: remember when, so the Chrome extension does not bring it straight back."""
+    import time
+    try:
+        f = _closed_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(str(time.time()), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def closed_recently(minutes: float = 10.0) -> bool:
+    import time
+    try:
+        return (time.time() - float(_closed_file().read_text(encoding="utf-8").strip())) < minutes * 60
+    except Exception:
+        return False
+
+
 def launch_background(exe: Path | None = None) -> None:
     """Called inside the short-lived helper process: starts EV AI hidden and detached, because Chrome
     ends the helper (and anything attached to it) when the extension disconnects."""
@@ -78,6 +102,16 @@ def launch_background(exe: Path | None = None) -> None:
     exe = exe or Path(sys.executable)
     if _already_running(browser_bridge.HOST, browser_bridge.PORT):
         return
+    # You closed EV AI: stay closed for 10 minutes (the extension asks every 30 s), and never start during an update.
+    if closed_recently(10.0):
+        return
+    try:
+        from config import APP_ROOT
+        from core import updater
+        if updater.update_in_progress(Path(APP_ROOT)):
+            return
+    except Exception:
+        pass
     cmd = [str(exe), "--background"] if getattr(sys, "frozen", False) else [sys.executable, str(Path(__file__).resolve().parent.parent / "main.py"), "--background"]
     flags = 0x00000008 | 0x00000200            # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     try:

@@ -70,14 +70,37 @@ except Exception:
 from core.log_buffer import install as _install_log_capture
 _install_log_capture()
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication
+def _fatal_startup(exc: BaseException) -> None:
+    """EV AI is a windowed program: if it cannot start there is nothing to see. Write the reason to data/startup_error.txt
+    and show it, so "it does not open" always comes with an answer."""
+    import traceback
+    text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    try:
+        base = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+        (base / "data").mkdir(parents=True, exist_ok=True)
+        (base / "data" / "startup_error.txt").write_text(text, encoding="utf-8")
+    except Exception:
+        pass
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, "EV AI could not start:\n\n" + text[-900:] + "\n\nThe full text is in data\\startup_error.txt",
+                                         "EV AI", 0x10)
+    except Exception:
+        print(text)
 
-from config import settings
-from ui.main_window import MainWindow
-from ui.startup_screen import StartupScreen
-from ui.theme import apply_theme
+
+try:
+    from PySide6.QtCore import QTimer
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QApplication
+
+    from config import settings
+    from ui.main_window import MainWindow
+    from ui.startup_screen import StartupScreen
+    from ui.theme import apply_theme
+except Exception as _e:
+    _fatal_startup(_e)
+    sys.exit(1)
 
 
 def main() -> int:
@@ -110,6 +133,11 @@ def main() -> int:
         pass
     app = QApplication(sys.argv)
     app.setApplicationName(settings.APP_NAME)
+    try:
+        from core import native_host as _nh_closed
+        app.aboutToQuit.connect(_nh_closed.mark_closed)      # the Chrome extension waits 10 minutes before starting EV AI again
+    except Exception:
+        pass
     if getattr(sys, "frozen", False) and _user_prefs.get("chrome_bridge"):
         try:
             from config import APP_ROOT as _r
@@ -192,4 +220,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception as _e:
+        _fatal_startup(_e)
+        sys.exit(1)
