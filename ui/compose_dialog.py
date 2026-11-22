@@ -9,6 +9,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QPushButton, QTextEdit, QVBoxLayout
 
+from core import user_prefs
 from ui.theme import dialog_stylesheet
 
 _KINDS = {
@@ -26,7 +27,7 @@ class ComposeDialog(QDialog):
         title, to_label, save_label, has_subject = _KINDS[kind]
         self.setWindowTitle(title)
         self.setMinimumWidth(460)
-        self.setStyleSheet(dialog_stylesheet())
+        self.setStyleSheet(dialog_stylesheet(user_prefs.get("theme")))
         lay = QVBoxLayout(self)
         head = QLabel(title.upper())
         head.setObjectName("SectionTitle")

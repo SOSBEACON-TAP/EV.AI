@@ -21,6 +21,7 @@ touching core/brain.py's tool-calling logic, and lets brain.py support
 a new AI provider later without touching any tool implementation.
 """
 
+import inspect
 from dataclasses import dataclass, field
 from typing import Callable, Any
 
@@ -40,7 +41,7 @@ from tools import mailer as mailer_tools
 from tools import contacts as contact_tools
 from tools import briefing as briefing_tools
 from tools import tasks as task_tools
-from core import audit_log
+from core import audit_log, habits, replay, thoughts, trust
 from tools import documents as document_tools
 from tools import whatsapp as whatsapp_tools
 from tools import input_control as input_tools
@@ -69,6 +70,7 @@ class ToolRouter:
     def __init__(self):
         self._tools: dict[str, Tool] = {}
         self._register_builtin_tools()
+        self._register_brain_tools()
 
     def _register_builtin_tools(self) -> None:
         self.register(Tool(
@@ -951,6 +953,25 @@ class ToolRouter:
     # rather than in tools/automation.py (which only stores definitions,
     # same separation as every other tools/*.py module).
     # ------------------------------------------------------------------
+    def _register_brain_tools(self) -> None:
+        self.register(Tool(
+            name="replay_last_actions",
+            description=("Do the last thing EV did again (the most recent run of actions), step by step. Sends and deletes are "
+                         "skipped and anything that needs the user's OK still asks."),
+            parameters={}, func=self._replay_last,
+        ))
+        self.register(Tool(
+            name="suggest_shortcuts",
+            description="List shortcuts EV has noticed the user could save (things they keep repeating).",
+            parameters={}, func=lambda: {"suggestions": [{"name": s["name"], "times": s["n"]} for s in habits.suggestions()]},
+        ))
+
+    def _replay_last(self) -> dict:
+        runs = replay.runs(1)
+        if not runs:
+            return {"error": "I have nothing to replay yet."}
+        return {"status": "done", "steps": replay.replay(self, runs[0])}
+
     def _run_task_chain(self, name: str) -> dict:
         steps = automation_tools.get_store().get_chain(name)
         if steps is None:
@@ -983,6 +1004,9 @@ class ToolRouter:
         return {"status": "done", "name": name, "steps_run": len(results), "results": results}
 
     def register(self, tool: Tool) -> None:
+        if trust.risk_of(tool.name) and "confirmed" not in tool.parameters:
+            # trust levels may ask first, so the model needs a way to say "the user agreed"
+            tool.parameters = {**tool.parameters, "confirmed": {"type": "boolean", "description": "True only after the user has explicitly confirmed."}}
         self._tools[tool.name] = tool
 
     def list_tools(self) -> list[Tool]:
@@ -1003,21 +1027,43 @@ class ToolRouter:
         tool = self.get(name)
         if tool is None:
             raise ToolError(f"Unknown tool '{name}'.")
+        arguments = dict(arguments or {})
+        if trust.needs_ok(name, arguments, tool.func):
+            thoughts.add("ask", trust.intent(name, arguments) + " Waiting for your OK.")
+            audit_log.record(name, arguments, True, "asked for confirmation (trust level)")
+            return trust.question(name, arguments)
         try:
-            result = tool.func(**(arguments or {}))
+            takes_confirmed = "confirmed" in inspect.signature(tool.func).parameters
+        except (TypeError, ValueError):
+            takes_confirmed = True
+        if not takes_confirmed:
+            arguments.pop("confirmed", None)
+        if not replay.is_readonly(name):
+            thoughts.add("tool", trust.intent(name, arguments))
+        try:
+            result = tool.func(**arguments)
         except TypeError as e:
             audit_log.record(name, arguments, False, "bad arguments")
+            thoughts.add("fail", f"{name}: bad arguments")
             raise ToolError(f"Bad arguments for '{name}': {e}") from e
         except Exception as e:
             audit_log.record(name, arguments, False, str(e))
+            thoughts.add("fail", f"{name} failed: {e}")
             raise ToolError(f"Tool '{name}' failed: {e}") from e
 
+        ok = not (isinstance(result, dict) and (result.get("confirmation_required") or result.get("error")))
         if isinstance(result, dict) and result.get("confirmation_required"):
             audit_log.record(name, arguments, True, "asked for confirmation")
+            thoughts.add("ask", f"{name}: waiting for your OK")
         elif isinstance(result, dict) and result.get("error"):
             audit_log.record(name, arguments, False, str(result["error"]))
+            thoughts.add("fail", f"{name}: {result['error']}")
         else:
             audit_log.record(name, arguments, True)
+            if not replay.is_readonly(name):
+                thoughts.add("done", f"{name} done")
+        replay.record(name, arguments, ok)
+        habits.record(name, arguments, ok)
 
         if result is None:
             return {"status": "ok"}

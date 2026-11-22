@@ -825,7 +825,7 @@ class MainWindow(QMainWindow):
         extra = [("💬 WHATSAPP", lambda: self._open_compose("whatsapp")), ("✉ EMAIL", lambda: self._open_compose("email")),
                  ("📱 MESSAGE PHONE", lambda: self._open_compose("phone")), ("🗂 SPACES", self._open_spaces),
                  ("🧭 CONTEXT: OFF", self._toggle_context), ("🛡 PRIVACY SHIELD", self._privacy_shield),
-                 ("🔒 LOCK NOW", self._lock_now)]
+                 ("🔒 LOCK NOW", self._lock_now), ("🧠 EV BRAIN", self._open_brain)]
         for i, (label, fn) in enumerate(extra):
             b = HoverButton(label)
             b.setMinimumHeight(30)
@@ -1262,6 +1262,18 @@ class MainWindow(QMainWindow):
         done.append("microphone muted" if "error" not in r else "microphone not muted (" + r["error"] + ")")
         self._append_conversation("EV", "Privacy shield on: " + ", ".join(done) + ". I cannot switch the webcam itself off, "
                                   "so use its cover for that. Press Privacy Shield again to unmute.")
+
+    def _open_brain(self) -> None:
+        if self._tool_router is None:
+            self._append_conversation("EV", "(EV BRAIN needs the AI part of EV to be available.)")
+            return
+        from ui.brain_dialog import BrainDialog
+        if getattr(self, "_brain_dlg", None) is None:
+            self._brain_dlg = BrainDialog(self._tool_router, self)
+            self._brain_dlg.finished.connect(lambda _=0: setattr(self, "_brain_dlg", None))
+        self._brain_dlg.show()
+        self._brain_dlg.raise_()
+        self._brain_dlg.activateWindow()
 
     def _lock_now(self) -> None:
         from core import privacy_shield

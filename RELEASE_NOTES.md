@@ -1,3 +1,14 @@
+EV AI 1.0.41
+
+NEW  (EV ACTIONS -> EV BRAIN)
+- Trust Levels: choose Careful, Balanced or Trusting. Before EV does something risky (typing or pressing keys for you, clicking in the browser, moving files...) it says in plain words what it is about to do and waits for your OK. Sending, deleting and closing apps always ask.
+- Thought Stream: a live list of what EV is doing and why, kept only until EV closes.
+- Action Replay: do the last run of actions again, step by step ("replay that"). Sends and deletes are skipped.
+- Self-Evolving Shortcuts: EV notices what you repeat (open Chrome then Gmail, three times) and offers to save it as a shortcut you can run by name.
+
+FIXES
+- The WHATSAPP, EMAIL and MESSAGE PHONE forms opened with an error since 1.0.39. Fixed.
+
 EV AI 1.0.40
 
 CHANGED
