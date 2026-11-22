@@ -276,7 +276,7 @@ class ToolRouter:
             required=["place"],
             func=utility_tools.world_time,
         ))
-        from core import spaces as _spaces, privacy_shield as _shield
+        from core import spaces as _spaces
         self.register(Tool(
             name="start_mission_space",
             description="Open a saved Mission Space (School, Coding, Gaming, Research or the user's own): its apps, websites and folders. Nothing is closed.",
@@ -302,17 +302,6 @@ class ToolRouter:
             description="Save the programs that are open right now as a new Mission Space, so the user can return to this work later.",
             parameters={"name": {"type": "string", "description": "Name for the new space."}},
             required=["name"], func=_spaces.snapshot_space,
-        ))
-        self.register(Tool(
-            name="lock_computer",
-            description="Lock the Windows session immediately (emergency lock). Use when the user says lock my computer or lock the screen.",
-            parameters={}, required=[], func=_shield.lock_windows,
-        ))
-        self.register(Tool(
-            name="mute_microphone",
-            description="Mute (muted=true) or unmute (muted=false) the computer's microphone for privacy.",
-            parameters={"muted": {"type": "boolean", "description": "True to mute, false to unmute."}},
-            required=["muted"], func=_shield.set_mic_muted,
         ))
         self.register(Tool(
             name="roll_dice",

@@ -19,7 +19,7 @@ _LOCK = threading.Lock()
 _MAX = 40
 _GAP = 90          # seconds of quiet that start a new run
 _SECRET = ("password", "passwd", "secret", "token", "key", "pin")
-NEVER = {"send_email", "send_whatsapp_message", "delete_file", "clear_memory", "close_application", "lock_computer",
+NEVER = {"send_email", "send_whatsapp_message", "delete_file", "clear_memory", "close_application",
          "replay_last_actions", "run_task_chain", "save_task_chain"}
 _READ = ("get_", "list_", "read_", "check_", "search_", "find_", "recall", "calculate", "convert_", "date_math", "world_time",
          "roll_dice", "pick_random", "text_stats", "morning_briefing", "open_search_result", "suggest_")

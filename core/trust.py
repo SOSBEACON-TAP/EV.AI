@@ -22,7 +22,7 @@ LEVELS = ("careful", "balanced", "trusting")
 # risk 1 = changes something small and reversible, risk 2 = acts for you / hard to undo
 RISK = {
     "create_folder": 1, "copy_file": 1, "write_clipboard": 1, "add_macro": 1, "remove_macro": 1, "save_task_chain": 1,
-    "delete_task_chain": 1, "add_bookmark": 1, "remember": 1, "mute_microphone": 1, "add_note": 1, "add_todo": 1,
+    "delete_task_chain": 1, "add_bookmark": 1, "remember": 1, "add_note": 1, "add_todo": 1,
     "create_text_document": 1, "create_word_document": 1, "create_pdf_document": 1, "create_spreadsheet": 1,
     "save_contact": 1, "save_mission_space": 1,
     "type_text": 2, "press_key": 2, "browser_click": 2, "browser_type": 2, "move_file": 2, "rename_file": 2,
