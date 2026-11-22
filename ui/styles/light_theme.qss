@@ -13,9 +13,9 @@
 #RootBackground {
     background-color: qradialgradient(
         cx: 0.5, cy: 0.42, radius: 0.9, fx: 0.5, fy: 0.42,
-        stop: 0 #F4F8FC,
-        stop: 0.45 #E6EEF6,
-        stop: 1 #D5E0EC
+        stop: 0 #E7EDF4,
+        stop: 0.45 #D6E0EB,
+        stop: 1 #C2CFDE
     );
 }
 

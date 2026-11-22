@@ -2,8 +2,8 @@
 and what it does. Works on every window of the app (the main window and the HUD)."""
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt
-from PySide6.QtGui import QCursor
+from PySide6.QtCore import QObject, QPoint, QTimer, Qt
+from PySide6.QtGui import QCursor, QGuiApplication
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
 # What well-known controls do, found by words in their label (first match wins).
@@ -72,34 +72,38 @@ class HoverInfo(QObject):
             "QLabel { background: rgba(8,18,34,235); color: #BFDDFF; border: 1px solid #4DA3FF; border-radius: 8px; "
             "padding: 8px 10px; font-size: 12px; }")
         self._last = ""
-        QApplication.instance().installEventFilter(self)
+        # Poll instead of relying on mouse-move events: buttons do not report moves while you only hover, and Qt's cached
+        # modifier state is stale when no key event reached the app. queryKeyboardModifiers() asks Windows directly.
+        self._timer = QTimer(self)
+        self._timer.setInterval(90)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
 
-    def eventFilter(self, obj, event) -> bool:  # noqa: N802
-        t = event.type()
-        if t in (QEvent.MouseMove, QEvent.KeyPress, QEvent.KeyRelease):
-            try:
-                if not self._enabled() or not (QApplication.keyboardModifiers() & Qt.ControlModifier):
-                    self._hide()
-                    return False
-                pos = QCursor.pos()
-                w = QApplication.widgetAt(pos)
-                if w is None or w is self._panel:
-                    self._hide()
-                    return False
-                text = describe(w)
-                if not text:
-                    self._hide()
-                    return False
-                if text != self._last:
-                    self._last = text
-                    first, _, rest = text.partition("\n")
-                    self._panel.setText(f"<b>{first}</b>" + (f"<br>{rest}" if rest else ""))
-                    self._panel.adjustSize()
-                self._panel.move(pos + QPoint(16, 18))
-                self._panel.show()
-            except Exception:
+    def _tick(self) -> None:
+        try:
+            if not self._enabled() or not (QGuiApplication.queryKeyboardModifiers() & Qt.ControlModifier):
                 self._hide()
-        return False
+                return
+            pos = QCursor.pos()
+            w = QApplication.widgetAt(pos)
+            if w is None or w is self._panel:
+                self._hide()
+                return
+            text = describe(w)
+            if not text:
+                self._hide()
+                return
+            if text != self._last:
+                self._last = text
+                first, _, rest = text.partition("\n")
+                self._panel.setText(f"<b>{first}</b>" + (f"<br>{rest}" if rest else ""))
+                self._panel.adjustSize()
+            self._panel.move(pos + QPoint(16, 18))
+            if not self._panel.isVisible():
+                self._panel.show()
+            self._panel.raise_()
+        except Exception:
+            self._hide()
 
     def _hide(self) -> None:
         self._last = ""

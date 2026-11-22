@@ -31,7 +31,7 @@ _THEME_DEFS = {
     "sunset":   ("Sunset",             (255, 110, 70),  (255, 70, 150),  "#FFA68A", ("#1E1010", "#140A0C", "#090406")),
     "midnight": ("Midnight indigo",    (120, 110, 255), (70, 150, 255),  "#A9B4FF", ("#0D0E22", "#080918", "#04040C")),
     "mono":     ("Mono (grey)",        (200, 200, 205), (150, 160, 175), "#E6E9EE", ("#151618", "#0E0F11", "#070708")),
-    "light":    ("Normal (light)",     (230, 60, 80),   (60, 140, 240),  "#2C6FA8", ("#F2F6FA", "#F2F6FA", "#F2F6FA")),
+    "light":    ("Normal (light)",     (230, 60, 80),   (60, 140, 240),  "#2C6FA8", ("#E3EAF2", "#E3EAF2", "#E3EAF2")),
 }
 
 THEME_CHOICES = [(tid, d[0]) for tid, d in _THEME_DEFS.items()] + [("custom", "Custom (your colours)")]
@@ -154,7 +154,7 @@ def apply_theme(app: QApplication, theme: str) -> None:
 def dialog_stylesheet(theme: str) -> str:
     theme = normalize(theme)
     if theme == "light":
-        bg, text, sub, accent = "#F2F6FA", "#1B2A3A", "#2C6FA8", "#4A6078"
+        bg, text, sub, accent = "#E3EAF2", "#1B2A3A", "#2C6FA8", "#4A6078"
         btn_bg, btn_text, btn_border, btn_hover = (
             "rgba(40,110,215,28)", "#1B3F6B", "rgba(40,110,215,120)", "rgba(40,110,215,75)",
         )

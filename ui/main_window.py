@@ -1050,6 +1050,18 @@ class MainWindow(QMainWindow):
         self._char_grid = QGridLayout()
         self._char_grid.setSpacing(5)
         ch_outer.addLayout(self._char_grid)
+        # PREVIEW: the picture from the camera (Friday), shown under the tools
+        self._preview_title = QLabel("PREVIEW")
+        self._preview_title.setObjectName("SectionTitle")
+        self._preview = QLabel("")
+        self._preview.setAlignment(Qt.AlignCenter)
+        self._preview.setMinimumHeight(150)
+        self._preview.setMaximumHeight(240)
+        self._preview.setScaledContents(False)
+        self._preview_title.setVisible(False)
+        self._preview.setVisible(False)
+        ch_outer.addWidget(self._preview_title)
+        ch_outer.addWidget(self._preview)
         ch_outer.addStretch(1)
         ch_panel.setVisible(False)
         self._char_panel = ch_panel
@@ -1373,6 +1385,8 @@ class MainWindow(QMainWindow):
         self._append_conversation(speaker, reply)
         if getattr(self, "_portal", None) is not None:
             self._portal.show_reply(reply)
+        if getattr(self, "_edith_hud", None) is not None:
+            self._edith_hud.set_reply(reply)
         if self._hud_overlay is not None:
             self._hud_overlay.set_last_reply(reply)
         self._speak(speak_text if speak_text is not None else reply)
@@ -1553,26 +1567,34 @@ class MainWindow(QMainWindow):
 
     def _on_orb_clicked(self) -> None:
         if self._style_char == "edith":                 # click the glasses: Edith's HUD goes on, or off
-            if not AI_AVAILABLE:
-                self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
-                return
-            if self._observing or not self.isVisible() or self.isMinimized():
-                self._toggle_observation()               # turning it off (or nothing to shrink): no animation
-                return
-            try:
-                from ui.transitions import ShrinkTransition
-                if getattr(self, "_shrinking", False):
-                    return
-                self._shrinking = True
+            if self._observing:
+                self._stop_observation()
+            else:
+                self._edith_hud_on()
 
-                def go():
-                    self._shrinking = False
-                    self._toggle_observation()           # the screen has shrunk away: now the HUD comes up
-                self._shrink = ShrinkTransition(self, go)
-            except Exception as e:
-                self._shrinking = False
-                print(f"[EV AI] shrink transition skipped: {e}")
-                self._toggle_observation()
+    def _edith_hud_on(self) -> None:
+        """The screen shrinks away to the middle, then Edith's HUD comes up."""
+        if not AI_AVAILABLE:
+            self._append_conversation("EV", "Edith needs the AI, which isn't available right now.")
+            return
+        if self._observing or getattr(self, "_shrinking", False):
+            return
+        if not self.isVisible() or self.isMinimized():
+            self._start_observation()                    # nothing to shrink: just bring the HUD up
+            return
+        self._shrinking = True
+        QTimer.singleShot(2500, lambda: setattr(self, "_shrinking", False))      # never stay stuck
+
+        def go():
+            self._shrinking = False
+            if not self._observing:
+                self._start_observation()
+        try:
+            from ui.transitions import ShrinkTransition
+            self._shrink = ShrinkTransition(self, go)
+        except Exception as e:
+            print(f"[EV AI] shrink transition skipped: {e}")
+            go()
 
     def _sync_mode_button(self) -> None:
         self._refresh_face()
@@ -1658,6 +1680,9 @@ class MainWindow(QMainWindow):
         title, tools = self._mode_tools(self._style_char or "")
         self._char_title.setText(title)
         self._body_hud.setVisible(self._style_char == "baymax")
+        if self._style_char != "friday":
+            self._preview_title.setVisible(False)
+            self._preview.setVisible(False)
         for i, (label, action) in enumerate(tools):
             b = HoverButton(label.upper())
             b.setMinimumHeight(30)
@@ -1778,6 +1803,8 @@ class MainWindow(QMainWindow):
         if key == "overdrive":
             S("overdrive", self._od_start)
         self._steps_report(key.title())
+        if key == "edith":                                # Edith: the screen shrinks away and her HUD comes up
+            QTimer.singleShot(1400, self._edith_hud_on)
 
     # ---- Baymax: gentle care reminders while Baymax is on ----------------------------------------------------------
     def _care_start(self, on: bool) -> None:
@@ -2487,7 +2514,19 @@ class MainWindow(QMainWindow):
         self._observe_timer.timeout.connect(self._maybe_observe)
         self._observe_timer.start(int(user_prefs.get("observe_interval_s")) * 1000)
         self._maybe_observe()  # don't wait a full interval for the first check
-        self._sync_corner_ui()
+        try:
+            self._sync_corner_ui()
+        except Exception as e:                           # never leave the screen blank: say what went wrong
+            import traceback
+            print(traceback.format_exc())
+            self._observing = False
+            self.observe_toggle_btn.setText("👁 EDITH: OFF")
+            self.observe_toggle_btn.setChecked(False)
+            if self._observe_timer is not None:
+                self._observe_timer.stop()
+                self._observe_timer = None
+            self.show()
+            self._append_conversation("EV", f"Edith's HUD could not start: {e}")
 
     def _stop_observation(self):
         self._observing = False
@@ -2513,6 +2552,24 @@ class MainWindow(QMainWindow):
     def _sync_corner_ui(self) -> None:
         self._refresh_face()
         want_hud = self._should_use_hud()
+        edith_hud = want_hud and self._style_char == "edith" and self._observing and not (
+            self._current_mode is not None and self._current_mode.uses_hud_overlay)
+        if edith_hud:
+            if self._hud_overlay is not None:
+                self._hud_overlay.hide_overlay()
+            if getattr(self, "_edith_hud", None) is None:
+                from ui.edith_hud import EdithHUD
+                self._edith_hud = EdithHUD()
+                self._edith_hud.submitted.connect(self.handle_user_input)
+                self._edith_hud.closed.connect(self._stop_observation)
+                self._edith_hud.look_requested.connect(lambda: (setattr(self, "_last_screen_hash", None), self._maybe_observe()))
+            self._edith_hud.set_status(self._listener_thread is not None and self._listener_thread.isRunning(),
+                                       int(user_prefs.get("observe_interval_s")))
+            self._edith_hud.show_hud()
+            self.hide()
+            return
+        if getattr(self, "_edith_hud", None) is not None:
+            self._edith_hud.hide_hud()
 
         if want_hud:
             if self._hud_overlay is None:
@@ -2700,11 +2757,27 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self._append_conversation("EV", f"(I couldn't use the camera: {e}. Check that no other app is using it.)")
             return
+        self._show_preview(image)
         self.command_input.setText(
             "Read out any text, labels or writing you can see in this camera picture." if read_text else
             "Describe what you see: people, objects, what is happening, and anything notable. "
             "Do not identify anyone by face and do not make medical diagnoses.")
         self._ask_about_image(image, "camera picture")
+
+    def _show_preview(self, image: QImage) -> None:
+        """Friday: show the camera picture on the right, under the tools, with the name PREVIEW."""
+        try:
+            from PySide6.QtGui import QPixmap
+            light = user_prefs.get("theme") == "light"
+            # a little darker in the light theme so the picture stands out from the pale panel
+            bg, border = ("#B9C6D6", "#6F86A3") if light else ("#05080E", "#2B4A6B")
+            self._preview.setStyleSheet(f"QLabel {{ background: {bg}; border: 1px solid {border}; border-radius: 8px; padding: 4px; }}")
+            w = max(160, self._preview.width() - 12)
+            self._preview.setPixmap(QPixmap.fromImage(image).scaled(w, 232, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self._preview_title.setVisible(True)
+            self._preview.setVisible(True)
+        except Exception as e:
+            print(f"[EV AI] preview skipped: {e}")
 
     def _capture_screen_png(self) -> bytes | None:
         screen = QGuiApplication.primaryScreen()
@@ -2744,6 +2817,8 @@ class MainWindow(QMainWindow):
         self._last_screen_hash = screen_hash
 
         print("[EV AI] Observation: screen changed, asking the AI to take a look...")
+        if getattr(self, "_edith_hud", None) is not None:
+            self._edith_hud.note_glance()
         self._vision_worker = VisionWorker(self._brain, image_bytes, parent=self)
         self._vision_worker.comment_ready.connect(self._on_observation_comment)
         self._vision_worker.nothing_found.connect(self._on_observation_nothing)
@@ -2755,6 +2830,8 @@ class MainWindow(QMainWindow):
         if self._state != AIState.IDLE:
             return  # user started doing something else while this was in flight
         self._append_conversation("EV", f"👁 {comment}")
+        if getattr(self, "_edith_hud", None) is not None:
+            self._edith_hud.set_reply(comment)
         self._apply_state(AIState.SPEAKING)
         self._speak(comment)
 
