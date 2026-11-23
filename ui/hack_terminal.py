@@ -20,7 +20,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QObject, QPointF, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QStackedWidget, QTextEdit,
+from PySide6.QtWidgets import (QFileDialog, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QSizePolicy, QStackedWidget, QTextEdit,
                                QVBoxLayout, QWidget, QGridLayout, QHBoxLayout)
 
 from core import secstore, user_prefs
@@ -884,6 +884,13 @@ class HackRadarPanel(QWidget):
     def __init__(self, core: HackCore, parent=None):
         super().__init__(parent)
         self._core = core
+        # The right column is narrow. The global button style (wide padding, 2px letter spacing) made
+        # "LOCATION RADAR" and friends wider than the column, so everything was clipped on the right.
+        # Compact buttons that may shrink fix that; long labels wrap instead of stretching the panel.
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+        self.setStyleSheet("QPushButton { padding: 6px 4px; letter-spacing: 0px; font-size: 10px; "
+                           "border-radius: 8px; min-width: 0px; }")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         title = QLabel("ULTRON RADAR")
@@ -897,7 +904,8 @@ class HackRadarPanel(QWidget):
             b.setChecked(key == 0)
             b.clicked.connect(lambda _=False, k=key: self._tab(k))
             self._tab_btns[key] = b
-            tabs.addWidget(b)
+            self._shrinkable(b)
+            tabs.addWidget(b, 1)
         lay.addLayout(tabs)
         self.stack = QStackedWidget()
         lay.addWidget(self.stack, 1)
@@ -910,12 +918,16 @@ class HackRadarPanel(QWidget):
         pl.addWidget(self.radar, 3)
         legend = QLabel("\u25cf your devices   \u25c6 Wi-Fi around you (closer = stronger)\ngreen protected   amber weak   red open / unknown")
         legend.setStyleSheet(f"color: {DIM}; font-size: 10px;")
+        legend.setWordWrap(True)
+        legend.setMinimumWidth(0)
+        legend.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         pl.addWidget(legend)
         row = QHBoxLayout()
         for text, fn in (("RADAR SCAN", core.radar_scan), ("THREAT RADAR", core.threat_radar)):
             b = HoverButton(text)
             b.clicked.connect(fn)
-            row.addWidget(b)
+            self._shrinkable(b)
+            row.addWidget(b, 1)
         pl.addLayout(row)
         view = QHBoxLayout()
         self._view_btns = {}
@@ -925,7 +937,8 @@ class HackRadarPanel(QWidget):
             b.setChecked(key == "all")
             b.clicked.connect(lambda _=False, k=key: self._set_view(k))
             self._view_btns[key] = b
-            view.addWidget(b)
+            self._shrinkable(b)
+            view.addWidget(b, 1)
         pl.addLayout(view)
         self.alerts_lbl = QLabel("ALERTS: 0")
         pl.addWidget(self.alerts_lbl)
@@ -947,7 +960,8 @@ class HackRadarPanel(QWidget):
         self._range = 1000
         b = HoverButton("LOCATE ME")
         b.clicked.connect(lambda: core.location_scan(self._range))
-        rrow.addWidget(b)
+        self._shrinkable(b)
+        rrow.addWidget(b, 2)
         self._range_btns = {}
         for m in (500, 1000, 2000):
             rb = HoverButton(places.nice(m).replace(" ", ""))
@@ -955,7 +969,8 @@ class HackRadarPanel(QWidget):
             rb.setChecked(m == 1000)
             rb.clicked.connect(lambda _=False, v=m: self._set_range(v))
             self._range_btns[m] = rb
-            rrow.addWidget(rb)
+            self._shrinkable(rb)
+            rrow.addWidget(rb, 1)
         ql.addLayout(rrow)
         self.loc_list = self._list_box()
         ql.addWidget(self.loc_list, 2)
@@ -967,10 +982,19 @@ class HackRadarPanel(QWidget):
         core.alerts_changed.connect(lambda n: (self.alerts_lbl.setText(f"ALERTS: {n}"),
                                                self.alerts_lbl.setStyleSheet(f"color: {'#FF3B3B' if n else '#43D17A'};")))
 
+    @staticmethod
+    def _shrinkable(btn):
+        """Let a button share the row equally and shrink with the column instead of forcing it wider."""
+        btn.setMinimumWidth(0)
+        btn.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        btn.setToolTip(btn.text())
+
     def _list_box(self) -> QTextEdit:
         box = QTextEdit()
         box.setReadOnly(True)
         box.setMinimumHeight(70)
+        box.setMinimumWidth(0)
+        box.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
         box.setStyleSheet(f"background: #0B0102; color: #F0B0B0; border: 1px solid {DIM}; font-family: Consolas; font-size: 11px;")
         return box
 

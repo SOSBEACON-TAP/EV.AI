@@ -13,6 +13,7 @@ CHANGED
 - Context awareness, Lock now and Privacy shield are removed.
 
 FIXES
+- ULTRON RADAR: the tabs, buttons and legend were cut off on the right. The buttons are now compact and share the width, and the legend wraps.
 - EDITH's hold-Ctrl-and-point help now works (it needed mouse movement that buttons never report).
 - WhatsApp no longer asks you to "playwright install". EV AI opens WhatsApp (the desktop app, or WhatsApp Web in your browser) with the message already typed and presses Enter once the window is in front. It needs the person's phone number with country code the first time (the WHATSAPP form can remember it under a name).
 
