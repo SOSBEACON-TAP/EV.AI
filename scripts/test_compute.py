@@ -64,6 +64,17 @@ before = last_n(); cmd("ping", k=os.urandom(32)); assert last_n() == before
 host.ask_fn = lambda t: "Reply to " + t + " नमस्ते"
 r = cmd("ask", {"text": "what time is it"}); assert r["ok"] and r["kind"] == "ask" and r["msg"].startswith("Reply to what time") and "नमस्ते" in r["msg"]
 host.ask_fn = None; r = cmd("ask", {"text": "x"}); assert not r["ok"]
+# permission scopes: a turned-off scope is refused with the reason, "cancel the shut down" always works, and nothing is logged as done
+real_scopes = c.scopes
+c.scopes = lambda: {**real_scopes(), "power": False, "mode": False}
+r = cmd("power", {"what": "shutdown"}); assert not r["ok"] and "Turned off" in r["msg"]
+r = cmd("mode", {"key": "jarvis"}); assert not r["ok"] and "Turned off" in r["msg"]
+assert c.scopes()["input"] is True and set(c.SCOPES) == set(real_scopes())
+c.scopes = real_scopes
+assert any("refused" in t for _, t in host.activity) and any("asked EV" in t for _, t in host.activity)
+assert not any("hunter2" in t for _, t in host.activity)
+cmd("type", {"text": "hunter2"}); assert not any("hunter2" in t for _, t in host.activity)            # typed text is never written down
+assert c.describe("keys", {"keys": ["ctrl", "c"]}) == "pressed ctrl+c" and c.session_minutes() in c.SESSION_CHOICES
 cmd("bye"); assert not host.session_active
 r = cmd("lock"); assert not r["ok"]
 host.shutdown(); print("compute protocol OK")

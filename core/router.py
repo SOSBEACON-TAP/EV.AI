@@ -39,6 +39,7 @@ from tools import memory as memory_tools
 from tools import automation as automation_tools
 from tools import mailer as mailer_tools
 from tools import contacts as contact_tools
+from tools import phone_call as phone_call_tools
 from tools import briefing as briefing_tools
 from tools import tasks as task_tools
 from core import audit_log, habits, replay, thoughts, trust
@@ -782,20 +783,34 @@ class ToolRouter:
         ))
         self.register(Tool(
             name="save_contact",
-            description="Save a person's email address under a name so the user can say 'email <name>' later.",
+            description=("Save a person under a name with an email address and/or a phone number, so the user can say "
+                         "'email <name>', 'WhatsApp <name>' or 'call <name>' later. Phone numbers need the country code."),
             parameters={
                 "name": {"type": "string", "description": "The contact's name, e.g. Mom."},
-                "email": {"type": "string", "description": "Their email address."},
+                "email": {"type": "string", "description": "Their email address (optional if a phone number is given)."},
+                "phone": {"type": "string", "description": "Their phone number with country code, e.g. +91 98765 43210 (optional)."},
             },
-            required=["name", "email"],
+            required=["name"],
             func=contact_tools.save_contact,
         ))
         self.register(Tool(
             name="list_contacts",
-            description="List saved email contacts and recently emailed addresses.",
+            description="List the saved contacts (names with email and phone) and recently emailed addresses.",
             parameters={},
             required=[],
             func=contact_tools.list_contacts,
+        ))
+        self.register(Tool(
+            name="call_phone",
+            description=("Start a phone call to a saved contact or a phone number using the user's connected phone. "
+                         "The phone shows a call screen and the user taps the green button there; the computer never "
+                         "dials by itself. Send it right away with confirmed=true when the user asks to call someone."),
+            parameters={
+                "to": {"type": "string", "description": "A saved contact's name, or a phone number with country code."},
+                "confirmed": {"type": "boolean", "description": "Pass true when the user asked for the call."},
+            },
+            required=["to"],
+            func=phone_call_tools.call_phone,
         ))
         self.register(Tool(
             name="create_text_document",
@@ -858,7 +873,7 @@ class ToolRouter:
                 "turned confirmations on: relay the message and wait for their yes."
             ),
             parameters={
-                "contact": {"type": "string", "description": "Contact name exactly as it appears in the WhatsApp chat list."},
+                "contact": {"type": "string", "description": "A saved contact name, a name from the WhatsApp chat list, or a phone number with country code."},
                 "message": {"type": "string", "description": "The message to send."},
                 "confirmed": {"type": "boolean", "description": "Pass true when sending."},
             },

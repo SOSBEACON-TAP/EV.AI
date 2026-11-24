@@ -262,50 +262,80 @@ def _to_number(contact: str) -> str:
     for name, n in _load_numbers().items():
         if name.lower() == low:
             return n
-    return ""
+    try:                                              # SAVED CONTACTS (EV ACTIONS) keep a phone number per name too
+        from tools import contacts
+        return _digits(contacts.phone_for(contact))
+    except Exception:
+        return ""
 
 
 def _send_via_link(contact: str, message: str) -> dict:
-    """Open the chat with the message already typed (whatsapp:// for the desktop app, else WhatsApp Web), then press Enter
-    once the WhatsApp window is in front. If that cannot be confirmed, the message is left typed for you to send."""
+    """Open the chat with the message already typed, then press Enter once the window is in front.
+
+    With the WhatsApp desktop app installed, its own whatsapp:// link is used. Without it (no app, or one we cannot find)
+    EV goes straight to WhatsApp Web in the browser: handing Windows a whatsapp:// link with nothing to open it makes
+    Windows ask the person to download an app, which is the thing we must not do."""
     import os
     import time
     import urllib.parse
     num = _to_number(contact)
     if not num:
         return {"error": f"I need a phone number for '{contact}'. Type it with the country code, for example +91 98765 43210, "
-                         "and I will remember it under that name."}
+                         "or save the contact under SAVED CONTACTS, and I will remember it under that name."}
     text = urllib.parse.quote(message)
-    opened = False
+    use_app = False
     try:
-        os.startfile(f"whatsapp://send?phone={num}&text={text}")
-        opened = True
+        from core.winapps import whatsapp_desktop_installed
+        use_app = whatsapp_desktop_installed()
     except Exception:
-        pass
-    if not opened:
+        use_app = False
+    opened_app = False
+    if use_app:
+        try:
+            os.startfile(f"whatsapp://send?phone={num}&text={text}")
+            opened_app = True
+        except Exception:
+            opened_app = False
+    if not opened_app:
         try:
             import webbrowser
             webbrowser.open(f"https://web.whatsapp.com/send?phone={num}&text={text}")
         except Exception as e:
-            return {"error": f"Could not open WhatsApp: {e}"}
+            return {"error": f"Could not open WhatsApp Web: {e}"}
+    # Press Enter once a WhatsApp window is in front. WhatsApp Web needs longer to load the chat than the app does, and
+    # Enter on an empty message box does nothing, so a second try later is harmless. Never press it into another window.
+    waits = (2.0,) if opened_app else (9.0, 5.0)
     sent = False
     try:
         from core.focus_match import active_window
         import pyautogui
-        for _ in range(30):                          # up to ~15 s for the WhatsApp window to appear in front
-            time.sleep(0.5)
+
+        def whatsapp_in_front() -> bool:
             win = active_window()
-            if win and "whatsapp" in (win[1] or "").lower():
-                time.sleep(2.0)                      # let the typed message appear
-                pyautogui.press("enter")
-                sent = True
+            return bool(win and "whatsapp" in (win[1] or "").lower())
+
+        for _ in range(40):                          # up to ~20 s for the WhatsApp window to appear in front
+            time.sleep(0.5)
+            if whatsapp_in_front():
+                for pause in waits:
+                    time.sleep(pause)                # let the chat load and the typed message appear
+                    if not whatsapp_in_front():
+                        break
+                    pyautogui.press("enter")
+                    sent = True
                 break
     except Exception:
         pass
-    if sent:
-        return {"status": "sent", "contact": contact, "note": "Sent through WhatsApp's own window."}
-    return {"status": "opened", "contact": contact,
-            "note": "WhatsApp is open with your message typed. Press Enter to send it (I could not confirm the window was in front)."}
+    if opened_app:
+        if sent:
+            return {"status": "sent", "contact": contact, "note": "Sent through WhatsApp's own window."}
+        return {"status": "opened", "contact": contact,
+                "note": "WhatsApp is open with your message typed. Press Enter to send it (I could not confirm the window was in front)."}
+    note = ("WhatsApp is not installed on this PC, so I used WhatsApp Web in your browser. "
+            + ("I pressed Enter once the chat opened; if the message is still in the box, press Enter. "
+               if sent else "The message is typed in the chat. Press Enter to send it. ")
+            + "The first time, WhatsApp Web shows a QR code: on your phone open WhatsApp, Linked devices, Link a device, and scan it.")
+    return {"status": "opened", "contact": contact, "via": "WhatsApp Web", "note": note}
 
 
 def _close_blocking() -> dict:

@@ -95,3 +95,52 @@ $("copylink").onclick = async () => {
     $("copylink").textContent = "Clean link copied";
   } catch (e) { $("copylink").textContent = "Can't copy this page's link"; }
 };
+
+
+// Kill switch: while paused, EV AI cannot click, switch tabs or open pages in this browser.
+async function showPause() {
+  const on = !!(await chrome.storage.local.get("paused")).paused;
+  $("pause").textContent = on ? "EV control is PAUSED (click to resume)" : "Pause EV control of this browser";
+}
+$("pause").onclick = async () => {
+  const on = !!(await chrome.storage.local.get("paused")).paused;
+  await chrome.runtime.sendMessage({ type: "pause", on: !on });
+  showPause(); showActivity();
+};
+showPause();
+
+// Tab time machine: click a closed tab to open it again.
+function ago(ms) {
+  const m = Math.round((Date.now() - ms) / 60000);
+  return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago";
+}
+async function showClosed() {
+  const { closed = [] } = await chrome.storage.local.get("closed");
+  const box = $("closed");
+  box.textContent = "";
+  if (!closed.length) { box.textContent = "Nothing closed yet."; return; }
+  for (const t of closed.slice(0, 12)) {
+    const b = document.createElement("button");
+    b.className = "row";
+    b.textContent = t.title;
+    const s = document.createElement("small");
+    s.textContent = new URL(t.url).hostname + " - " + ago(t.at);
+    b.appendChild(s);
+    b.onclick = () => chrome.tabs.create({ url: t.url });
+    box.appendChild(b);
+  }
+}
+async function showActivity() {
+  const { activity = [] } = await chrome.storage.local.get("activity");
+  const box = $("activity");
+  box.textContent = "";
+  if (!activity.length) { box.textContent = "EV has not done anything in Chrome yet."; return; }
+  for (const a of activity.slice(0, 15)) {
+    const d = document.createElement("div");
+    d.className = "log";
+    d.textContent = ago(a.at) + ": " + a.action.replace(/_/g, " ") + (a.host ? " on " + a.host : "");
+    box.appendChild(d);
+  }
+}
+showClosed();
+showActivity();

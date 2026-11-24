@@ -108,6 +108,20 @@ def ring_phone(message: str, device_id: str | None = None, timeout: float = 6.0)
         return False, f"Couldn't reach the alert service: {e}"
 
 
+def call_via_phone(number: str, name: str = "") -> tuple[bool, str]:
+    """Ask the connected phone to start a call. The EV phone app shows a full-screen "EV wants to call ..." card;
+    the call is only placed when you tap the green call button there (the computer never dials by itself)."""
+    number = "".join(ch for ch in (number or "") if ch.isdigit() or ch == "+")[:20]
+    if not number:
+        return False, "There is no phone number to call."
+    if not connected_id():
+        return False, "No phone is connected. Connect it first: Settings, Connected device."
+    label = " ".join((name or "").replace("|", " ").split())[:40]
+    ok, msg = ring_phone(f"CALL:{number}|{label}")
+    return ok, (f"Your phone is showing the call screen for {label or number}. Tap the green button there to place the call."
+                if ok else msg)
+
+
 def shutdown_message(task: str) -> str:
     task = " ".join((task or "").split())[:90]
     if task:

@@ -3,6 +3,17 @@
 <style>
   body { width: 340px; margin: 0; padding: 14px; background: #0a0f14; color: #cfe8f5; font: 13px Segoe UI, sans-serif; }
   h1 { font-size: 15px; margin: 0 0 4px; letter-spacing: 2px; color: #4cc9f0; }
+  .head { display: flex; align-items: center; justify-content: space-between; }
+  .logo { width: 40px; height: 40px; animation: spin 14s linear infinite; }   /* the EV ring turns slowly */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button.danger { background: #4a1414; border-color: #ff5a5a; }
+  button.danger:hover { background: #6a1c1c; }
+  details { margin-top: 10px; color: #9fb7c6; }
+  summary { cursor: pointer; color: #4cc9f0; letter-spacing: 1px; font-size: 12px; }
+  .row { display: block; width: 100%; box-sizing: border-box; margin: 4px 0 0; padding: 6px 8px; border-radius: 6px; border: 1px solid #234;
+    background: #0f1a22; color: #cfe8f5; font-size: 12px; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row small { display: block; color: #7a93a3; }
+  .log { font-size: 12px; margin: 3px 0; color: #9fb7c6; }
   small { color: #7a93a3; }
   input, textarea, button { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; border-radius: 6px;
     border: 1px solid #234; background: #0f1a22; color: #cfe8f5; font: inherit; }
@@ -12,10 +23,12 @@
   #status { margin: 6px 0; }
   .ok { color: #43d17a; } .bad { color: #ff7b7b; }
 </style>
-<h1>EV AI</h1>
-<small>Talks only to EV AI on this computer.</small>
+<div class="head"><div><h1>EV AI</h1>
+<small>Talks only to EV AI on this computer.</small></div><img class="logo" src="icons/icon48.png" alt=""></div>
 <div id="status"></div>
 <div id="shorts" style="margin:4px 0 8px;color:#4cc9f0;"></div>
+<button id="pause" class="danger">Pause EV control of this browser</button>
+<small>Shortcut on any page: <b>Ctrl+Shift+Space</b> opens the EV command bar.</small>
 <button id="focus">Focus this page (hide distractions)</button>
 <button id="mute">Mute all noisy tabs</button>
 <button id="dupes">Close duplicate tabs</button>
@@ -31,4 +44,6 @@
   <button id="unpair" style="background:transparent;border-color:#345;">Unpair</button>
   <div id="answer"></div>
 </div>
+<details id="closedBox"><summary>RECENTLY CLOSED TABS</summary><div id="closed"></div></details>
+<details id="actBox"><summary>WHAT EV DID IN CHROME</summary><div id="activity"></div></details>
 <script src="popup.js"></script>

@@ -815,7 +815,8 @@ class MainWindow(QMainWindow):
 
         # Send things and stay safe: each of these opens a small form (or acts at once) instead of needing a sentence
         extra = [("💬 WHATSAPP", lambda: self._open_compose("whatsapp")), ("✉ EMAIL", lambda: self._open_compose("email")),
-                 ("📱 MESSAGE PHONE", lambda: self._open_compose("phone")), ("🗂 SPACES", self._open_spaces),
+                 ("📱 MESSAGE PHONE", lambda: self._open_compose("phone")), ("📞 CALL PHONE", self._open_call),
+                 ("👥 SAVED CONTACTS", self._open_contacts), ("🗂 SPACES", self._open_spaces),
                  ("🧠 EV BRAIN", self._open_brain)]
         for i, (label, fn) in enumerate(extra):
             b = HoverButton(label)
@@ -1143,7 +1144,40 @@ class MainWindow(QMainWindow):
         dlg.message.connect(lambda t: self._append_conversation("EV", t))
         dlg.exec()
 
-    def _open_compose(self, kind: str) -> None:
+    def _open_contacts(self) -> None:
+        """SAVED CONTACTS: the address book (name, phone, email). CALL / WHATSAPP / EMAIL there act on the chosen person."""
+        from ui.contacts_dialog import ContactsDialog
+        dlg = ContactsDialog(self)
+        dlg.action.connect(lambda kind, name: (self._call_contact(name) if kind == "call" else self._open_compose(kind, name)))
+        dlg.exec()
+
+    def _open_call(self) -> None:
+        """CALL PHONE: pick a saved contact or type a number; the connected phone shows a call card to tap."""
+        from core import devices
+        if not devices.connected_id():
+            self._append_conversation("EV", "(No phone is connected yet. Pair it in Settings -> Connected device. "
+                                             "CALL PHONE places the call from your phone.)")
+            return
+        from ui.contacts_dialog import CallDialog
+        dlg = CallDialog(self)
+        if dlg.exec() == CallDialog.Accepted:
+            self._call_contact(dlg.target())
+
+    def _call_contact(self, who: str) -> None:
+        import threading
+
+        def work():
+            try:
+                from tools import phone_call
+                r = phone_call.call_phone(who, confirmed=True)
+                text = r.get("note") or r.get("error") or "Done."
+            except Exception as e:
+                text = f"I couldn't start the call: {e}"
+            self.bridge_reply.emit(text)
+        self._append_conversation("EV", f"Asking your phone to call {who}…")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _open_compose(self, kind: str, to: str = "") -> None:
         """WHATSAPP / EMAIL / MESSAGE PHONE buttons: ask who and what, then send in the background."""
         from ui.compose_dialog import ComposeDialog
         if kind == "phone":
@@ -1151,7 +1185,7 @@ class MainWindow(QMainWindow):
             if not devices.connected_id():
                 self._append_conversation("EV", "(No phone is connected yet. Pair it in Settings -> Connected device.)")
                 return
-        dlg = ComposeDialog(kind, self)
+        dlg = ComposeDialog(kind, self, to=to)
         if dlg.exec() != ComposeDialog.Accepted:
             return
         v = dlg.values()

@@ -13,7 +13,8 @@ import threading
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QListWidget, QMessageBox, QPushButton,
+                               QVBoxLayout, QWidget)
 
 from core import compute, devices
 
@@ -102,7 +103,7 @@ class ComputeController(QObject):
     def _on_state(self, kind: str, text: str) -> None:
         if kind == "session":
             self._banner.show_for(text)
-            QTimer.singleShot(compute.SESSION_MINUTES * 60 * 1000, self._expire)
+            QTimer.singleShot(compute.session_minutes() * 60 * 1000, self._expire)
         elif kind == "ended":
             self._banner.hide()
         if self.pin_listener:
@@ -134,7 +135,7 @@ class ComputeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Phone control (Compute)")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(460)
         self._c = controller()
         lay = QVBoxLayout(self)
         intro = QLabel("Let your phone or tablet control this computer. Both devices must agree: you pair once "
@@ -154,9 +155,42 @@ class ComputeDialog(QDialog):
         self._pair_btn.clicked.connect(self._pair)
         self._unpair_btn = QPushButton("Unpair")
         self._unpair_btn.clicked.connect(self._unpair)
+        self._end_btn = QPushButton("END SESSION NOW")
+        self._end_btn.clicked.connect(self._end_now)
         row.addWidget(self._pair_btn)
         row.addWidget(self._unpair_btn)
+        row.addWidget(self._end_btn)
         lay.addLayout(row)
+
+        # what the phone may do (turn any of these off and the phone is told "turned off on the computer")
+        lay.addWidget(QLabel("WHAT THE PHONE MAY DO"))
+        allowed = compute.scopes()
+        self._scope_boxes = {}
+        for key, label in compute.SCOPES.items():
+            cb = QCheckBox(label)
+            cb.setChecked(allowed[key])
+            cb.toggled.connect(lambda on, k=key: compute.set_scope(k, on))
+            self._scope_boxes[key] = cb
+            lay.addWidget(cb)
+        mins = QHBoxLayout()
+        mins.addWidget(QLabel("One session lasts"))
+        self._minutes = QComboBox()
+        for m in compute.SESSION_CHOICES:
+            self._minutes.addItem(f"{m} minutes", m)
+        self._minutes.setCurrentIndex(max(0, self._minutes.findData(compute.session_minutes())))
+        self._minutes.currentIndexChanged.connect(self._set_minutes)
+        mins.addWidget(self._minutes)
+        mins.addStretch(1)
+        lay.addLayout(mins)
+
+        lay.addWidget(QLabel("WHAT THE PHONE DID (typed text is never written down)"))
+        self._log = QListWidget()
+        self._log.setMinimumHeight(110)
+        for t, what in self._c.host.activity[-40:]:
+            self._log.addItem(f"{t}  {what}")
+        self._log.scrollToBottom()
+        lay.addWidget(self._log)
+
         self._c.pin_listener = self._on_state
         self._c.host.ensure()
         self._refresh()
@@ -174,6 +208,7 @@ class ComputeDialog(QDialog):
             self._status.setText(f"Paired with {name}." if paired else "Not paired yet.")
         self._pair_btn.setEnabled(bool(devices.connected_id()))
         self._unpair_btn.setEnabled(paired)
+        self._end_btn.setEnabled(self._c.host.session_active)
 
     def _pair(self) -> None:
         try:
@@ -190,8 +225,23 @@ class ComputeDialog(QDialog):
         self._pin.clear()
         self._refresh()
 
+    def _set_minutes(self, _=0) -> None:
+        from core import user_prefs
+        v = self._minutes.currentData()
+        if v:
+            user_prefs.set_value("compute_minutes", int(v))
+
+    def _end_now(self) -> None:
+        self._c._stop()
+        self._refresh()
+
     def _on_state(self, kind: str, text: str) -> None:
         if kind == "paired":
             self._pin.clear()
             self._status.setText(f"Paired with {text}.")
+            self._refresh()
+        elif kind == "activity":
+            self._log.addItem(text)
+            self._log.scrollToBottom()
+        elif kind in ("session", "ended"):
             self._refresh()

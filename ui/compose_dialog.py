@@ -21,7 +21,7 @@ _KINDS = {
 
 
 class ComposeDialog(QDialog):
-    def __init__(self, kind: str, parent=None):
+    def __init__(self, kind: str, parent=None, to: str = ""):
         super().__init__(parent)
         self.kind = kind
         title, to_label, save_label, has_subject = _KINDS[kind]
@@ -32,7 +32,7 @@ class ComposeDialog(QDialog):
         head = QLabel(title.upper())
         head.setObjectName("SectionTitle")
         lay.addWidget(head)
-        self.to = QLineEdit()
+        self.to = QLineEdit(to)
         self.save_as = QLineEdit()
         self.subject = QLineEdit()
         if to_label:

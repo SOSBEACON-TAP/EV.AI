@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EV AI for Chrome",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Ask EV AI about the page you are on and control Chrome with your voice. Talks only to EV AI on this computer.",
   "permissions": [
     "activeTab",
@@ -17,6 +17,15 @@
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-bar": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Open the EV command bar on this page"
+    }
   },
   "action": {
     "default_title": "EV AI",

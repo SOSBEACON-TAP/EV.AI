@@ -222,3 +222,9 @@ changes are made, going forward.
 - 1.0.40: core/user_prefs.py DEFAULTS gains context_aware (its absence raised KeyError in MainWindow.__init__); scripts/check_prefs_keys.py checks every user_prefs key used in the code exists.
 - 1.0.41: tools/whatsapp.py always uses WhatsApp's own link in the packaged app (Playwright was bundled but had no browser), and falls back to it if Playwright cannot start its browser.
 - 1.0.41: new ui/edith_hud.py, ui/ecg_widget.py, ui/spaces_dialog.py; hover_info polls Ctrl; Friday PREVIEW; Jarvis reactor (animations._draw_jarvis_reactor); wheel ring spins only when charging; removed core/context.py, core/privacy_shield.py and their buttons/tools.
+
+## 1.0.42
+- 1.0.42: core/winapps.py (is the WhatsApp app installed? registry, Store package, alias, PowerShell); tools/whatsapp.py _send_via_link opens WhatsApp Web when the app is missing (Windows showed a "get an app" prompt for whatsapp:// links) and looks numbers up in saved contacts.
+- 1.0.42: tools/contacts.py now stores name -> {email, phone} (old name -> email files still load); tools/phone_call.py call_phone and core/devices.py call_via_phone send "CALL:number|name" to the phone; router tools call_phone, save_contact (phone), list_contacts; ui/contacts_dialog.py (SAVED CONTACTS, CALL PHONE) and the two EV ACTIONS buttons; scripts/test_contacts.py.
+- 1.0.42: core/compute.py SCOPES (what the phone may do), session_minutes, activity list, describe(); ui/compute_ui.py shows them; user_prefs compute_scopes and compute_minutes.
+- 1.0.42: chrome_extension 1.8.0: bar.js (command bar, Ctrl+Shift+Space), kill switch, activity and recently-closed-tab lists, spinning logo in the popup.

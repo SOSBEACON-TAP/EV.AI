@@ -44,9 +44,79 @@ from pathlib import Path
 from typing import Callable
 
 PAIR_MINUTES = 5
-SESSION_MINUTES = 30
+SESSION_MINUTES = 30                       # the default; Settings of the Compute window can choose 10, 30, 60 or 120
+SESSION_CHOICES = (10, 30, 60, 120)
 MAX_SKEW_SECONDS = 60
 SERVER = "https://ntfy.sh"
+
+# What the phone may do. Each one can be switched off on the computer (the phone is told, and nothing happens).
+SCOPES = {
+    "input": "Use the mouse, keyboard and volume",
+    "screen": "See the screen (screenshots)",
+    "ask": "Ask EV questions and commands",
+    "open": "Open apps and web links",
+    "lock": "Lock and put the computer to sleep",
+    "power": "Shut down and restart",
+    "mode": "Switch EV's modes",
+}
+_SCOPE_OF = {"move": "input", "click": "input", "scroll": "input", "type": "input", "key": "input", "keys": "input",
+             "move_rel": "input", "mouse": "input", "volume_up": "input", "volume_down": "input", "mute": "input",
+             "screenshot": "screen", "ask": "ask", "url": "open", "open_app": "open", "lock": "lock", "sleep": "lock",
+             "power": "power", "mode": "mode"}
+_QUIET = {"move", "move_rel", "scroll", "mouse", "click", "status"}      # pointer movement is logged once in a while, not every touch
+
+
+def scopes() -> dict:
+    """{scope: allowed}. Everything is allowed until the person turns something off."""
+    stored = {}
+    try:
+        from core import user_prefs
+        stored = user_prefs.get("compute_scopes") or {}
+    except Exception:
+        pass
+    return {k: bool(stored.get(k, True)) for k in SCOPES}
+
+
+def set_scope(name: str, allowed: bool) -> None:
+    if name not in SCOPES:
+        return
+    from core import user_prefs
+    cur = dict(user_prefs.get("compute_scopes") or {})
+    cur[name] = bool(allowed)
+    user_prefs.set_value("compute_scopes", cur)
+
+
+def session_minutes() -> int:
+    try:
+        from core import user_prefs
+        v = int(user_prefs.get("compute_minutes"))
+        return v if v in SESSION_CHOICES else SESSION_MINUTES
+    except Exception:
+        return SESSION_MINUTES
+
+
+def describe(cmd: str, a: dict) -> str:
+    """One plain line about what the phone just did, for the activity list (typed text is never written down)."""
+    if cmd == "type":
+        return f"typed {len(str(a.get('text', '')))} characters"
+    if cmd == "key":
+        return f"pressed {a.get('name', 'a key')}"
+    if cmd == "keys":
+        return "pressed " + "+".join(str(k) for k in (a.get("keys") or [])[:4])
+    if cmd == "url":
+        return f"opened {str(a.get('url', ''))[:60]}"
+    if cmd == "open_app":
+        return f"opened the app {str(a.get('name', ''))[:40]}"
+    if cmd == "ask":
+        return f"asked EV: {str(a.get('text', ''))[:60]}"
+    if cmd == "mode":
+        return f"switched EV to {a.get('key', '?')}"
+    if cmd == "power":
+        return {"shutdown": "started a shut down", "restart": "started a restart", "cancel": "cancelled the shut down"}.get(a.get("what"), "used power")
+    return {"screenshot": "looked at the screen", "lock": "locked the computer", "sleep": "put the computer to sleep",
+            "volume_up": "turned the volume up", "volume_down": "turned the volume down", "mute": "muted the sound",
+            "click": "clicked", "move": "moved the pointer", "move_rel": "used the touchpad", "scroll": "scrolled",
+            "mouse": "held a mouse button", "status": "checked the status"}.get(cmd, cmd)
 
 
 # ----------------------------------------------------------------- crypto
@@ -238,6 +308,8 @@ class ComputeHost:
         self._thread: threading.Thread | None = None
         self._last_activity = 0.0        # last real command from the phone (pings do not count)
         self._asking = False             # a "allow this session?" box is already open
+        self.activity: list[tuple[str, str]] = []     # (time, what the phone did) this run, newest last
+        self._last_quiet = 0.0
 
     # -- state ----------------------------------------------------------
     @property
@@ -395,11 +467,12 @@ class ComputeHost:
             finally:
                 self._asking = False
             if allowed:
-                self._session_until = time.time() + SESSION_MINUTES * 60
+                self._session_until = time.time() + session_minutes() * 60
                 self._last_activity = time.time()
                 self._phone_name = name
                 self.on_state("session", name)
-                return {"ok": True, "msg": "Session started.", "minutes": SESSION_MINUTES}
+                self._log("session started")
+                return {"ok": True, "msg": "Session started.", "minutes": session_minutes()}
             return {"ok": False, "msg": "The computer said no."}
         if cmd == "bye":
             self.end_session("The phone ended the session.")
@@ -409,7 +482,25 @@ class ComputeHost:
         self._last_activity = time.time()
         return self._run(cmd, a)
 
+    def _log(self, text: str) -> None:
+        line = (time.strftime("%H:%M:%S"), text)
+        self.activity = (self.activity + [line])[-60:]
+        try:
+            self.on_state("activity", f"{line[0]}  {text}")
+        except Exception:
+            pass
+
     def _run(self, cmd: str, a: dict) -> dict:
+        scope = _SCOPE_OF.get(cmd)
+        if scope and not scopes().get(scope, True) and not (cmd == "power" and a.get("what") == "cancel"):
+            self._log(f"refused: {cmd} (turned off on the computer)")
+            return {"ok": False, "msg": f"Turned off on the computer: \"{SCOPES[scope]}\". Turn it on in EV AI, COMPUTER."}
+        if cmd in _QUIET:                       # pointer movement: one line every 20 seconds is enough
+            if time.time() - self._last_quiet > 20:
+                self._last_quiet = time.time()
+                self._log(describe(cmd, a))
+        elif cmd in _SCOPE_OF:
+            self._log(describe(cmd, a))
         ok = lambda m="Done.": {"ok": True, "msg": m}  # noqa: E731
         if cmd == "status":
             return ok(_status())

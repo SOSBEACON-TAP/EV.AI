@@ -135,10 +135,67 @@ async function countVideo() {   // regular YouTube videos watched today (kept in
   await chrome.storage.local.set({ videos });
 }
 
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg) return;
   if (msg.type === "short") countShort(msg.site);
   else if (msg.type === "video") countVideo();
+  else if (msg.type === "state") { isPaused().then((paused) => sendResponse({ paused })); return true; }
+  else if (msg.type === "pause") { setPaused(!!msg.on).then(() => sendResponse({ paused: !!msg.on })); return true; }
+  else if (msg.type === "ask") { askEV(msg.question, msg.page).then(sendResponse); return true; }
+});
+
+// ---- command bar: the question goes to EV AI on this PC and the answer comes back (only when you press Enter)
+async function askEV(question, page) {
+  const t = await token();
+  if (!t) return { error: "EV AI is not paired with Chrome yet. Click the EV icon in the toolbar and pair it." };
+  try {
+    const r = await fetch(BASE + "/ask", { method: "POST", headers: { "Content-Type": "application/json", "X-EV-Token": t },
+      body: JSON.stringify({ question: String(question || "").slice(0, 1000), page: page || {} }), signal: AbortSignal.timeout(120000) });
+    if (r.status === 401) { await chrome.storage.local.remove("token"); return { error: "Pairing expired. Pair EV AI again from the toolbar icon." }; }
+    return { answer: (await r.json()).answer };
+  } catch (e) { return { error: "Couldn't reach EV AI. Is it running?" }; }
+}
+
+chrome.commands.onCommand.addListener(async (name) => {
+  if (name !== "toggle-bar") return;
+  const tab = await activeTab();
+  if (!tab || !/^https?:/.test(tab.url || "")) return;          // Chrome does not allow pages like chrome:// or the web store
+  try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["bar.js"] }); } catch (e) { /* page not allowed */ }
+});
+
+// ---- instant kill switch: while paused, EV AI cannot control the browser (it still answers questions)
+async function isPaused() { return !!(await chrome.storage.local.get("paused")).paused; }
+async function setPaused(on) {
+  await chrome.storage.local.set({ paused: on });
+  chrome.action.setBadgeText({ text: on ? "II" : "" });
+  chrome.action.setBadgeBackgroundColor({ color: "#ff3b3b" });
+  await logActivity(on ? "PAUSED: EV control switched off" : "RESUMED: EV control switched on", "");
+}
+isPaused().then((on) => { if (on) { chrome.action.setBadgeText({ text: "II" }); chrome.action.setBadgeBackgroundColor({ color: "#ff3b3b" }); } });
+
+// ---- what EV did in the browser (action and site only; never page text), newest first, last 40
+async function activeHost() {
+  try { const t = await activeTab(); return t && t.url ? new URL(t.url).hostname : ""; } catch (e) { return ""; }
+}
+async function logActivity(action, host) {
+  const { activity = [] } = await chrome.storage.local.get("activity");
+  activity.unshift({ at: Date.now(), action, host });
+  await chrome.storage.local.set({ activity: activity.slice(0, 40) });
+}
+
+// ---- tab time machine: tabs you closed lately, so one click brings them back (title and address only)
+const live = new Map();
+async function snapshotTabs() { for (const t of await chrome.tabs.query({})) if (t.url) live.set(t.id, { title: t.title || t.url, url: t.url }); }
+snapshotTabs();
+chrome.tabs.onCreated.addListener((t) => { if (t.url) live.set(t.id, { title: t.title || t.url, url: t.url }); });
+chrome.tabs.onUpdated.addListener((id, change, t) => { if (t.url && (change.url || change.title || change.status === "complete")) live.set(id, { title: t.title || t.url, url: t.url }); });
+chrome.tabs.onRemoved.addListener(async (id) => {
+  const t = live.get(id);
+  live.delete(id);
+  if (!t || !/^https?:/.test(t.url)) return;
+  const { closed = [] } = await chrome.storage.local.get("closed");
+  const next = [{ ...t, at: Date.now() }, ...closed.filter((x) => x.url !== t.url)].slice(0, 30);
+  await chrome.storage.local.set({ closed: next });
 });
 
 async function syncRules() {   // Karen mode: block the websites EV AI lists (rules stay even if EV AI is closed)
@@ -188,7 +245,10 @@ async function loop() {
         syncRules();
         const { command } = await r.json();
         if (command && command.action === "reload_extension") { chrome.runtime.reload(); break; }
-        if (command) { try { await run(command); } catch (e) { console.warn("EV command failed", e); } }
+        if (command) {
+          if (await isPaused()) { await logActivity("ignored (paused): " + command.action, ""); }   // the kill switch is on
+          else { try { await run(command); await logActivity(command.action, await activeHost()); } catch (e) { console.warn("EV command failed", e); } }
+        }
       } catch (e) {
         wakeEV();
         await new Promise((ok) => setTimeout(ok, 5000));   // EV AI isn't running: try again soon
