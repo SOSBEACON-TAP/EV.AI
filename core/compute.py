@@ -66,15 +66,22 @@ _SCOPE_OF = {"move": "input", "click": "input", "scroll": "input", "type": "inpu
 _QUIET = {"move", "move_rel", "scroll", "mouse", "click", "status"}      # pointer movement is logged once in a while, not every touch
 
 
+_scope_cache: list = [0.0, {}]            # [when it was read, the answer]; the touchpad sends many commands per second
+
+
 def scopes() -> dict:
     """{scope: allowed}. Everything is allowed until the person turns something off."""
+    if _scope_cache[1] and time.monotonic() - _scope_cache[0] < 1.0:
+        return dict(_scope_cache[1])
     stored = {}
     try:
         from core import user_prefs
         stored = user_prefs.get("compute_scopes") or {}
     except Exception:
         pass
-    return {k: bool(stored.get(k, True)) for k in SCOPES}
+    value = {k: bool(stored.get(k, True)) for k in SCOPES}
+    _scope_cache[0], _scope_cache[1] = time.monotonic(), value
+    return dict(value)
 
 
 def set_scope(name: str, allowed: bool) -> None:
@@ -84,6 +91,7 @@ def set_scope(name: str, allowed: bool) -> None:
     cur = dict(user_prefs.get("compute_scopes") or {})
     cur[name] = bool(allowed)
     user_prefs.set_value("compute_scopes", cur)
+    _scope_cache[0] = 0.0                  # the next command reads the new setting
 
 
 def session_minutes() -> int:
