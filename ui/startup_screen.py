@@ -349,7 +349,11 @@ class StartupScreen(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        # No Qt.Tool here: a Tool window has no taskbar button, so once minimized it could not be brought back.
+        # With a taskbar button the person can minimize the check (it keeps running) and restore it from the taskbar.
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowMinimizeButtonHint)
+        self.setWindowTitle("EV AI - security check")
+        self.setAttribute(Qt.WA_QuitOnClose, False)      # closing this splash must never end the app (the main window follows)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self._show_face_scan = settings.FACE_AUTH_ENABLED
@@ -475,6 +479,22 @@ class StartupScreen(QWidget):
         self._close_btn.move(width - 26 - 12, 12)
         self._close_btn.clicked.connect(self._cancel_startup)
         self._close_btn.raise_()
+
+        # Minimize button next to the close button. The security screen sits on top of everything, so it must be
+        # possible to get it out of the way without closing it: the face check keeps running in the background and the
+        # screen comes back by itself if it needs you (wrong face -> password box) or from the taskbar button.
+        self._min_btn = QPushButton("—", self)
+        self._min_btn.setFixedSize(26, 26)
+        self._min_btn.setToolTip("Minimize (the check keeps running)")
+        self._min_btn.setCursor(Qt.PointingHandCursor)
+        self._min_btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,18); color: #e8f1ff; "
+            "border: none; border-radius: 13px; font-size: 12px; }"
+            "QPushButton:hover { background: rgba(127,224,255,120); }"
+        )
+        self._min_btn.move(width - 26 - 12 - 26 - 8, 12)
+        self._min_btn.clicked.connect(self.showMinimized)
+        self._min_btn.raise_()
         self.setFocusPolicy(Qt.StrongFocus)
 
     def keyPressEvent(self, event) -> None:
@@ -576,7 +596,15 @@ class StartupScreen(QWidget):
         if self._on_ok_callback:
             self._on_ok_callback()
 
+    def _bring_back(self) -> None:
+        """If the person minimized the screen and it now needs them (password box, access denied), show it again."""
+        if self.isMinimized():
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+
     def _on_denied(self, reason: str) -> None:
+        self._bring_back()
         self._status_locked = True
         self._deny_reason = reason
         self._set_bar_color("#ff4d4d")
