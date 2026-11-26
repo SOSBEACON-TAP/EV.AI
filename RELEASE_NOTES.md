@@ -7,6 +7,7 @@ NEW  (EV ACTIONS)
 CHANGED
 - WhatsApp: if the WhatsApp app is not installed, EV now opens WhatsApp Web in your browser instead of Windows asking you to download an app. The first time, WhatsApp Web shows a QR code to scan with your phone (Linked devices).
 - COMPUTER (phone control): switches for what the phone may do (mouse and keyboard, see the screen, ask EV, open apps and links, lock and sleep, shut down, switch modes), a choice of how long one session lasts (10, 30, 60 or 120 minutes), an END SESSION NOW button, and a list of what the phone did. Typed text is never written down.
+- The security (face check) screen has a minimize button next to the close button. It keeps checking in the background, has a taskbar button to bring it back, and comes back by itself if it needs your password.
 - Chrome extension 1.8.0 (it reloads itself): press Ctrl+Shift+Space on any page for the EV command bar (ask about the page or the text you selected), a pause button that stops EV controlling the browser at once, a list of what EV did in Chrome, a list of recently closed tabs you can reopen, and the EV ring in the popup now turns.
 
 EV AI 1.0.41
